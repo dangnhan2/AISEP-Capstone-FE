@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+AI-powered Startup Ecosystem Platform (Frontend)
 
 ## Getting Started
 
-First, run the development server:
+1. Giới thiệu
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+AI-powered Startup Ecosystem Platform (AISEP) là nền tảng web hỗ trợ kết nối Startup – Investor – Advisor, ứng dụng AI để đánh giá tiềm năng startup và Blockchain để xác thực tài liệu sở hữu trí tuệ.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+📌 Repository này chỉ chứa Frontend, được xây dựng bằng Next.js.
+Backend, AI Service và Blockchain Service được triển khai riêng biệt bằng ngôn ngữ khác.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Công nghệ sử dụng
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Framework: Next.js (App Router)
 
-## Learn More
+Ngôn ngữ: TypeScript
 
-To learn more about Next.js, take a look at the following resources:
+UI: Tailwind CSS
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+State Management: Context 
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+HTTP Client: Axios
 
-## Deploy on Vercel
+Auth & RBAC: Frontend-based Role Guard
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Architecture: Feature-based + Role-based Routing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3. Các vai trò người dùng (Roles)
+
+STARTUP
+
+INVESTOR
+
+ADVISOR
+
+OPERATION STAFF
+
+ADMIN
+
+Mỗi role có dashboard và quyền truy cập riêng.
+
+4. Phân quyền & bảo mật (RBAC)
+
+Kiểm tra role bằng middleware
+
+Ẩn / hiện UI theo permission
+
+Redirect khi truy cập sai role
+
+Ví dụ:
+
+/startup/* → chỉ role STARTUP
+
+/admin/* → chỉ role ADMIN
+
+5. Phạm vi của Frontend
+
+✔ Giao diện người dùng
+✔ Gọi API backend
+✔ Quản lý state & routing
+✔ Hiển thị báo cáo AI
+✔ Hiển thị trạng thái xác thực blockchain
+
+❌ Không xử lý:
+
+AI model
+
+Smart contract
+
+Business rule backend
+
+Database
+
+6. Tác giả & học phần
+
+Project: AI-powered Startup Ecosystem Platform 
+
+Topic: AI-powered Startup Ecosystem Platform
+
+Semester: Spring 2026
