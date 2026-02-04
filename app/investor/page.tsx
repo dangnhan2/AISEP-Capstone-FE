@@ -2,149 +2,171 @@
 
 import { InvestorShell } from "@/components/investor/investor-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { TrendingUp } from "lucide-react";
-
-type StatCard = {
-  label: string;
-  value: string;
-};
-
-type SuggestedStartup = {
-  name: string;
-  sector: string;
-  stage: string;
-  score: number;
-};
+import { Button } from "@/components/ui/button";
+import { 
+  TrendingUp, 
+  DollarSign, 
+  Briefcase, 
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  AlertTriangle
+} from "lucide-react";
+import Link from "next/link";
 
 type ActivityItem = {
+  id: string;
   text: string;
   time: string;
+  type: 'info' | 'success' | 'warning';
+  icon: any;
 };
 
-const statCards: StatCard[] = [
-  { label: "Startup theo dõi", value: "24" },
-  { label: "Đề nghị đã gửi", value: "8" },
-  { label: "Đang đàm phán", value: "3" },
-  { label: "Đã đầu tư", value: "5" },
-];
-
-const suggestedStartups: SuggestedStartup[] = [
-  { name: "AI Vision Tech", sector: "Computer Vision", stage: "Seed", score: 88 },
-  { name: "FinNext Solutions", sector: "Fintech", stage: "Series A", score: 85 },
-  { name: "HealthAI Pro", sector: "Healthcare", stage: "Seed", score: 82 },
-];
-
-const activities: ActivityItem[] = [
+const recentActivities: ActivityItem[] = [
   {
-    text: "Startup 'Tech ABC' đã cập nhật pitch deck",
-    time: "1 giờ trước",
+    id: '1',
+    text: 'Đã gửi đề nghị đầu tư cho Tech ABC',
+    time: '2 giờ trước',
+    type: 'info',
+    icon: Clock,
+  },
+  {
+    id: '2',
+    text: 'Thêm HealthAI Pro vào watchlist',
+    time: '5 giờ trước',
+    type: 'info',
+    icon: Clock,
+  },
+  {
+    id: '3',
+    text: 'Đã nhận báo cáo Q1 từ FinNext',
+    time: '1 ngày trước',
+    type: 'success',
+    icon: CheckCircle,
+  },
+  {
+    id: '4',
+    text: 'Hoàn tất đầu tư vào DataFlow',
+    time: '3 ngày trước',
+    type: 'warning',
+    icon: AlertTriangle,
   },
 ];
 
-export default function InvestorOverviewPage() {
+export default function InvestorDashboardPage() {
   return (
     <InvestorShell>
       <div className="space-y-6">
+        {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold">Tổng quan</h1>
-          <p className="text-slate-600 mt-1">
-            Theo dõi hoạt động đầu tư của bạn
-          </p>
+          <h1 className="text-3xl font-bold">Tổng quan</h1>
+          <p className="text-slate-600 mt-1">Dashboard đầu tư của bạn</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {statCards.map((card) => (
-            <Card key={card.label} className="border-slate-200">
-              <CardContent className="p-5">
-                <p className="text-sm text-slate-600">{card.label}</p>
-                <p className="text-3xl font-semibold mt-1">{card.value}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          <Card className="border-slate-200 xl:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle className="text-lg">Startup được AI gợi ý</CardTitle>
-                <p className="text-sm text-slate-500 mt-1">
-                  Dựa trên lịch sử đầu tư và sở thích của bạn
-                </p>
-              </div>
-              <button className="text-sm font-medium text-emerald-600 hover:text-emerald-700">
-                Xem tất cả
-              </button>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {suggestedStartups.map((startup) => (
-                <div
-                  key={startup.name}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {startup.name}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {startup.sector}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="secondary"
-                      className="bg-indigo-50 text-indigo-700 font-semibold"
-                    >
-                      {startup.score}
-                    </Badge>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="text-xs border-slate-200 text-slate-700 bg-white"
-                  >
-                    {startup.stage}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Hoạt động gần đây</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activities.map((activity, index) => (
-                <div key={activity.text} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
-                    <p className="text-sm text-slate-900">{activity.text}</p>
-                  </div>
-                  <p className="text-xs text-slate-500">{activity.time}</p>
-                  {index < activities.length - 1 && (
-                    <Separator className="my-2" />
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-dashed border-slate-200 bg-white/60">
-          <CardContent className="py-5 flex items-center gap-4 text-sm text-slate-600">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
+        {/* KYC Warning Banner */}
+        <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-xl p-6 flex items-center justify-between text-white">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/20 rounded-full p-3">
+              <AlertCircle className="w-6 h-6" />
             </div>
-            <div className="space-y-1">
-              <p className="font-medium text-slate-900">
-                Tối ưu hoá danh mục đầu tư với AI
+            <div>
+              <h3 className="font-semibold text-lg">Tài khoản chưa xác thực</h3>
+              <p className="text-white/90 text-sm mt-0.5">
+                Để đầu tư vào các startup, bạn cần xác thực tài khoản và hoàn tất hồ sơ investor của mình.
               </p>
-              <p>
-                Nhận gợi ý phân bổ vốn và xu hướng ngành dựa trên dữ liệu thị
-                trường thời gian thực.
-              </p>
+            </div>
+          </div>
+          <Link href="/investor/settings">
+            <Button className="bg-white text-orange-600 hover:bg-white/90 font-semibold px-6">
+              Xác thực ngay
+            </Button>
+          </Link>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Total Investment Card */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-slate-600 font-medium">Tổng đầu tư</h3>
+                <div className="bg-blue-100 rounded-lg p-2">
+                  <DollarSign className="w-5 h-5 text-blue-600" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-3xl font-bold">$250,000</div>
+                <div className="text-sm text-green-600 font-medium">
+                  +12% so với tháng trước
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Portfolio Card */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-slate-600 font-medium">Portfolio</h3>
+                <div className="bg-purple-100 rounded-lg p-2">
+                  <Briefcase className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-3xl font-bold">8 startups</div>
+                <div className="text-sm text-slate-600">
+                  Đang theo dõi 12 startup khác
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ROI Card */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-slate-600 font-medium">ROI trung bình</h3>
+                <div className="bg-green-100 rounded-lg p-2">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-3xl font-bold">18.5%</div>
+                <div className="text-sm text-green-600 font-medium">
+                  Vượt mục tiêu 15%
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Hoạt động gần đây</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentActivities.map((activity) => {
+                const IconComponent = activity.icon;
+                const iconColors = {
+                  info: 'bg-blue-100 text-blue-600',
+                  success: 'bg-green-100 text-green-600',
+                  warning: 'bg-orange-100 text-orange-600',
+                };
+                
+                return (
+                  <div key={activity.id} className="flex items-start gap-4">
+                    <div className={`rounded-full p-2.5 ${iconColors[activity.type]}`}>
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">{activity.text}</p>
+                      <p className="text-sm text-slate-500 mt-0.5">{activity.time}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
