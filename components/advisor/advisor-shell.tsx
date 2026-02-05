@@ -1,16 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AdvisorHeader } from "@/components/advisor/advisor-header";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
-  User,
   MessageSquare,
-  FileText,
   Star,
-  Calendar,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
@@ -22,12 +22,10 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Tổng quan", icon: LayoutDashboard, href: "/advisor" },
-  { label: "Hồ sơ", icon: User, href: "/advisor/profile" },
-  { label: "Yêu cầu tư vấn", icon: MessageSquare, href: "/advisor/requests" },
-  { label: "Lịch tư vấn", icon: Calendar, href: "/advisor/schedule" },
-  { label: "Báo cáo", icon: FileText, href: "/advisor/reports" },
-  { label: "Đánh giá", icon: Star, href: "/advisor/feedback" },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/advisor" },
+  { label: "Consulting Request", icon: MessageSquare, href: "/advisor/requests" },
+  { label: "Rating", icon: Star, href: "/advisor/feedback" },
+  { label: "Report", icon: FileText, href: "/advisor/reports" },
 ];
 
 type AdvisorShellProps = {
@@ -36,49 +34,75 @@ type AdvisorShellProps = {
 
 export function AdvisorShell({ children }: AdvisorShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isActive = (href: string) => {
     if (href === "/advisor") return pathname === "/advisor";
     return pathname.startsWith(href);
   };
 
-  return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden">
-      <aside className="w-64 bg-[#1e3a5f] h-screen flex flex-col">
-        <div className="p-6 pb-4">
-          <h1 className="text-white text-xl font-semibold tracking-wide">AISEP</h1>
-        </div>
-        <nav className="px-3 space-y-1 flex-1">
-          {navItems.map((item) => {
-            const active = isActive(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-md transition-colors relative",
-                  active
-                    ? "bg-[#2a4a6f] text-white"
-                    : "text-white hover:bg-[#253d5a]"
-                )}
-              >
-                {active && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#4a9eff] rounded-l-md" />
-                )}
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
+  const handleProfileClick = () => {
+    router.push("/advisor/profile");
+  };
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <AdvisorHeader />
-        <main className="flex-1 p-6 overflow-y-auto">{children}</main>
+  const handlePasswordChangeClick = () => {
+    router.push("/advisor/profile?tab=password");
+  };
+
+  const handleLogout = () => {
+    // TODO: Implement logout logic
+    console.log("Logout");
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <AdvisorHeader
+        onProfileClick={handleProfileClick}
+        onPasswordChangeClick={handlePasswordChangeClick}
+        onLogout={handleLogout}
+      />
+      <div className="flex">
+        <aside className="w-64 bg-white border-r min-h-[calc(100vh-68px)] flex flex-col">
+          <nav className="p-3 space-y-1">
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
+                <Button
+                  key={item.href}
+                  asChild
+                  variant={active ? "secondary" : "ghost"}
+                  className={cn(
+                    "w-full justify-start gap-3",
+                    active
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "text-slate-700 hover:bg-slate-100"
+                  )}
+                >
+                  <Link href={item.href}>
+                    <Icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                </Button>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto p-3">
+            <div className="rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-medium">Pro Tip</span>
+              </div>
+              <p className="text-sm text-slate-600">
+                Sử dụng AI để phân tích và cải thiện hồ sơ của bạn
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
   );
 }
-

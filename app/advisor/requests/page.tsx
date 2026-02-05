@@ -1,11 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, Clock, Calendar, Users, Info, ChevronDown } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Eye, Check, X, User, Calendar, Mail, FileText, Lightbulb } from "lucide-react";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 
 type ConsultationRequest = {
@@ -13,211 +22,84 @@ type ConsultationRequest = {
   companyName: string;
   companyInitials: string;
   companyColor: string;
-  status: "urgent" | "new" | "normal";
-  stage: string;
-  topic: string;
+  representative: string;
+  date: string;
+  time: string;
+  email: string;
   description: string;
-  consultationType: string;
-  consultationIcon: "clock" | "calendar" | "users";
-  consultationDetail: string;
-  dateTime?: string;
-  requesterName: string;
-  requesterRole: string;
-  requesterInitials: string;
-  requesterColor: string;
-  timeAgo: string;
-  rate: string;
+  aiAssessment?: string;
+  aiRating?: string;
+  projectFile?: string;
 };
 
 const requests: ConsultationRequest[] = [
   {
     id: "1",
-    companyName: "FinTech AI",
-    companyInitials: "FA",
-    companyColor: "bg-teal-500",
-    status: "urgent",
-    stage: "Seed",
-    topic: "FinTech",
-    description: "Initial consultation on fundraising strategy for $2M seed round. Need guidance on valuation, pitch deck, and investor targeting.",
-    consultationType: "1-hour consultation",
-    consultationIcon: "clock",
-    consultationDetail: "Feb 2, 2PM PST",
-    requesterName: "Sarah Johnson",
-    requesterRole: "CEO",
-    requesterInitials: "SJ",
-    requesterColor: "bg-blue-600",
-    timeAgo: "2 hours ago",
-    rate: "$250/hr",
+    companyName: "Tech ABC",
+    companyInitials: "T",
+    companyColor: "bg-gradient-to-br from-purple-500 to-blue-500",
+    representative: "Nguyễn Văn A",
+    date: "20/12/2024",
+    time: "14:00",
+    email: "contact@techabc.com",
+    description: "Cần tư vấn về chiến lược phát triển AI cho sản phẩm. Chúng tôi đang gặp khó khăn trong việc scale hệ thống và cần lời khuyên từ chuyên gia.",
+    aiAssessment: "Dự án có tiềm năng cao, công nghệ sử dụng phù hợp với thị trường. Rating: 8.5/10",
+    projectFile: "tech-abc-proposal.pdf",
   },
   {
     id: "2",
-    companyName: "HealthTech Solutions",
-    companyInitials: "HS",
-    companyColor: "bg-purple-500",
-    status: "new",
-    stage: "Pre-seed",
-    topic: "HealthTech",
-    description: "Product-market fit guidance for our healthcare appointment scheduling app targeting small clinics.",
-    consultationType: "3-month mentorship",
-    consultationIcon: "users",
-    consultationDetail: "Weekly sessions",
-    requesterName: "Mike Rodriguez",
-    requesterRole: "Founder",
-    requesterInitials: "MR",
-    requesterColor: "bg-purple-600",
-    timeAgo: "5 hours ago",
-    rate: "$200/hr",
-  },
-  {
-    id: "3",
-    companyName: "EduPlatform",
-    companyInitials: "EP",
-    companyColor: "bg-orange-500",
-    status: "normal",
-    stage: "Series A",
-    topic: "EdTech",
-    description: "Workshop facilitation for product team alignment on roadmap priorities and user research insights.",
-    consultationType: "Workshop (2 hours)",
-    consultationIcon: "users",
-    consultationDetail: "Feb 5, 10AM PST",
-    requesterName: "Lisa Wang",
-    requesterRole: "CPO",
-    requesterInitials: "LW",
-    requesterColor: "bg-amber-700",
-    timeAgo: "1 day ago",
-    rate: "$300/hr",
-  },
-  {
-    id: "4",
-    companyName: "CloudSync Pro",
-    companyInitials: "CS",
-    companyColor: "bg-green-500",
-    status: "urgent",
-    stage: "Seed",
-    topic: "B2B SaaS",
-    description: "Emergency consultation needed on competitor analysis and pricing strategy pivot before investor meeting.",
-    consultationType: "90-minute session",
-    consultationIcon: "clock",
-    consultationDetail: "Feb 1, 4PM PST",
-    requesterName: "David Chen",
-    requesterRole: "Founder",
-    requesterInitials: "DC",
-    requesterColor: "bg-green-600",
-    timeAgo: "3 hours ago",
-    rate: "$275/hr",
-  },
-  {
-    id: "5",
-    companyName: "GreenEnergy Tech",
-    companyInitials: "GE",
-    companyColor: "bg-emerald-500",
-    status: "new",
-    stage: "Pre-seed",
-    topic: "CleanTech",
-    description: "Market entry strategy for renewable energy solutions in Southeast Asia. Need advice on regulatory compliance and partnerships.",
-    consultationType: "2-hour consultation",
-    consultationIcon: "clock",
-    consultationDetail: "Feb 3, 3PM PST",
-    requesterName: "Emma Thompson",
-    requesterRole: "CEO",
-    requesterInitials: "ET",
-    requesterColor: "bg-emerald-600",
-    timeAgo: "6 hours ago",
-    rate: "$225/hr",
-  },
-  {
-    id: "6",
-    companyName: "FoodieApp",
-    companyInitials: "FA",
-    companyColor: "bg-red-500",
-    status: "normal",
-    stage: "Seed",
-    topic: "Consumer Tech",
-    description: "User acquisition strategy and growth hacking techniques for food delivery platform. Focus on retention metrics.",
-    consultationType: "Monthly mentorship",
-    consultationIcon: "users",
-    consultationDetail: "Bi-weekly sessions",
-    requesterName: "James Wilson",
-    requesterRole: "CMO",
-    requesterInitials: "JW",
-    requesterColor: "bg-red-600",
-    timeAgo: "2 days ago",
-    rate: "$180/hr",
-  },
-  {
-    id: "7",
-    companyName: "SecureVault",
-    companyInitials: "SV",
-    companyColor: "bg-indigo-500",
-    status: "normal",
-    stage: "Series A",
-    topic: "Cybersecurity",
-    description: "Technical architecture review for enterprise security platform. Need guidance on scalability and compliance standards.",
-    consultationType: "4-hour workshop",
-    consultationIcon: "users",
-    consultationDetail: "Feb 6, 9AM PST",
-    requesterName: "Alex Kumar",
-    requesterRole: "CTO",
-    requesterInitials: "AK",
-    requesterColor: "bg-indigo-600",
-    timeAgo: "3 days ago",
-    rate: "$320/hr",
+    companyName: "AI Solutions",
+    companyInitials: "A",
+    companyColor: "bg-gradient-to-br from-purple-500 to-blue-500",
+    representative: "Trần Thị B",
+    date: "22/12/2024",
+    time: "10:00",
+    email: "hello@aisolutions.com",
+    description: "Cần tư vấn về chiến lược marketing và mở rộng thị trường cho sản phẩm AI của chúng tôi.",
+    aiAssessment: "Dự án có tiềm năng tốt, cần cải thiện một số điểm về marketing. Rating: 7.5/10",
+    projectFile: "ai-solutions-proposal.pdf",
   },
 ];
 
 export default function AdvisorRequestsPage() {
-  const handleAccept = (id: string) => {
-    console.log("Accept request:", id);
-    // TODO: Implement accept logic
+  const [selectedRequest, setSelectedRequest] = useState<ConsultationRequest | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
+  const [showDeclineDialog, setShowDeclineDialog] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+
+  const handleViewDetails = (request: ConsultationRequest) => {
+    setSelectedRequest(request);
+    setShowDetailDialog(true);
   };
 
-  const handleDecline = (id: string) => {
-    console.log("Decline request:", id);
-    // TODO: Implement decline logic
+  const handleAcceptClick = (request: ConsultationRequest) => {
+    setSelectedRequest(request);
+    setShowAcceptDialog(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    if (status === "urgent") {
-      return (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-l-lg" />
-      );
-    }
-    if (status === "new") {
-      return (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-lg" />
-      );
-    }
-    return null;
+  const handleDeclineClick = (request: ConsultationRequest) => {
+    setSelectedRequest(request);
+    setDeclineReason("");
+    setShowDeclineDialog(true);
   };
 
-  const getStatusLabel = (status: string) => {
-    if (status === "urgent") {
-      return (
-        <Badge className="bg-red-500 text-white border-0 hover:bg-red-500">
-          URGENT
-        </Badge>
-      );
+  const handleAcceptConfirm = () => {
+    if (selectedRequest) {
+      console.log("Accept request:", selectedRequest.id);
+      // TODO: Implement accept logic
+      setShowAcceptDialog(false);
+      setSelectedRequest(null);
     }
-    if (status === "new") {
-      return (
-        <Badge className="bg-blue-500 text-white border-0 hover:bg-blue-500">
-          NEW
-        </Badge>
-      );
-    }
-    return null;
   };
 
-  const getConsultationIcon = (icon: string) => {
-    switch (icon) {
-      case "clock":
-        return <Clock className="w-4 h-4" />;
-      case "calendar":
-        return <Calendar className="w-4 h-4" />;
-      case "users":
-        return <Users className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
+  const handleDeclineConfirm = () => {
+    if (selectedRequest) {
+      console.log("Decline request:", selectedRequest.id, "Reason:", declineReason);
+      // TODO: Implement decline logic
+      setShowDeclineDialog(false);
+      setSelectedRequest(null);
+      setDeclineReason("");
     }
   };
 
@@ -226,167 +108,299 @@ export default function AdvisorRequestsPage() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Consultation Requests</h1>
-          <p className="text-slate-600 mt-1">Manage your pending consultation requests</p>
+          <h1 className="text-2xl font-bold text-slate-900">Yêu cầu Tư vấn</h1>
+          <p className="text-slate-600 mt-1">Quản lý yêu cầu từ startup</p>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">All Requests (7)</label>
-            <Select className="w-[180px]">
-              <option>All Requests (7)</option>
-              <option>Pending (7)</option>
-              <option>Accepted (0)</option>
-              <option>Declined (0)</option>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">All Stages</label>
-            <Select className="w-[180px]">
-              <option>All Stages</option>
-              <option>Pre-seed</option>
-              <option>Seed</option>
-              <option>Series A</option>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">All Topics</label>
-            <Select className="w-[180px]">
-              <option>All Topics</option>
-              <option>FinTech</option>
-              <option>HealthTech</option>
-              <option>EdTech</option>
-              <option>B2B SaaS</option>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700">Sort by: Most Recent</label>
-            <Select className="w-[180px]">
-              <option>Most Recent</option>
-              <option>Oldest First</option>
-              <option>Rate: High to Low</option>
-              <option>Rate: Low to High</option>
-            </Select>
-          </div>
-        </div>
-
-        {/* Pending Requests Section */}
+        {/* Requests List */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900">Pending Requests (7)</h2>
-            <a href="#" className="text-blue-500 hover:text-blue-600 text-sm font-medium">
-              View All
-            </a>
-          </div>
+          {requests.map((request) => (
+            <Card key={request.id} className="border-slate-200 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  {/* Avatar */}
+                  <Avatar className={`${request.companyColor} h-16 w-16`}>
+                    <AvatarFallback className={`${request.companyColor} text-white text-2xl font-semibold`}>
+                      {request.companyInitials}
+                    </AvatarFallback>
+                  </Avatar>
 
-          <div className="space-y-4">
-            {requests.map((request) => (
-              <Card
-                key={request.id}
-                className="border-slate-200 shadow-sm relative overflow-hidden"
-              >
-                {getStatusBadge(request.status)}
-                <CardContent className="p-6 pl-7">
-                  <div className="flex items-start justify-between gap-4">
-                    {/* Left Section */}
-                    <div className="flex-1 space-y-4">
-                      {/* Company Header */}
-                      <div className="flex items-center gap-3">
-                        {getStatusLabel(request.status)}
-                        <Avatar className={`${request.companyColor} h-10 w-10`}>
-                          <AvatarFallback className={`${request.companyColor} text-white font-semibold`}>
-                            {request.companyInitials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <h3 className="text-lg font-semibold text-slate-900">
-                          {request.companyName}
-                        </h3>
-                      </div>
+                  {/* Content */}
+                  <div className="flex-1 space-y-3">
+                    {/* Company Name */}
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      {request.companyName}
+                    </h3>
 
-                      {/* Tags */}
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-slate-600 border-slate-300">
-                          {request.stage}
-                        </Badge>
-                        <Badge variant="outline" className="text-slate-600 border-slate-300">
-                          {request.topic}
-                        </Badge>
-                      </div>
-
-                      {/* Description */}
-                      <p className="text-slate-700 text-sm leading-relaxed">
-                        {request.description}
-                      </p>
-
-                      {/* Consultation Details */}
-                      <div className="flex items-center gap-6 text-sm">
-                        <div className="flex items-center gap-2 text-blue-500">
-                          {getConsultationIcon(request.consultationIcon)}
-                          <span>{request.consultationType}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-blue-500">
-                          <Calendar className="w-4 h-4" />
-                          <span>{request.consultationDetail}</span>
-                        </div>
-                      </div>
-
-                      {/* Requester Info */}
-                      <div className="flex items-center gap-3">
-                        <Avatar className={`${request.requesterColor} h-8 w-8`}>
-                          <AvatarFallback className={`${request.requesterColor} text-white text-xs font-semibold`}>
-                            {request.requesterInitials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">
-                            {request.requesterName}, {request.requesterRole}
-                          </p>
-                          <p className="text-xs text-slate-500">{request.timeAgo}</p>
-                        </div>
-                      </div>
+                    {/* Requester */}
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <User className="w-4 h-4" />
+                      <span className="text-sm">{request.representative}</span>
                     </div>
 
-                    {/* Right Section */}
-                    <div className="flex flex-col items-end gap-4">
-                      {/* Rate */}
-                      <div className="text-right">
-                        <p className="text-blue-500 font-semibold text-lg">{request.rate}</p>
-                      </div>
+                    {/* Date and Time */}
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-sm">{request.date} lúc {request.time}</span>
+                    </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => handleAccept(request.id)}
-                          className="bg-teal-500 hover:bg-teal-600 text-white"
-                        >
-                          <Check className="w-4 h-4 mr-2" />
-                          Accept
-                        </Button>
-                        <Button
-                          onClick={() => handleDecline(request.id)}
-                          variant="outline"
-                          className="border-slate-300 hover:bg-slate-50"
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Decline
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-slate-400 hover:text-slate-600"
-                        >
-                          <Info className="w-4 h-4" />
-                        </Button>
+                    {/* Email */}
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Mail className="w-4 h-4" />
+                      <span className="text-sm">{request.email}</span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewDetails(request)}
+                        className="border-slate-300 hover:bg-slate-50"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Xem chi tiết
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAcceptClick(request)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        Chấp nhận
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeclineClick(request)}
+                        className="border-red-300 text-red-600 hover:bg-red-50"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Hủy
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-2xl">
+          {selectedRequest && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">Chi tiết yêu cầu tư vấn</DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
+                {/* Representative */}
+                <div>
+                  <Label className="text-sm font-medium text-slate-600">Người đại diện</Label>
+                  <p className="text-base font-semibold text-slate-900 mt-1">
+                    {selectedRequest.representative}
+                  </p>
+                </div>
+
+                {/* Date and Time */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">Ngày</Label>
+                    <p className="text-base font-semibold text-slate-900 mt-1">
+                      {selectedRequest.date}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">Giờ</Label>
+                    <p className="text-base font-semibold text-slate-900 mt-1">
+                      {selectedRequest.time}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label className="text-sm font-medium text-slate-600">Email</Label>
+                  <p className="text-base font-semibold text-slate-900 mt-1">
+                    {selectedRequest.email}
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <Label className="text-sm font-medium text-slate-600">Mô tả dự án</Label>
+                  <p className="text-sm text-slate-700 mt-2 leading-relaxed">
+                    {selectedRequest.description}
+                  </p>
+                </div>
+
+                {/* AI Assessment */}
+                {selectedRequest.aiAssessment && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Lightbulb className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <Label className="text-sm font-medium text-blue-900">Đánh giá AI</Label>
+                        <p className="text-sm text-blue-800 mt-1">
+                          {selectedRequest.aiAssessment}
+                        </p>
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </div>
+                )}
+
+                {/* Project File */}
+                {selectedRequest.projectFile && (
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">File dự án</Label>
+                    <div className="flex items-center gap-2 mt-2">
+                      <FileText className="w-4 h-4 text-slate-600" />
+                      <a
+                        href="#"
+                        className="text-sm text-blue-600 hover:underline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // TODO: Handle file download
+                        }}
+                      >
+                        {selectedRequest.projectFile}
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDetailDialog(false)}
+                >
+                  Đóng
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => {
+                    setShowDetailDialog(false);
+                    handleAcceptClick(selectedRequest);
+                  }}
+                >
+                  Chấp nhận
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Accept Dialog */}
+      <Dialog open={showAcceptDialog} onOpenChange={setShowAcceptDialog}>
+        <DialogContent className="max-w-md">
+          {selectedRequest && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                    <Check className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl">Chấp nhận yêu cầu tư vấn?</DialogTitle>
+                    <DialogDescription className="mt-1">
+                      Bạn đang chấp nhận yêu cầu tư vấn từ {selectedRequest.companyName}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="py-4">
+                <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <Calendar className="w-4 h-4" />
+                    <span className="text-sm">
+                      Thời gian: {selectedRequest.date} lúc {selectedRequest.time}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">
+                      Người liên hệ: {selectedRequest.representative}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAcceptDialog(false)}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleAcceptConfirm}
+                >
+                  Xác nhận
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Decline Dialog */}
+      <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
+        <DialogContent className="max-w-md">
+          {selectedRequest && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                    <X className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl">Hủy yêu cầu tư vấn?</DialogTitle>
+                    <DialogDescription className="mt-1">
+                      Bạn đang hủy yêu cầu tư vấn từ {selectedRequest.companyName}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="py-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">
+                    Lý do hủy (tùy chọn)
+                  </Label>
+                  <Textarea
+                    placeholder="Ví dụ: Lịch đã kín, không phù hợp chuyên môn..."
+                    value={declineReason}
+                    onChange={(e) => setDeclineReason(e.target.value)}
+                    className="min-h-[100px]"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeclineDialog(false)}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleDeclineConfirm}
+                >
+                  Xác nhận hủy
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdvisorShell>
   );
 }

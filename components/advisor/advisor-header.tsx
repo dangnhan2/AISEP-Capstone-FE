@@ -1,20 +1,36 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Search, User, ChevronDown, Bell } from "lucide-react";
+import { LogOut, Star, User, Key, ChevronDown } from "lucide-react";
 
 type AdvisorHeaderProps = {
   userName?: string;
-  notificationCount?: number;
+  userEmail?: string;
+  roleLabel?: string;
+  avatarLabel?: string;
+  onLogout?: () => void;
+  onProfileClick?: () => void;
+  onPasswordChangeClick?: () => void;
   className?: string;
 };
 
 export function AdvisorHeader({
-  userName = "Sarah Johnson",
-  notificationCount = 1,
+  userName = "c!",
+  userEmail = "c!@gmail.com",
+  roleLabel = "Advisor",
+  avatarLabel = "C",
+  onLogout,
+  onProfileClick,
+  onPasswordChangeClick,
   className,
 }: AdvisorHeaderProps) {
   return (
@@ -24,58 +40,53 @@ export function AdvisorHeader({
         className
       )}
     >
-      {/* Search Input */}
-      <div className="relative flex-1 max-w-md">
-        <Input
-          type="search"
-          placeholder="Search offers, startups, or deals..."
-          className="pr-10 border-slate-300 text-slate-700 placeholder:text-slate-400"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-0 top-0 h-full w-10 text-slate-400 hover:text-slate-600"
-        >
-          <Search className="w-4 h-4" />
-        </Button>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
+          <Star className="w-6 h-6 text-white" />
+        </div>
+        <div className="leading-tight">
+          <div className="text-lg font-semibold">AdvisorHub</div>
+          <div className="text-xs text-slate-500">Dashboard</div>
+        </div>
       </div>
 
-      {/* Right side: Notifications, Profile, User Name */}
-      <div className="flex items-center gap-6">
-        {/* Notification Badge */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-slate-600 hover:text-slate-900"
-          >
-            <Bell className="w-5 h-5" />
-          </Button>
-          {notificationCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 rounded-full text-xs"
-            >
-              {notificationCount}
-            </Badge>
-          )}
+      <div className="flex items-center gap-3">
+         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center text-sm font-semibold">
+          {avatarLabel}
         </div>
-
-        {/* Profile Icon with Label */}
-        <div className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 rounded-full bg-[#4ECDC4] flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-xs text-slate-600">Profile</span>
-        </div>
-
-        {/* User Name with Dropdown */}
-        <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-          <span className="text-sm text-slate-600 font-medium">{userName}</span>
-          <ChevronDown className="w-4 h-4 text-slate-600" />
-        </div>
+        <span className="text-base font-medium">{userName}</span>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-slate-600 hover:text-slate-900">
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-semibold">{userName}</p>
+                <p className="text-xs text-slate-500">{userEmail}</p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onProfileClick} className="cursor-pointer">
+              <User className="w-4 h-4 mr-2" />
+              <span>Hồ sơ cá nhân</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onPasswordChangeClick} className="cursor-pointer">
+              <Key className="w-4 h-4 mr-2" />
+              <span>Đổi mật khẩu</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600 focus:text-red-600">
+              <LogOut className="w-4 h-4 mr-2" />
+              <span>Đăng xuất</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
 }
-
