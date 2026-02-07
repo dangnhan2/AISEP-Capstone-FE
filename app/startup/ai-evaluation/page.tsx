@@ -1,108 +1,102 @@
 "use client";
 
 import { StartupShell } from "@/components/startup/startup-shell";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, CheckCircle2, CircleDot } from "lucide-react";
+import { Sparkles, Calendar, Clock, Eye } from "lucide-react";
 
-const strengths = [
-  "Team có kinh nghiệm trong lĩnh vực AI",
-  "Sản phẩm có tính năng độc đáo",
-  "Thị trường tiềm năng lớn",
-];
+type EvaluationItem = {
+  score: string;
+  date: string;
+  time: string;
+  description: string;
+  progress: number;
+  note?: string;
+};
 
-const improvements = [
-  "Cần mở rộng mạng lưới khách hàng",
-  "Tối ưu hóa chi phí vận hành",
-  "Cần chiến lược marketing rõ ràng hơn",
+const evaluations: EvaluationItem[] = [
+  {
+    score: "85/100",
+    date: "2026-02-04",
+    time: "10:30",
+    description: "Strong potential in AI/ML market with solid technical foundation and clear product-market fit. Team expertise is impressive with successful track record.",
+    progress: 85,
+  },
+  {
+    score: "78/100",
+    date: "2026-01-20",
+    time: "14:15",
+    description: "Good foundation but needs improvement in go-to-market strategy. Product is promising but requires more user validation.",
+    progress: 78,
+    note: "Sản phẩm đầy hứa hẹn nhưng đội hỏi nhiều sự xác nhận của người dùng hơn.",
+  },
 ];
 
 export default function StartupAIEvaluationPage() {
   return (
     <StartupShell>
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Đánh giá AI</h1>
-            <p className="text-slate-600">
-              Phân tích tiềm năng startup bằng trí tuệ nhân tạo
-            </p>
+            <h1 className="text-2xl font-bold text-slate-900">AI Evaluation</h1>
+            <p className="text-slate-600">Đánh giá AI về tiềm năng startup của bạn</p>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            Yêu cầu đánh giá mới
+          <Button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Evaluation
           </Button>
         </div>
 
-        <Card className="overflow-hidden border-0 shadow-none">
-          <CardContent className="p-0">
-            <div className="flex items-stretch justify-between rounded-2xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 px-8 py-8 text-white">
-              <div>
-                <p className="text-sm font-medium opacity-80">
-                  Startup Potential Score
-                </p>
-                <div className="mt-4 flex items-baseline gap-2">
-                  <span className="text-5xl font-semibold">85</span>
-                  <span className="text-2xl font-medium opacity-90">/100</span>
+        <div className="space-y-6">
+          {evaluations.map((evaluation, index) => (
+            <Card key={index} className="border-slate-200 overflow-hidden">
+              <CardContent className="p-0">
+                {/* Progress Bar */}
+                <div className="relative h-2 bg-slate-100">
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                    style={{ width: `${evaluation.progress}%` }}
+                  ></div>
                 </div>
-                <p className="mt-4 text-sm opacity-90">
-                  Đánh giá lần cuối: 15/12/2024
-                </p>
-              </div>
-              <div className="flex items-center">
-                <div className="w-28 h-28 rounded-full bg-white/10 flex items-center justify-center">
-                  <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
-                    <Brain className="w-10 h-10 text-white" />
+
+                {/* Content */}
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                        {evaluation.score}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{evaluation.date}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{evaluation.time}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button variant="ghost" className="text-purple-600 hover:text-purple-700 hover:bg-purple-50">
+                      <Eye className="w-4 h-4 mr-2" />
+                      View Detail
+                    </Button>
                   </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-lg">Điểm mạnh</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {strengths.map((item) => (
-                <div key={item} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 w-4 h-4 text-emerald-500" />
-                  <p className="text-sm text-slate-800">{item}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                  <p className="text-slate-700 leading-relaxed">
+                    {evaluation.description}
+                  </p>
 
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-lg">Cần cải thiện</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {improvements.map((item) => (
-                <div key={item} className="flex items-start gap-3">
-                  <CircleDot className="mt-0.5 w-4 h-4 text-amber-500" />
-                  <p className="text-sm text-slate-800">{item}</p>
+                  {evaluation.note && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-slate-700">{evaluation.note}</p>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg">Lịch sử đánh giá</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between text-sm text-slate-800">
-            <div>
-              <p>15/12/2024</p>
-              <p className="text-slate-500">Đánh giá gần nhất</p>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-semibold">85/100</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </StartupShell>
   );

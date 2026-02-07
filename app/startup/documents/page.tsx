@@ -2,119 +2,160 @@
 
 import { StartupShell } from "@/components/startup/startup-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { FileText, Upload, CheckCircle2, Clock3 } from "lucide-react";
-
-type DocumentStatus = "verified" | "processing";
+import { Badge } from "@/components/ui/badge";
+import { Upload, Eye, Edit, Trash2, Shield } from "lucide-react";
 
 type DocumentItem = {
   name: string;
+  updateDate: string;
   type: string;
-  status: DocumentStatus;
-  hash?: string;
+  typeColor: string;
+  fileHash: string;
+  transactionHash: string;
+  blockNumber: string;
 };
 
 const documents: DocumentItem[] = [
   {
-    name: "Pitch Deck 2024.pdf",
-    type: "Pitch Deck",
-    status: "verified",
-    hash: "0x7a8f...3e2d",
+    name: "Business Plan 2026",
+    updateDate: "2026-02-01",
+    type: "Business Document",
+    typeColor: "bg-blue-100 text-blue-700",
+    fileHash: "0xabc123...def456",
+    transactionHash: "0x789xyz...012abc",
+    blockNumber: "15234567",
   },
   {
-    name: "Business Plan.pdf",
-    type: "Business Plan",
-    status: "processing",
+    name: "Patent Application",
+    updateDate: "2026-01-28",
+    type: "IP Document",
+    typeColor: "bg-purple-100 text-purple-700",
+    fileHash: "0xdef789...ghi012",
+    transactionHash: "0x345uvw...678rst",
+    blockNumber: "15234520",
   },
   {
-    name: "Legal Docs.pdf",
-    type: "Legal",
-    status: "verified",
-    hash: "0x9b4c...7f1a",
+    name: "Financial Report Q4 2025",
+    updateDate: "2026-01-15",
+    type: "Financial Document",
+    typeColor: "bg-blue-100 text-blue-700",
+    fileHash: "0xjkl345...mno678",
+    transactionHash: "0x901efg...234hij",
+    blockNumber: "15234400",
   },
 ];
-
-const statusMap: Record<DocumentStatus, { label: string; tone: string; icon: React.ElementType }> = {
-  verified: {
-    label: "Đã xác thực",
-    tone: "bg-emerald-100 text-emerald-700 border-transparent",
-    icon: CheckCircle2,
-  },
-  processing: {
-    label: "Đang xử lý",
-    tone: "bg-amber-100 text-amber-700 border-transparent",
-    icon: Clock3,
-  },
-};
 
 export default function StartupDocumentsPage() {
   return (
     <StartupShell>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Tài liệu &amp; Tài sản Trí tuệ</h1>
-            <p className="text-slate-600">Quản lý và bảo vệ tài liệu trên blockchain</p>
+            <h1 className="text-2xl font-bold text-slate-900">Document & IP</h1>
+            <p className="text-slate-600">Quản lý tài liệu và sở hữu trí tuệ</p>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
             <Upload className="w-4 h-4 mr-2" />
-            Tải lên
+            Upload Document
           </Button>
         </div>
 
-        <Card className="border-slate-200 overflow-hidden">
-          <CardHeader className="hidden">
-            <CardTitle>Tài liệu</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] px-6 py-3 bg-slate-50 text-sm font-semibold text-slate-700">
-              <div>Tên tài liệu</div>
-              <div>Loại</div>
-              <div>Trạng thái</div>
-              <div>Hash</div>
-              <div className="text-right">Hành động</div>
-            </div>
+        {/* Desktop Table View */}
+        <div className="hidden lg:block bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Document Name</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Update Date</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Type</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">File Hash</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Transaction Hash</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Block Number</th>
+                <th className="text-left text-sm font-semibold text-slate-700 px-6 py-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {documents.map((doc, index) => (
+                <tr key={index} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{doc.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{doc.updateDate}</td>
+                  <td className="px-6 py-4">
+                    <Badge className={`${doc.typeColor} hover:${doc.typeColor} border-0 font-normal text-xs`}>
+                      {doc.type}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">{doc.fileHash}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 font-mono">{doc.transactionHash}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{doc.blockNumber}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-1">
+                      <button className="p-2 hover:bg-blue-50 rounded-md transition-colors" title="View">
+                        <Eye className="w-4 h-4 text-blue-600" />
+                      </button>
+                      <button className="p-2 hover:bg-green-50 rounded-md transition-colors" title="Edit">
+                        <Edit className="w-4 h-4 text-green-600" />
+                      </button>
+                      <button className="p-2 hover:bg-red-50 rounded-md transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </button>
+                      <button className="p-2 hover:bg-purple-50 rounded-md transition-colors" title="Verify">
+                        <Shield className="w-4 h-4 text-purple-600" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-            <div className="divide-y divide-slate-100">
-              {documents.map((doc) => {
-                const status = statusMap[doc.status];
-                const StatusIcon = status.icon;
-                return (
-                  <div
-                    key={doc.name}
-                    className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr] items-center px-6 py-4 text-sm text-slate-800"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-slate-500" />
-                      <span className="font-medium">{doc.name}</span>
-                    </div>
-                    <div className="text-slate-700">{doc.type}</div>
-                    <div>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium",
-                          status.tone
-                        )}
-                      >
-                        <StatusIcon className="w-4 h-4" />
-                        {status.label}
-                      </span>
-                    </div>
-                    <div className="text-slate-600 font-mono">
-                      {doc.hash ?? <span className="text-slate-400">-</span>}
-                    </div>
-                    <div className="text-right">
-                      <Button variant="link" className="text-blue-600 hover:text-blue-700 px-0">
-                        Xem chi tiết
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Mobile Card View */}
+        <div className="lg:hidden space-y-4">
+          {documents.map((doc, index) => (
+            <div key={index} className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="font-semibold text-slate-900">{doc.name}</h3>
+                <Badge className={`${doc.typeColor} hover:${doc.typeColor} border-0 font-normal text-xs shrink-0`}>
+                  {doc.type}
+                </Badge>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Update Date:</span>
+                  <span className="text-slate-900">{doc.updateDate}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Block Number:</span>
+                  <span className="text-slate-900">{doc.blockNumber}</span>
+                </div>
+                <div>
+                  <div className="text-slate-600 mb-1">File Hash:</div>
+                  <div className="text-slate-900 font-mono text-xs break-all">{doc.fileHash}</div>
+                </div>
+                <div>
+                  <div className="text-slate-600 mb-1">Transaction Hash:</div>
+                  <div className="text-slate-900 font-mono text-xs break-all">{doc.transactionHash}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-1 pt-2 border-t border-slate-100">
+                <button className="p-2 hover:bg-blue-50 rounded-md transition-colors" title="View">
+                  <Eye className="w-4 h-4 text-blue-600" />
+                </button>
+                <button className="p-2 hover:bg-green-50 rounded-md transition-colors" title="Edit">
+                  <Edit className="w-4 h-4 text-green-600" />
+                </button>
+                <button className="p-2 hover:bg-red-50 rounded-md transition-colors" title="Delete">
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                </button>
+                <button className="p-2 hover:bg-purple-50 rounded-md transition-colors" title="Verify">
+                  <Shield className="w-4 h-4 text-purple-600" />
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
       </div>
     </StartupShell>
   );

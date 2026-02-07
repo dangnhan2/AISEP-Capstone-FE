@@ -2,56 +2,113 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LogOut, Star } from "lucide-react";
+import { Bell, ChevronDown, User, Key, LogOut } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 
 type StartupHeaderProps = {
   userName?: string;
-  roleLabel?: string;
-  avatarLabel?: string;
-  onLogout?: () => void;
+  userEmail?: string;
+  notificationCount?: number;
   className?: string;
 };
 
 export function StartupHeader({
-  userName = "dëwr",
-  roleLabel = "Startup",
-  avatarLabel = "D",
-  onLogout,
+  userName = "Sarah Johnson",
+  userEmail = "a@a.com",
+  notificationCount = 3,
   className,
 }: StartupHeaderProps) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <header
       className={cn(
-        "flex items-center justify-between px-6 py-4 bg-white border-b",
+        "flex items-center justify-between px-8 py-4 bg-white border-b",
         className
       )}
     >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-          <Star className="w-6 h-6 text-white" />
-        </div>
-        <div className="leading-tight">
-          <div className="text-lg font-semibold">StartupHub</div>
-          <div className="text-xs text-slate-500">Dashboard</div>
-        </div>
-      </div>
+      <div className="flex-1"></div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-base font-medium">{userName}</span>
-        <span className="px-3 py-1 text-xs rounded-full bg-blue-50 text-blue-700">
-          {roleLabel}
-        </span>
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center text-sm font-semibold">
-          {avatarLabel}
-        </div>
+      <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
-          className="text-slate-600 hover:text-slate-900"
-          onClick={onLogout}
+          className="relative text-slate-600 hover:text-slate-900"
         >
-          <LogOut className="w-5 h-5" />
+          <Bell className="w-5 h-5" />
+          {notificationCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+              {notificationCount}
+            </span>
+          )}
         </Button>
+        
+        <span className="text-sm font-medium text-slate-700">Startup</span>
+
+        <div className="relative" ref={dropdownRef}>
+          <div 
+            className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 px-2 py-1 rounded-lg"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          >
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
+              A
+            </div>
+            <ChevronDown className={cn(
+              "w-4 h-4 text-slate-400 transition-transform",
+              isDropdownOpen && "rotate-180"
+            )} />
+          </div>
+
+          {/* Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-50">
+              {/* User Info */}
+              <div className="px-4 py-3 border-b border-slate-100">
+                <div className="font-medium text-slate-900">a</div>
+                <div className="text-sm text-slate-500">{userEmail}</div>
+              </div>
+
+              {/* Menu Items */}
+              <div className="py-1">
+                <Link href="/startup/profile">
+                  <button className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-slate-50 text-slate-700">
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">Hồ sơ cá nhân</span>
+                  </button>
+                </Link>
+
+                <Link href="/startup/settings">
+                  <button className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-slate-50 text-slate-700">
+                    <Key className="w-4 h-4" />
+                    <span className="text-sm">Đổi mật khẩu</span>
+                  </button>
+                </Link>
+
+                <div className="my-1 h-px bg-slate-100"></div>
+
+                <Link href="/auth/login">
+                  <button className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-slate-50 text-red-600">
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm">Đăng xuất</span>
+                  </button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
