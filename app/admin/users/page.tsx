@@ -18,7 +18,8 @@ import {
     RefreshCw,
     Eye,
     Pencil,
-    Trash2,
+    Lock,
+    Unlock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ export default function AdminUsersPage() {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-    const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+    const [lockingUserId, setLockingUserId] = useState<number | null>(null);
 
     // API data state
     const [users, setUsers] = useState<IAdminUser[]>([]);
@@ -59,21 +60,27 @@ export default function AdminUsersPage() {
                 pageSize: PAGE_SIZE,
                 userType: userTypeFilter,
                 isActive: isActiveFilter,
-            }) as unknown as IBackendRes<IAdminUser[]>;
+            }) as any;
 
-            if (res.success && res.data) {
-                setUsers(res.data);
-                // If backend returns paginated response, update paging
-                const anyRes = res as any;
-                if (anyRes.data?.items) {
-                    setUsers(anyRes.data.items);
-                    setPaging(anyRes.data.paging);
-                } else if (Array.isArray(res.data)) {
-                    setUsers(res.data);
+            const isSuccess = res?.success === true || res?.isSuccess === true || (res && Array.isArray(res));
+            const payload = res?.data || res;
+
+            if (isSuccess && payload) {
+                if (Array.isArray(payload?.items)) {
+                    setUsers(payload.items);
+                    setPaging(payload.paging || null);
+                } else if (Array.isArray(payload)) {
+                    setUsers(payload);
+                    setPaging(null);
+                } else if (Array.isArray(payload?.data)) {
+                    setUsers(payload.data);
+                    setPaging(null);
+                } else {
+                    setUsers([]);
                     setPaging(null);
                 }
             } else {
-                setError(res.message || "Không thể tải danh sách người dùng.");
+                setError(res?.message || "Không thể tải danh sách người dùng.");
             }
         } catch {
             setError("Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại.");
@@ -111,18 +118,20 @@ export default function AdminUsersPage() {
         setIsEditModalOpen(true);
     };
 
-    const handleDeleteUser = async (userId: number) => {
-        if (!confirm("Bạn có chắc chắn muốn vô hiệu hóa người dùng này?")) return;
-        setDeletingUserId(userId);
+    const handleToggleLockUser = async (userId: number, currentStatus: boolean) => {
+        const actionText = currentStatus ? "khóa" : "mở khóa";
+        if (!confirm(`Bạn có chắc chắn muốn ${actionText} người dùng này?`)) return;
+
+        setLockingUserId(userId);
         try {
-            const res = await UpdateUserStatus(userId, false) as unknown as IBackendRes<string>;
+            const res = await UpdateUserStatus(userId, !currentStatus) as unknown as IBackendRes<string>;
             if (res.success) {
                 setUsers(prev => prev.map(u =>
-                    u.userId === userId ? { ...u, isActive: false } : u
+                    u.userId === userId ? { ...u, isActive: !currentStatus } : u
                 ));
             }
         } catch { /* silent */ }
-        finally { setDeletingUserId(null); }
+        finally { setLockingUserId(null); }
     };
 
     const clearFilters = () => {
@@ -159,10 +168,10 @@ export default function AdminUsersPage() {
     };
 
     // Client-side search filter (email)
-    const filteredUsers = users.filter(user => {
+    const filteredUsers = (Array.isArray(users) ? users : []).filter(user => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
-        return user.email.toLowerCase().includes(q) || user.userId.toString().includes(q);
+        return (user.email || "").toLowerCase().includes(q) || (user.userId || "").toString().includes(q);
     }).filter(user => {
         if (emailVerifiedFilter === undefined) return true;
         return user.emailVerified === emailVerifiedFilter;
@@ -182,6 +191,8 @@ export default function AdminUsersPage() {
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
                         <Input
+                            name="search-users-off"
+                            autoComplete="off"
                             placeholder="Tìm theo email, ID..."
                             className="w-full pl-14 h-11 bg-[#f8fafc]/50 border-none rounded-xl text-[13px] font-bold focus:ring-[#eec54e]/20 transition-all placeholder:text-slate-400"
                             value={searchQuery}
@@ -363,15 +374,22 @@ export default function AdminUsersPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
-                                                    <button
-                                                        onClick={() => handleToggleStatus(user.userId, user.isActive)}
-                                                        className={cn(
-                                                            "px-4 py-1.5 rounded-full text-[10px] font-black border tracking-widest uppercase cursor-pointer hover:opacity-80 transition-all",
-                                                            getStatusBadge(user.isActive)
-                                                        )}
-                                                    >
-                                                        {user.isActive ? "Active" : "Disabled"}
-                                                    </button>
+                                                    {(() => {
+                                                        const isAdmin = (user.roles || []).some(r => r.toLowerCase() === 'admin') || (user.userType || "").toLowerCase() === 'admin';
+                                                        return (
+                                                            <button
+                                                                onClick={() => handleToggleStatus(user.userId, user.isActive)}
+                                                                disabled={isAdmin}
+                                                                className={cn(
+                                                                    "px-4 py-1.5 rounded-full text-[10px] font-black border tracking-widest uppercase transition-all",
+                                                                    getStatusBadge(user.isActive),
+                                                                    isAdmin ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:opacity-80"
+                                                                )}
+                                                            >
+                                                                {user.isActive ? "Active" : "Disabled"}
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
                                                     <span className={cn(
@@ -387,34 +405,52 @@ export default function AdminUsersPage() {
                                                     {formatDate(user.createdAt)}
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className="flex items-center justify-end gap-1.5">
-                                                        <button
-                                                            onClick={() => handleViewUser(user.userId)}
-                                                            title="Xem chi tiết"
-                                                            className="size-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-[#eec54e] hover:bg-[#fdf8e6] transition-all"
-                                                        >
-                                                            <Eye className="size-[18px]" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleEditUser(user.userId)}
-                                                            title="Cập nhật"
-                                                            className="size-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                                                        >
-                                                            <Pencil className="size-[16px]" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteUser(user.userId)}
-                                                            title="Vô hiệu hóa"
-                                                            disabled={deletingUserId === user.userId}
-                                                            className="size-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-40"
-                                                        >
-                                                            {deletingUserId === user.userId ? (
-                                                                <Loader2 className="size-[16px] animate-spin" />
-                                                            ) : (
-                                                                <Trash2 className="size-[16px]" />
-                                                            )}
-                                                        </button>
-                                                    </div>
+                                                    {(() => {
+                                                        const isAdmin = (user.roles || []).some(r => r.toLowerCase() === 'admin') || (user.userType || "").toLowerCase() === 'admin';
+                                                        return (
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    onClick={() => handleViewUser(user.userId)}
+                                                                    title="Xem chi tiết"
+                                                                    className="size-9 flex items-center justify-center rounded-xl bg-white text-slate-400 border border-slate-200 hover:text-[#eec54e] hover:bg-[#fdf8e6] transition-all"
+                                                                >
+                                                                    <Eye className="size-[18px]" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleEditUser(user.userId)}
+                                                                    title={isAdmin ? "Không thể chỉnh sửa mật khẩu Admin" : "Cập nhật"}
+                                                                    disabled={isAdmin}
+                                                                    className={cn(
+                                                                        "size-9 flex items-center justify-center rounded-xl border border-slate-200 transition-all",
+                                                                        isAdmin
+                                                                            ? "text-slate-200 cursor-not-allowed bg-slate-50 opacity-50"
+                                                                            : "bg-white text-slate-400 hover:text-[#eec54e] hover:bg-[#fdf8e6] cursor-pointer"
+                                                                    )}
+                                                                >
+                                                                    <Pencil className="size-[16px]" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleToggleLockUser(user.userId, user.isActive)}
+                                                                    title={isAdmin ? "Không thể khóa Admin" : (user.isActive ? "Khóa tài khoản" : "Mở khóa tài khoản")}
+                                                                    disabled={lockingUserId === user.userId || isAdmin}
+                                                                    className={cn(
+                                                                        "size-9 flex items-center justify-center rounded-xl border transition-all",
+                                                                        (lockingUserId === user.userId || isAdmin)
+                                                                            ? "border-slate-200 text-slate-200 cursor-not-allowed bg-slate-50 opacity-50"
+                                                                            : "border-slate-200 bg-white text-slate-400 hover:text-[#eec54e] hover:bg-[#fdf8e6] cursor-pointer"
+                                                                    )}
+                                                                >
+                                                                    {lockingUserId === user.userId ? (
+                                                                        <Loader2 className="size-[16px] animate-spin" />
+                                                                    ) : user.isActive ? (
+                                                                        <Lock className="size-[16px]" />
+                                                                    ) : (
+                                                                        <Unlock className="size-[16px]" />
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                             </tr>
                                         ))}

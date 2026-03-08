@@ -149,9 +149,15 @@ export function EditUserModal({ isOpen, onClose, onSaved, userId }: EditUserModa
                                 </div>
                                 <p className="text-[12px] text-slate-400 font-medium">Nhập mật khẩu mới cho người dùng.</p>
 
+                                {/* Dummy inputs to trap browser autofill so it doesn't target the background search bar */}
+                                <input type="text" name="dummy-username" autoComplete="username" className="hidden" aria-hidden="true" defaultValue="" />
+                                <input type="password" name="dummy-password" autoComplete="current-password" className="hidden" aria-hidden="true" defaultValue="" />
+
                                 <div className="relative">
                                     <Input
                                         type={showPassword ? "text" : "password"}
+                                        name="new-password-field"
+                                        autoComplete="new-password"
                                         value={newPassword}
                                         onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
                                         className="bg-[#f8fafc] border-slate-100 rounded-2xl h-14 px-6 pr-14 text-[15px] font-bold focus:ring-2 focus:ring-[#eec54e]/30 focus:border-[#eec54e]/50 transition-all placeholder:text-slate-300"

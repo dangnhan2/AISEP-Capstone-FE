@@ -86,67 +86,105 @@ export function ViewUserModal({ isOpen, onClose, userId }: ViewUserModalProps) {
                             <span className="text-[13px] font-bold text-red-600">{error}</span>
                         </div>
                     ) : user ? (
-                        <div className="space-y-5">
-                            {/* Avatar & ID */}
-                            <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
-                                <div className="size-14 rounded-full flex items-center justify-center font-black text-sm border border-slate-100/50 shadow-sm bg-[#fdf8e6] text-[#e6cc4c]">
+                        <div className="space-y-6">
+                            {/* Profile Header Card */}
+                            <div className="flex items-center gap-5 p-5 bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-3xl shadow-sm">
+                                <div className="size-16 rounded-2xl flex items-center justify-center font-black text-lg border border-slate-100 shadow-sm bg-[#fdf8e6] text-[#e6cc4c] flex-shrink-0">
                                     {user.email.substring(0, 2).toUpperCase()}
                                 </div>
-                                <div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">User ID</p>
-                                    <p className="text-[18px] font-black text-slate-900">#{user.userId}</p>
-                                </div>
-                            </div>
-
-                            {/* Info rows */}
-                            <InfoRow icon={<Mail className="size-4" />} label="Email" value={user.email} />
-                            <InfoRow icon={<Shield className="size-4" />} label="Loại tài khoản" value={user.userType} />
-
-                            {/* Roles */}
-                            <div className="flex items-start gap-3">
-                                <Shield className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Vai trò</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {user.roles && user.roles.length > 0 ? user.roles.map((role, i) => (
-                                            <span key={i} className="px-3 py-1 bg-[#fdf8e6] text-[#b8960f] rounded-lg text-[10px] font-black uppercase tracking-wider border border-[#eec54e]/20">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+                                        <h3 className="text-[17px] leading-tight font-black text-slate-900 break-all">{user.email}</h3>
+                                        <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px] font-black uppercase tracking-wider flex-shrink-0">
+                                            #{user.userId}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold uppercase tracking-widest shadow-sm">
+                                            {user.userType || "N/A"}
+                                        </span>
+                                        {user.roles && user.roles.map((role, i) => (
+                                            <span key={i} className="px-2.5 py-1 bg-[#fdf8e6] text-[#b8960f] rounded-full text-[10px] font-black uppercase tracking-wider border border-[#eec54e]/20">
                                                 {role}
                                             </span>
-                                        )) : <span className="text-[13px] text-slate-400 italic">Chưa có vai trò</span>}
+                                        ))}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Status */}
-                            <div className="flex items-center gap-3">
-                                {user.isActive ? <CheckCircle2 className="size-4 text-green-500 flex-shrink-0" /> : <XCircle className="size-4 text-red-500 flex-shrink-0" />}
-                                <div className="flex-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Trạng thái</p>
-                                    <span className={cn(
-                                        "px-3 py-1 rounded-full text-[10px] font-black border tracking-widest uppercase",
-                                        user.isActive ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"
-                                    )}>
-                                        {user.isActive ? "Active" : "Disabled"}
-                                    </span>
+                            {/* Main Info Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Left Column: Status & Security */}
+                                <div className="col-span-2 sm:col-span-1 space-y-4 p-5 bg-slate-50/50 border border-slate-100 rounded-3xl">
+                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Shield className="size-3.5" /> Bảo mật & Trạng thái
+                                    </h4>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 hover:text-slate-500 transition-colors">Tình trạng hoạt động</p>
+                                            <div className="flex items-center gap-2.5">
+                                                {user.isActive ? (
+                                                    <div className="flex items-center justify-center size-7 rounded-full bg-green-100 text-green-600">
+                                                        <CheckCircle2 className="size-4" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-center size-7 rounded-full bg-red-100 text-red-500">
+                                                        <XCircle className="size-4" />
+                                                    </div>
+                                                )}
+                                                <span className={cn(
+                                                    "text-[13px] font-bold",
+                                                    user.isActive ? "text-green-700" : "text-red-600"
+                                                )}>
+                                                    {user.isActive ? "Đang hoạt động" : "Bị Khóa"}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 hover:text-slate-500 transition-colors">Xác thực Email</p>
+                                            <div className="flex items-center gap-2.5">
+                                                {user.emailVerified ? (
+                                                    <div className="flex items-center justify-center size-7 rounded-full bg-blue-100 text-blue-600">
+                                                        <CheckCircle2 className="size-4" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-center size-7 rounded-full bg-slate-200 text-slate-500">
+                                                        <Clock className="size-4" />
+                                                    </div>
+                                                )}
+                                                <span className={cn(
+                                                    "text-[13px] font-bold",
+                                                    user.emailVerified ? "text-blue-700" : "text-slate-600"
+                                                )}>
+                                                    {user.emailVerified ? "Đã xác thực" : "Chờ xác thực"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Timestamps */}
+                                <div className="col-span-2 sm:col-span-1 space-y-4 p-5 bg-slate-50/50 border border-slate-100 rounded-3xl">
+                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Clock className="size-3.5" /> Lịch sử hệ thống
+                                    </h4>
+
+                                    <div className="space-y-4">
+                                        <InfoRow
+                                            icon={<Calendar className="size-4 text-emerald-500" />}
+                                            label="Ngày khởi tạo"
+                                            value={formatDateTime(user.createdAt)}
+                                        />
+                                        <InfoRow
+                                            icon={<Clock className="size-4 text-purple-500" />}
+                                            label="Đăng nhập cuối"
+                                            value={formatDateTime(user.lastLoginAt)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* Email Verified */}
-                            <div className="flex items-center gap-3">
-                                {user.emailVerified ? <CheckCircle2 className="size-4 text-blue-500 flex-shrink-0" /> : <Clock className="size-4 text-slate-400 flex-shrink-0" />}
-                                <div className="flex-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Xác thực email</p>
-                                    <span className={cn(
-                                        "px-3 py-1 rounded-full text-[10px] font-black border tracking-widest uppercase",
-                                        user.emailVerified ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-slate-50 text-slate-400 border-slate-100"
-                                    )}>
-                                        {user.emailVerified ? "Verified" : "Pending"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <InfoRow icon={<Calendar className="size-4" />} label="Ngày tạo" value={formatDateTime(user.createdAt)} />
-                            <InfoRow icon={<Clock className="size-4" />} label="Đăng nhập lần cuối" value={formatDateTime(user.lastLoginAt)} />
                         </div>
                     ) : null}
                 </div>
@@ -166,12 +204,12 @@ export function ViewUserModal({ isOpen, onClose, userId }: ViewUserModalProps) {
 
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
     return (
-        <div className="flex items-center gap-3">
-            <span className="text-slate-400 flex-shrink-0">{icon}</span>
-            <div className="flex-1">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
-                <p className="text-[14px] font-bold text-slate-800">{value}</p>
-            </div>
+        <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 hover:text-slate-500 transition-colors">
+                {icon}
+                {label}
+            </p>
+            <p className="text-[13px] font-black text-slate-800 ml-5">{value}</p>
         </div>
     );
 }

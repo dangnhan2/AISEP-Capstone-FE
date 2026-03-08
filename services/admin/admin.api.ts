@@ -14,7 +14,7 @@ export const GetUserById = (id: number) => {
 };
 
 export const UpdateUserStatus = (id: number, isActive: boolean) => {
-    return axios.put<IBackendRes<string>>(`/api/users/${id}/status`, { isActive });
+    return axios.patch<IBackendRes<string>>(`/api/users/${id}/status`, { isActive });
 };
 
 export const GetRoles = () => {

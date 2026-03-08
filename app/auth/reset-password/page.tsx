@@ -176,7 +176,7 @@ function ResetPasswordContent() {
                 <img
                   alt="Thành công"
                   className="w-full h-full object-cover grayscale opacity-20"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDS3ujZOhK0XPboFJ8HOBdIxC32OY6Oi_aG7AYGcpo9dLx5rBpHKZcmZRm6a2z10Eut41k4J1e7Z_WbTMpROWZENRWw2mOdg5T2FSPeOhZC7ZoI5X7fMClpjf2G7h9Bz2X5hok2ejiU8Kcg1JPHQE0NHKqjBXMrqC7wLZQ9m0zivqU3o4tCI6tmm7Xho_XZAvMHPBbZh_Quz5u5dO0vaq6sE-SrCvdXLbmhHMsAX6Pfv8EeNkFRGU5VURLOE1X42Fk49z_SRd2fRnU"
+                  src="https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&h=400&fit=crop&q=80"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
               </div>
@@ -279,9 +279,8 @@ function ResetPasswordContent() {
                     value={newPassword}
                     onChange={(e) => handleNewPasswordChange(e.target.value)}
                     disabled={isLoading}
-                    className={`w-full h-12 pl-4 pr-12 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-[#f0f042]/50 focus:border-[#f0f042] outline-none transition-all text-slate-900 placeholder:text-slate-400 ${
-                      errors.newPassword ? "border-red-500" : "border-slate-200"
-                    }`}
+                    className={`w-full h-12 pl-4 pr-12 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-[#f0f042]/50 focus:border-[#f0f042] outline-none transition-all text-slate-900 placeholder:text-slate-400 ${errors.newPassword ? "border-red-500" : "border-slate-200"
+                      }`}
                   />
                   <button
                     type="button"
@@ -328,9 +327,8 @@ function ResetPasswordContent() {
                     value={confirmPassword}
                     onChange={(e) => handleConfirmPasswordChange(e.target.value)}
                     disabled={isLoading}
-                    className={`w-full h-12 pl-4 pr-12 bg-slate-50 border-2 rounded-lg focus:ring-2 focus:ring-[#f0f042]/50 focus:border-[#f0f042] outline-none transition-all text-slate-900 placeholder:text-slate-400 ${
-                      errors.confirmPassword ? "border-red-500 bg-white" : "border-slate-200"
-                    }`}
+                    className={`w-full h-12 pl-4 pr-12 bg-slate-50 border-2 rounded-lg focus:ring-2 focus:ring-[#f0f042]/50 focus:border-[#f0f042] outline-none transition-all text-slate-900 placeholder:text-slate-400 ${errors.confirmPassword ? "border-red-500 bg-white" : "border-slate-200"
+                      }`}
                   />
                   <button
                     type="button"
@@ -356,11 +354,10 @@ function ResetPasswordContent() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`w-full flex items-center justify-center rounded-lg h-14 text-base font-bold shadow-lg transition-all ${
-                  isLoading
+                className={`w-full flex items-center justify-center rounded-lg h-14 text-base font-bold shadow-lg transition-all ${isLoading
                     ? "bg-[#f0f042]/80 text-slate-900/60 cursor-not-allowed"
                     : "bg-[#f0f042] hover:bg-[#e6e632] text-slate-900 shadow-[#f0f042]/20 active:scale-[0.99]"
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <>

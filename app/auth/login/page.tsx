@@ -21,6 +21,22 @@ import {
 import { Login } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 
+const parseJwt = (token: string) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
@@ -53,8 +69,24 @@ export default function LoginPage() {
     validateEmail(value);
   };
 
-  const redirectByUserType = (userType: string | undefined) => {
-    switch ((userType ?? "").toLowerCase()) {
+  const redirectByUserType = (userType: string | undefined, roles?: string[]) => {
+    let type = (userType ?? "").toLowerCase();
+
+    // Fallback to roles if userType is empty
+    if (!type && roles && roles.length > 0) {
+      // Find the first role that matches one of our known dashboards
+      const knownRoles = ["startup", "investor", "advisor", "staff", "admin"];
+      const lowerRoles = roles.map(r => r.toLowerCase());
+
+      for (const known of knownRoles) {
+        if (lowerRoles.includes(known)) {
+          type = known;
+          break;
+        }
+      }
+    }
+
+    switch (type) {
       case "startup":
         router.push("/startup");
         break;
@@ -71,7 +103,9 @@ export default function LoginPage() {
         router.push("/admin/users");
         break;
       default:
+        // By default, if userType/roles are missing or unknown, route to landing.
         router.push("/");
+        break;
     }
   };
 
@@ -99,22 +133,60 @@ export default function LoginPage() {
 
     try {
       const res = await Login(email, password);
+      console.log("API_RESPONSE:", res);
+      console.log("TOKEN_EXTRACT:", res?.data?.accessToken, (res as any)?.accessToken);
 
-      if (res.success && res.data) {
-        const { info, accessToken } = res.data;
-        const { userId, email: userEmail, userType, roles } = info;
+      // Check for success safely (either boolean success, text message, or token presence)
+      const payload = res?.data ? res.data : (res as any);
+      const token = payload?.accessToken || (res as any)?.accessToken;
 
-        setUser({ userID: userId, email: userEmail, userType, roles });
-        setAccessToken(accessToken);
+      const isSuccess =
+        res?.success === true ||
+        (res as any)?.isSuccess === true ||
+        (res?.message && res.message.toLowerCase().includes("success")) ||
+        !!token;
+
+      if (isSuccess && token) {
+        let infoObj = payload?.info || payload || {};
+
+        // Fallback: Decode token if backend doesn't send user object
+        const decoded = parseJwt(token);
+        if (decoded) {
+          infoObj = { ...infoObj, ...decoded };
+
+          // Extract .NET roles claim
+          const netCoreRoleClaim = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
+          if (decoded[netCoreRoleClaim]) {
+            infoObj.roles = Array.isArray(decoded[netCoreRoleClaim])
+              ? decoded[netCoreRoleClaim]
+              : [decoded[netCoreRoleClaim]];
+          } else if (decoded.role) {
+            infoObj.roles = Array.isArray(decoded.role) ? decoded.role : [decoded.role];
+          } else if (decoded.roles) {
+            infoObj.roles = Array.isArray(decoded.roles) ? decoded.roles : [decoded.roles];
+          }
+
+          if (!infoObj.userType && decoded.userType) {
+            infoObj.userType = decoded.userType;
+          }
+        }
+
+        const userId = infoObj?.userId || infoObj?.id || 0;
+        const targetUserEmail = infoObj?.email || email;
+        const targetUserType = infoObj?.userType;
+        const targetRoles = infoObj?.roles || [];
+
+        setUser({ userID: userId, email: targetUserEmail, userType: targetUserType, roles: targetRoles });
+        setAccessToken(token);
         setIsAuthen(true);
 
         if (typeof window !== "undefined") {
-          localStorage.setItem("accessToken", accessToken);
+          localStorage.setItem("accessToken", token);
         }
 
-        redirectByUserType(userType);
+        redirectByUserType(targetUserType, targetRoles);
       } else {
-        setError(res.message || "Đăng nhập không thành công");
+        setError(res?.message || "Đăng nhập không thành công");
       }
     } catch (e: any) {
       const message =
@@ -251,8 +323,8 @@ export default function LoginPage() {
                         value={email}
                         onChange={handleEmailChange}
                         className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 ${emailError
-                            ? "border-2 border-red-400 bg-white focus:ring-red-300"
-                            : "border-none bg-slate-50 focus:ring-[#f0f042]"
+                          ? "border-2 border-red-400 bg-white focus:ring-red-300"
+                          : "border-none bg-slate-50 focus:ring-[#f0f042]"
                           }`}
                       />
                     </div>

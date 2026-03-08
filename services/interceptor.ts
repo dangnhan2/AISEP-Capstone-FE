@@ -36,7 +36,12 @@ const callRefreshToken = async (): Promise<IBackendRes<ILoginInfo | null>> => {
 // Add a response interceptor with refresh token logic
 instance.interceptors.response.use(
   function (response) {
-    if (response.data) return response.data;
+    if (response.data) {
+      if (typeof response.data.success === "undefined" && typeof response.data.isSuccess === "boolean") {
+        response.data.success = response.data.isSuccess;
+      }
+      return response.data;
+    }
     return response;
   },
   async function (error: AxiosError) {
@@ -66,8 +71,11 @@ instance.interceptors.response.use(
     }
 
     // Trả về dạng IBackendRes nếu backend trả về theo cấu trúc đó
-    const backendRes = (error.response?.data ?? null) as IBackendRes<unknown> | null;
-    if (backendRes && typeof backendRes.success === "boolean") {
+    const backendRes = (error.response?.data ?? null) as any;
+    if (backendRes && (typeof backendRes.success === "boolean" || typeof backendRes.isSuccess === "boolean")) {
+      if (typeof backendRes.success === "undefined" && typeof backendRes.isSuccess === "boolean") {
+        backendRes.success = backendRes.isSuccess;
+      }
       return backendRes;
     }
 
