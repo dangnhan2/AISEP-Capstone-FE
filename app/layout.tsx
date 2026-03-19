@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Manrope, Plus_Jakarta_Sans, Syne } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -13,8 +13,26 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["700", "800"],
+});
+
 export const metadata: Metadata = {
-  title: "StartupHub - Nơi startup gặp gỡ cơ hội",
+  title: "AISEP - Hệ sinh thái Khởi nghiệp Toàn diện",
   description: "Nền tảng kết nối startup với nhà đầu tư và chuyên gia. Sử dụng AI để đánh giá tiềm năng, blockchain để bảo vệ tài sản trí tuệ.",
 };
 
@@ -25,8 +43,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
+      <head></head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${manrope.variable} ${plusJakartaSans.variable} ${syne.variable} antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

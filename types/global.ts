@@ -2,59 +2,336 @@ export { };
 
 declare global {
     interface IBackendRes<T> {
+        success: boolean
+        data?: T | null
         message: string
-        isSuccess: boolean
-        statusCode: number
-        data : T | null
+        error: IError | null
+    }
+
+    interface IError {
+        code: string
+        message: string
+        details: IErrorDetail[]
+    }
+
+    interface IErrorDetail {
+        field: string
+        message: string
     }
 
     interface IRegisterInfo {
-        data : IUser
-        accessToken : string
+        userID: number
+        email: string
+        userType: string
+        roles: string[]
+        accessToken: string
+        refreshToken: string
+        accessTokenExpires: string
+        refreshTokenExpires: string
     }
 
     interface ILoginInfo {
-        data : IUser
-        accessToken : string
+        info: {
+            userId: number
+            email: string
+            userType: string
+            isActive: boolean
+            emailVerified: boolean
+            createdAt: string
+            lastLoginAt: string
+            roles: string[]
+        }
+        accessToken: string
+        accessTokenExpires: string
     }
 
     interface IUser {
-        userId : number
-        email : string
-        userType : string
-        isActive : boolean
-        emailVerified : boolean
-        createdAt : string
-        lastLoginAt : string
-        roles : string[]
+        userID: number
+        email: string
+        userType: string
+        roles: string[]
+    }
+
+    interface IInvestorProfile {
+        investorID: number
+        fullName: string
+        firmName: string
+        investorType: "Institutional" | "Individual"
+        organization?: string
+        title: string
+        bio: string
+        profilePhotoURL: string
+        investmentThesis: string
+        preferredIndustries: string[]
+        preferredStages: string[]
+        preferredGeographies: string[]
+        preferredMarketScopes: string[]
+        supportOffered: string[]
+        preferredProductMaturity: string[]
+        preferredValidationLevel: string[]
+        preferredAIScoreRange: string // e.g., "75-100"
+        aiScoreImportance: "Low" | "Medium" | "High"
+        preferredStrengths: string[]
+        acceptingConnections: boolean
+        publicProfileVisibility: boolean
+        recentlyActiveDisplay: boolean
+        connectionGuidance?: string
+        location: string
+        country: string
+        linkedInURL: string
+        website: string
+        createdAt: string
+        updatedAt: string
+    }
+
+    interface ICreateInvestor {
+        fullName: string
+        firmName: string
+        investorType: "Institutional" | "Individual"
+        organization?: string
+        title: string
+        bio: string
+        investmentThesis: string
+        preferredIndustries: string[]
+        preferredStages: string[]
+        preferredGeographies: string[]
+        preferredMarketScopes: string[]
+        supportOffered: string[]
+        preferredProductMaturity: string[]
+        preferredValidationLevel: string[]
+        preferredAIScoreRange: string
+        aiScoreImportance: "Low" | "Medium" | "High"
+        preferredStrengths: string[]
+        acceptingConnections: boolean
+        publicProfileVisibility: boolean
+        recentlyActiveDisplay: boolean
+        connectionGuidance?: string
+        location: string
+        country: string
+        linkedInURL: string
+        website: string
     }
 
     interface IAdvisorProfile {
-        advisorID : number
-        availability : null
-        averageRating : null
-        bio : string
-        company : string
-        createdAt : string
-        expertise : IExpertise[]
-        fullName : string
-        industry: []
-        linkedInURL : string
-        mentorshipPhilosophy : string
-        profileCompleteness : string
-        profilePhotoURL : string
-        profileStatus : string
-        title : string
-        totalMentees : number
-        totalSessionHours : number
-        updatedAt : string
-        website : string
+        advisorID: number
+        userId: number
+        fullName: string
+        title: string
+        company: string
+        bio: string
+        website: string
+        linkedInURL: string
+        mentorshipPhilosophy: string
+        profilePhotoURL: string
+        experienceYears: number
+        items: string[]
+        createdAt: string
+        updatedAt: string
     }
 
-    interface IExpertise{
-        category : string
-        proficiencyLevel : string
-        subTopic : string
-        yearsOfExperience : number
+    interface ICreateAdvisor {
+        fullName: string
+        title?: string
+        company?: string
+        bio?: string
+        website?: string
+        linkedInURL?: string
+        mentorshipPhilosophy?: string
+        profilePhotoURL?: File | string
+        items?: string[]
+    }
+
+    interface IPaging {
+        page: number
+        pageSize: number
+        totalItems: number
+        totalPages: number
+    }
+
+    interface IPaginatedRes<T> {
+        items: T[]
+        paging: IPaging
+    }
+
+    interface IWatchlistItem {
+        watchlistID: number
+        startupID: number
+        companyName: string
+        oneLiner: string
+        industry: string
+        stage: string
+        location: string
+        logoURL: string
+        watchReason: string
+        priority: string
+        addedAt: string
+    }
+
+    interface ICreateWatchlistItem {
+        startupId: number
+        watchReason: string
+        priority: string
+    }
+
+    interface INotificationItem {
+        notificationId: number
+        notificationType: string
+        title: string
+        messagePreview: string
+        isRead: boolean
+        createdAt: string
+        actionUrl: string
+    }
+
+    interface INotificationDetail {
+        notificationId: number
+        notificationType: string
+        title: string
+        message: string
+        relatedEntityType: string
+        relatedEntityId: number
+        actionUrl: string
+        isRead: boolean
+        isSent: boolean
+        createdAt: string
+        readAt: string
+    }
+
+    interface IStartupSearchItem {
+        startupID: number
+        companyName: string
+        oneLiner: string
+        stage: string
+        industry: string
+        subIndustry: string
+        location: string
+        country: string
+        logoURL: string
+        fundingStage: string
+        profileStatus: string
+        updatedAt: string
+    }
+
+    // ── Connection ──
+    interface IConnectionItem {
+        connectionID: number
+        startupID: number
+        startupName: string
+        investorID: number
+        investorName: string
+        connectionStatus: string
+        personalizedMessage: string
+        matchScore: number
+        requestedAt: string
+        respondedAt: string
+    }
+
+    interface IConnectionDetail {
+        connectionID: number
+        startupID: number
+        startupName: string
+        investorID: number
+        investorName: string
+        connectionStatus: string
+        personalizedMessage: string
+        attachedDocumentIDs: string
+        matchScore: number
+        requestedAt: string
+        respondedAt: string
+        informationRequests: IInfoRequest[]
+    }
+
+    interface IInfoRequest {
+        requestID: number
+        connectionID: number
+        investorID: number
+        requestType: string
+        requestMessage: string
+        requestStatus: string
+        responseMessage: string
+        responseDocumentIDs: string
+        requestedAt: string
+        fulfilledAt: string
+    }
+
+    interface ICreateConnection {
+        startupId: number
+        message: string
+    }
+
+    interface ICreateInfoRequest {
+        requestType: string
+        requestMessage: string
+    }
+
+    interface IFulfillInfoRequest {
+        responseMessage: string
+        responseDocumentIDs: string
+    }
+
+    // ── Admin User Management ──
+    interface IAdminUser {
+        userId: number
+        email: string
+        userType: string
+        isActive: boolean
+        emailVerified: boolean
+        createdAt: string
+        lastLoginAt: string
+        roles: string[]
+    }
+
+    interface IRole {
+        roleId: number
+        roleName: string
+        description: string
+        createdAt: string
+        updatedAt: string
+        permissions: IPermission[]
+    }
+
+    interface IPermission {
+        permissionId: number
+        permissionName: string
+        description: string
+        category: string
+    }
+
+    interface IRegisterRequest {
+        email: string
+        password: string
+        confirmPassword: string
+        userType: string
+    }
+
+    // ── KYC Status ──
+    interface IKYCStatus {
+        status: "Not Submitted" | "Pending" | "Approved" | "Rejected";
+        verificationLabel: "Verified Investor Entity" | "Verified Angel Investor" | "Basic Verified" | "Pending More Info" | "Verification Failed" | "None";
+        explanation: string;
+        lastUpdated: string;
+        submissionSummary?: IKYCSubmissionSummary;
+        reviewOutcome?: IKYCReviewOutcome;
+        history?: IKYCCycle[];
+    }
+
+    interface IKYCSubmissionSummary {
+        investorTypePath: string;
+        submittedName: string;
+        submissionDate: string;
+        documentCount: number;
+        version: number;
+    }
+
+    interface IKYCReviewOutcome {
+        rejectionReason?: string;
+        correctionGuidance?: string;
+        nextSteps: string;
+    }
+
+    interface IKYCCycle {
+        event: string;
+        date: string;
+        status: string;
     }
 }

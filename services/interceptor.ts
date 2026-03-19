@@ -36,19 +36,26 @@ const callRefreshToken = async (): Promise<IBackendRes<ILoginInfo | null>> => {
 // Add a response interceptor with refresh token logic
 instance.interceptors.response.use(
   function (response) {
-    if (response.data) return response.data;
+    if (response.data) {
+      if (typeof response.data.success === "undefined" && typeof response.data.isSuccess === "boolean") {
+        response.data.success = response.data.isSuccess;
+      }
+      return response.data;
+    }
     return response;
   },
   async function (error: AxiosError) {
     const originalRequest: any = error.config;
 
-    if (error.response?.status === 401 && !originalRequest?._retry) {
+    const isLogoutRequest = originalRequest?.url?.includes("/api/auth/logout");
+
+    if (error.response?.status === 401 && !originalRequest?._retry && !isLogoutRequest) {
       originalRequest._retry = true;
 
       try {
         const refreshResult = await callRefreshToken();
 
-        if (refreshResult && refreshResult.isSuccess && refreshResult.statusCode === 200 && refreshResult.data) {
+        if (refreshResult && (refreshResult.success || (refreshResult as any).isSuccess) && refreshResult.data) {
           const { accessToken } = refreshResult.data;
 
           if (typeof window !== "undefined") {
@@ -61,13 +68,18 @@ instance.interceptors.response.use(
           return instance(originalRequest);
         }
       } catch (refreshError) {
-        return Promise.reject(refreshError);
+        // If refresh fails, don't throw another error, just let the original 401 pass through
+        // This avoids messy "Request failed with status code 401" in the console for the refresh-token call itself
+        console.warn("Token refresh failed. Redirecting to login or handling session end.");
       }
     }
 
     // Trả về dạng IBackendRes nếu backend trả về theo cấu trúc đó
-    const backendRes = (error.response?.data ?? null) as IBackendRes<unknown> | null;
-    if (backendRes && backendRes.isSuccess && backendRes.statusCode === 200) {
+    const backendRes = (error.response?.data ?? null) as any;
+    if (backendRes && (typeof backendRes.success === "boolean" || typeof backendRes.isSuccess === "boolean")) {
+      if (typeof backendRes.success === "undefined" && typeof backendRes.isSuccess === "boolean") {
+        backendRes.success = backendRes.isSuccess;
+      }
       return backendRes;
     }
 
