@@ -3,19 +3,68 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StartupHeader } from "@/components/startup/startup-header";
-import { Button } from "@/components/ui/button";
-import {
-  Bell,
-  FileText,
-  LayoutDashboard,
-  Sparkles,
-  User,
-  Users,
-  UserCheck,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
 import React from "react";
 import { AuthGuard } from "@/components/auth-guard";
+
+const routeLabels: Record<string, string> = {
+  startup: "Workspace",
+  "startup-profile": "Hồ sơ Startup",
+  investors: "Nhà đầu tư",
+  "ai-evaluation": "Đánh giá AI",
+  request: "Yêu cầu đánh giá",
+  score: "Điểm tiềm năng",
+  history: "Lịch sử đánh giá",
+  experts: "Cố vấn & Chuyên gia",
+  "mentorship-requests": "Yêu cầu tư vấn",
+  "confirm-schedule": "Xác nhận lịch hẹn",
+  checkout: "Thanh toán",
+  result: "Kết quả thanh toán",
+  payments: "Lịch sử thanh toán",
+  report: "Báo cáo tư vấn",
+  feedback: "Gửi đánh giá",
+  documents: "Tài liệu & IP",
+  messaging: "Tin nhắn",
+  notifications: "Thông báo",
+  settings: "Cài đặt",
+  info: "Thông tin cơ bản",
+  business: "Kinh doanh & Thị trường",
+  funding: "Gọi vốn",
+  team: "Đội ngũ & Xác thực",
+  visibility: "Hiển thị",
+  kyc: "KYC & Xác thực",
+};
+
+function StartupBreadcrumb() {
+  const pathname = usePathname();
+  const segments = pathname.split("/").filter(Boolean);
+
+  const crumbs = segments.map((seg, i) => {
+    const href = "/" + segments.slice(0, i + 1).join("/");
+    const label = routeLabels[seg] ?? (/^\d+$/.test(seg) ? "Chi tiết" : seg);
+    const isLast = i === segments.length - 1;
+    return { href, label, isLast };
+  });
+
+  if (crumbs.length <= 1) return null;
+
+  return (
+    <nav className="flex items-center gap-1 mb-6 text-[13px]">
+      {crumbs.map((crumb, i) => (
+        <React.Fragment key={crumb.href}>
+          {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />}
+          {crumb.isLast ? (
+            <span className="text-slate-700 font-medium">{crumb.label}</span>
+          ) : (
+            <Link href={crumb.href} className="text-slate-400 hover:text-slate-600 transition-colors">
+              {crumb.label}
+            </Link>
+          )}
+        </React.Fragment>
+      ))}
+    </nav>
+  );
+}
 
 type StartupShellProps = {
   children: React.ReactNode;
@@ -28,6 +77,7 @@ export function StartupShell({ children }: StartupShellProps) {
         <StartupHeader />
         <div className="h-[80px]" />
         <main className="min-h-[calc(100vh-80px)] pb-12 w-full max-w-[1440px] mx-auto px-6 pt-8">
+          <StartupBreadcrumb />
           {children}
         </main>
       </div>

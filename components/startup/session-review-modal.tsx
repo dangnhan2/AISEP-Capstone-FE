@@ -65,7 +65,7 @@ export function SessionReviewModal({ isOpen, onClose, session }: SessionReviewMo
                 <div className="p-8">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h2 className="text-[24px] font-black text-slate-900 dark:text-white tracking-tight leading-none">Đánh giá phiên hướng dẫn</h2>
+                            <DialogTitle className="text-[24px] font-black text-slate-900 dark:text-white tracking-tight leading-none">Đánh giá phiên hướng dẫn</DialogTitle>
                             <p className="text-[14px] text-slate-400 font-medium mt-2">Phản hồi của bạn giúp cộng đồng startup phát triển.</p>
                         </div>
                         <button

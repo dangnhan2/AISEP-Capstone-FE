@@ -12,9 +12,14 @@ export const GetSentConnections = (page: number = 1, pageSize: number = 20, stat
     });
 };
 
-export const GetReceivedConnections = (page: number = 1, pageSize: number = 20, status?: string) => {
+export const GetReceivedConnections = (page: number = 1, pageSize: number = 20, status?: string, investorId?: number) => {
     return axios.get<IBackendRes<IPaginatedRes<IConnectionItem>>>(`/api/connections/received`, {
-        params: { page, pageSize, ...(status ? { status } : {}) },
+        params: {
+            page,
+            pageSize,
+            ...(status ? { status } : {}),
+            ...(investorId ? { investorId } : {}),
+        },
     });
 };
 
@@ -42,6 +47,18 @@ export const RejectConnection = (id: number, data: { reason: string }) => {
 
 export const CloseConnection = (id: number) => {
     return axios.post<IBackendRes<IConnectionItem>>(`/api/connections/${id}/close`);
+};
+
+// Startup kiểm tra connection với một investor cụ thể
+// Dùng GET /api/connections/received?investorId={id} (StartupOnly)
+export const GetConnectionByInvestorId = async (investorId: number): Promise<IConnectionItem | null> => {
+    try {
+        const res = await GetReceivedConnections(1, 1, undefined, investorId) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
+        if (res.success && res.data?.items?.length) {
+            return res.data.items[0];
+        }
+    } catch { /* silent */ }
+    return null;
 };
 
 // ── Information Requests ──

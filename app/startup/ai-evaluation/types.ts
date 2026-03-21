@@ -1,4 +1,4 @@
-export type AIEvaluationStatus = 
+export type AIEvaluationStatus =
   | "NOT_REQUESTED"
   | "VALIDATING"
   | "QUEUED"
@@ -40,12 +40,16 @@ export interface AIEvaluationReport {
   generatedAt: string;
   isCurrent: boolean;
   configVersion: string;
+  modelVersion: string;
+  promptVersion: string;
   snapshotLabel: string;
   warningMessages: string[];
+  executiveSummary: string;
   strengths: string[];
   opportunities: string[];
   risks: string[];
   concerns: string[];
+  gaps: string[];
   recommendations: Recommendation[];
   subMetrics: {
     team: SubMetric[];
@@ -57,3 +61,41 @@ export interface AIEvaluationReport {
 }
 
 export type UserRole = "STARTUP_OWNER" | "INVESTOR_FULL" | "INVESTOR_LIMITED" | "INVESTOR_UNAUTHORIZED";
+
+/* ─── Readiness ────────────────────────────────────────────── */
+
+export interface ReadinessItem {
+  label: string;
+  ready: boolean;
+  detail?: string;
+}
+
+export interface EligibleDocument {
+  id: string;
+  name: string;
+  type: "PITCH_DECK" | "BUSINESS_PLAN" | "OTHER";
+  updatedAt: string;
+  recommended: boolean;
+}
+
+export interface ReadinessSummary {
+  profile: {
+    ready: boolean;
+    completionPercent: number;
+    items: ReadinessItem[];
+  };
+  documents: {
+    ready: boolean;
+    eligibleDocs: EligibleDocument[];
+    items: ReadinessItem[];
+  };
+}
+
+export interface ProfileSnapshot {
+  name: string;
+  stage: string;
+  industry: string;
+  foundedYear: number;
+  teamSize: number;
+  lastUpdated: string;
+}

@@ -6,42 +6,35 @@ import { Shield, Cloud } from "lucide-react";
 
 export function StartupProfileFooter() {
     const pathname = usePathname();
-
-    // Custom text based on page
     const isKyc = pathname.includes("/kyc");
-    const saveLabel = "Lưu thay đổi";
-    const submitLabel = isKyc ? "Gửi duyệt hồ sơ" : "Gửi duyệt";
-    const securityText = isKyc ? "Dữ liệu được bảo mật bởi AISEP Security" : "Tự động lưu lúc 14:20";
-    const SecurityIcon = isKyc ? Shield : Cloud;
-
-    // Check if current page is KYC to apply different button styles if needed
-    const isSubmitDisabled = pathname.includes("/funding") || pathname.includes("/info");
+    const isSubmitDisabled = pathname.includes("/funding") || pathname.includes("/info") || pathname.includes("/business");
 
     return (
-        <footer className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-surface p-5 z-[50] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-            <div className="max-w-[1440px] mx-auto flex items-center justify-between px-6">
-                <div className="flex items-center gap-3 text-neutral-muted">
-                    <div className="w-8 h-8 rounded-full bg-neutral-surface flex items-center justify-center">
-                        <SecurityIcon className="w-4 h-4 opacity-70" />
-                    </div>
-                    <span className="text-xs font-black uppercase tracking-widest opacity-60">{securityText}</span>
+        <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200/80 z-[50] shadow-[0_-1px_0_rgba(0,0,0,0.04)]">
+            <div className="max-w-6xl mx-auto flex items-center justify-between px-6 h-16">
+                <div className="flex items-center gap-2 text-slate-400">
+                    {isKyc
+                        ? <Shield className="w-3.5 h-3.5" />
+                        : <Cloud className="w-3.5 h-3.5" />}
+                    <span className="text-[12px] font-normal">
+                        {isKyc ? "Dữ liệu được bảo mật bởi AISEP" : "Tự động lưu · 14:20"}
+                    </span>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <button className="px-8 py-3.5 rounded-2xl text-sm font-black bg-white border-2 border-neutral-surface text-[#171611] hover:bg-neutral-surface hover:border-neutral-muted transition-all duration-300 shadow-sm active:scale-95">
-                        {saveLabel}
+                <div className="flex items-center gap-3">
+                    <button className="px-5 py-2 rounded-xl text-[13px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
+                        Lưu thay đổi
                     </button>
-
                     <button
                         disabled={isSubmitDisabled}
                         className={cn(
-                            "px-8 py-3.5 rounded-2xl text-sm font-black transition-all duration-300 shadow-lg active:scale-95",
+                            "px-5 py-2 rounded-xl text-[13px] font-medium transition-colors",
                             isSubmitDisabled
-                                ? "bg-neutral-surface text-neutral-muted cursor-not-allowed opacity-50 shadow-none"
-                                : "bg-[#e6cc4c] text-white hover:bg-[#d4ba3d] shadow-[#e6cc4c]/30"
+                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                : "bg-[#0f172a] text-white hover:bg-slate-800"
                         )}
                     >
-                        {submitLabel}
+                        {isKyc ? "Gửi duyệt hồ sơ" : "Gửi duyệt"}
                     </button>
                 </div>
             </div>

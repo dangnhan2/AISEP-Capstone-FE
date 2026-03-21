@@ -1,19 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { UserPlus, Edit2, Camera, Link2 } from "lucide-react";
+import { X, Camera, Link2, UserPlus, Pencil } from "lucide-react";
 
 interface TeamMember {
     id?: string;
@@ -33,154 +22,152 @@ interface TeamMemberModalProps {
     member?: TeamMember | null;
 }
 
+const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all";
+const labelCls = "block text-[12px] font-medium text-slate-500 mb-1.5";
+
+const ROLES = ["Founder", "Co-founder", "Board Member", "Investor"];
+
 export function TeamMemberModal({ isOpen, onClose, onSave, member }: TeamMemberModalProps) {
-    const [formData, setFormData] = useState<TeamMember>({
-        name: "",
-        roles: [],
-        description: "",
-        title: "",
-        status: "Toàn thời gian",
-        avatar: "",
-        linkedin: ""
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        setForm(p => ({ ...p, avatar: url }));
+    };
+
+    const [form, setForm] = useState<TeamMember>({
+        name: "", roles: [], description: "", title: "",
+        status: "Toàn thời gian", avatar: "", linkedin: ""
     });
 
     useEffect(() => {
-        if (member) {
-            setFormData(member);
-        } else {
-            setFormData({
-                name: "",
-                roles: [],
-                description: "",
-                title: "",
-                status: "Toàn thời gian",
-                avatar: "",
-                linkedin: ""
-            });
-        }
+        setForm(member ?? {
+            name: "", roles: [], description: "", title: "",
+            status: "Toàn thời gian", avatar: "", linkedin: ""
+        });
     }, [member, isOpen]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+    const set = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+        setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
-    const handleToggleRole = (role: string) => {
-        setFormData(prev => ({
-            ...prev,
-            roles: prev.roles.includes(role)
-                ? prev.roles.filter(r => r !== role)
-                : [...prev.roles, role]
+    const toggleRole = (role: string) =>
+        setForm(p => ({
+            ...p,
+            roles: p.roles.includes(role) ? p.roles.filter(r => r !== role) : [...p.roles, role]
         }));
-    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+        onSave(form);
         onClose();
     };
 
-    return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl bg-white rounded-[32px] p-0 border-none overflow-hidden shadow-2xl">
-                <DialogHeader className="p-8 border-b border-neutral-surface bg-[#fdfbe9]/30">
-                    <DialogTitle className="text-2xl font-black text-[#171611] tracking-tight flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#e6cc4c] flex items-center justify-center text-white">
-                            {member ? <Edit2 className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                        </div>
-                        {member ? "Chỉnh sửa thành viên" : "Thêm thành viên mới"}
-                    </DialogTitle>
-                </DialogHeader>
+    if (!isOpen) return null;
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    {/* Avatar & Basic Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        <div className="md:col-span-1 space-y-4 flex flex-col items-center">
-                            <Label className="text-sm font-black text-[#171611] w-full text-left">Ảnh đại diện</Label>
-                            <div className="w-32 h-32 rounded-[32px] bg-[#f8f8f6] border-2 border-dashed border-neutral-surface flex flex-col items-center justify-center cursor-pointer hover:bg-[#fdfbe9]/50 transition-all overflow-hidden relative group">
-                                {formData.avatar ? (
-                                    <img src={formData.avatar} alt="Preview" className="w-full h-full object-cover" />
-                                ) : (
-                                    <Camera className="w-8 h-8 text-neutral-muted opacity-40" />
-                                )}
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <span className="text-white text-[10px] font-black uppercase tracking-widest">Thay đổi</span>
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-xl mx-4 overflow-hidden">
+
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                            {member ? <Pencil className="w-4 h-4 text-slate-600" /> : <UserPlus className="w-4 h-4 text-slate-600" />}
+                        </div>
+                        <h2 className="text-[15px] font-semibold text-[#0f172a] tracking-tight">
+                            {member ? "Chỉnh sửa thành viên" : "Thêm thành viên mới"}
+                        </h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+
+                    {/* Avatar + Name + Title */}
+                    <div className="flex gap-4">
+                        {/* Avatar */}
+                        <div className="flex-shrink-0">
+                            <label className={labelCls}>Ảnh đại diện</label>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarChange}
+                            />
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-[72px] h-[72px] rounded-xl bg-slate-100 border border-slate-200 border-dashed flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors relative group overflow-hidden"
+                            >
+                                {form.avatar
+                                    ? <img src={form.avatar} alt="avatar" className="w-full h-full object-cover" />
+                                    : <Camera className="w-5 h-5 text-slate-400" />
+                                }
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Camera className="w-4 h-4 text-white" />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="md:col-span-3 space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name" className="text-sm font-black text-[#171611]">Họ và tên <span className="text-red-500">*</span></Label>
-                                <Input
-                                    id="name"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    className="bg-[#f8f8f6] border-none rounded-2xl h-12 px-5 font-bold focus:ring-2 focus:ring-[#e6cc4c]/30"
-                                    placeholder="Nhập họ tên đầy đủ"
-                                    required
-                                />
+                        {/* Name + Title */}
+                        <div className="flex-1 space-y-3">
+                            <div>
+                                <label className={labelCls}>Họ và tên <span className="text-red-400">*</span></label>
+                                <input name="name" value={form.name} onChange={set} className={inputCls} placeholder="Nhập họ tên đầy đủ" required />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="title" className="text-sm font-black text-[#171611]">Chức danh / Vị trí <span className="text-red-500">*</span></Label>
-                                <Input
-                                    id="title"
-                                    name="title"
-                                    value={formData.title}
-                                    onChange={handleChange}
-                                    className="bg-[#f8f8f6] border-none rounded-2xl h-12 px-5 font-bold focus:ring-2 focus:ring-[#e6cc4c]/30"
-                                    placeholder="Ví dụ: CEO, CTO, Head of Product..."
-                                    required
-                                />
+                            <div>
+                                <label className={labelCls}>Chức danh / Vị trí <span className="text-red-400">*</span></label>
+                                <input name="title" value={form.title} onChange={set} className={inputCls} placeholder="VD: CEO, CTO, Head of Product..." required />
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label className="text-sm font-black text-[#171611]">Loại nhân sự</Label>
-                            <select
-                                name="status"
-                                value={formData.status}
-                                onChange={handleChange}
-                                className="w-full bg-[#f8f8f6] border-none rounded-2xl h-12 px-5 font-bold text-sm focus:ring-2 focus:ring-[#e6cc4c]/30 outline-none appearance-none"
-                            >
-                                <option value="Toàn thời gian">Toàn thời gian</option>
-                                <option value="Bán thời gian">Bán thời gian</option>
-                                <option value="Cố vấn">Cố vấn</option>
-                                <option value="Thực tập sinh">Thực tập sinh</option>
+                    {/* Status + LinkedIn */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelCls}>Loại nhân sự</label>
+                            <select name="status" value={form.status} onChange={set} className={inputCls}>
+                                <option>Toàn thời gian</option>
+                                <option>Bán thời gian</option>
+                                <option>Cố vấn</option>
+                                <option>Thực tập sinh</option>
                             </select>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="linkedin" className="text-sm font-black text-[#171611]">LinkedIn URL</Label>
+                        <div>
+                            <label className={labelCls}>LinkedIn URL</label>
                             <div className="relative">
-                                <Link2 className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-muted w-5 h-5" />
-                                <Input
-                                    id="linkedin"
-                                    name="linkedin"
-                                    value={formData.linkedin}
-                                    onChange={handleChange}
-                                    className="bg-[#f8f8f6] border-none rounded-2xl h-12 pl-12 pr-5 font-bold focus:ring-2 focus:ring-[#e6cc4c]/30"
-                                    placeholder="https://linkedin.com/in/..."
-                                />
+                                <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                <input name="linkedin" value={form.linkedin} onChange={set} className={cn(inputCls, "pl-9")} placeholder="https://linkedin.com/in/..." />
                             </div>
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <Label className="text-sm font-black text-[#171611]">Vai trò đặc biệt</Label>
+                    {/* Roles */}
+                    <div>
+                        <label className={labelCls}>Vai trò đặc biệt</label>
                         <div className="flex flex-wrap gap-2">
-                            {["Founder", "Co-founder", "Board Member", "Investor"].map(role => (
+                            {ROLES.map(role => (
                                 <button
                                     key={role}
                                     type="button"
-                                    onClick={() => handleToggleRole(role)}
+                                    onClick={() => toggleRole(role)}
                                     className={cn(
-                                        "px-4 py-2 rounded-xl text-xs font-black transition-all border-2",
-                                        formData.roles.includes(role)
-                                            ? "bg-[#e6cc4c] border-[#e6cc4c] text-white shadow-md shadow-[#e6cc4c]/20"
-                                            : "bg-white border-neutral-surface text-neutral-muted hover:border-[#e6cc4c]/40"
+                                        "px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-all border",
+                                        form.roles.includes(role)
+                                            ? "bg-[#0f172a] text-white border-[#0f172a]"
+                                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                     )}
                                 >
                                     {role}
@@ -189,38 +176,38 @@ export function TeamMemberModal({ isOpen, onClose, onSave, member }: TeamMemberM
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="description" className="text-sm font-black text-[#171611]">Tiểu sử ngắn gọn</Label>
-                        <Textarea
-                            id="description"
+                    {/* Bio */}
+                    <div>
+                        <label className={labelCls}>Tiểu sử ngắn gọn</label>
+                        <textarea
                             name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            className="bg-[#f8f8f6] border-none rounded-[24px] p-5 font-bold focus:ring-2 focus:ring-[#e6cc4c]/30 resize-none"
+                            value={form.description}
+                            onChange={set}
+                            rows={3}
+                            className={cn(inputCls, "resize-none")}
                             placeholder="Giới thiệu kinh nghiệm, học vấn hoặc thành tựu nổi bật..."
-                            rows={4}
                         />
                     </div>
                 </form>
 
-                <DialogFooter className="p-8 border-t border-neutral-surface bg-neutral-surface/5 flex flex-row gap-3">
-                    <Button
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button
                         type="button"
-                        variant="ghost"
                         onClick={onClose}
-                        className="flex-1 h-12 rounded-2xl font-black text-neutral-muted hover:bg-neutral-surface"
+                        className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors"
                     >
                         Hủy bỏ
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                         type="submit"
                         onClick={handleSubmit}
-                        className="flex-1 h-12 rounded-2xl font-black bg-[#e6cc4c] text-white hover:bg-[#d4ba3d] shadow-lg shadow-[#e6cc4c]/20"
+                        className="px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-slate-800 transition-colors shadow-sm"
                     >
                         {member ? "Cập nhật" : "Lưu thành viên"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

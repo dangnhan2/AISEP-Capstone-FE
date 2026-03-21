@@ -22,6 +22,7 @@ import {
     Paperclip
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CreateConnection } from "@/services/connection/connection.api";
 
 interface InvestorConnectionModalProps {
     isOpen: boolean;
@@ -30,10 +31,12 @@ interface InvestorConnectionModalProps {
         name: string;
         logo: string;
         type: string;
+        investorId: number;
     } | null;
+    onSuccess?: (connectionId: number) => void;
 }
 
-export function InvestorConnectionModal({ isOpen, onClose, investor }: InvestorConnectionModalProps) {
+export function InvestorConnectionModal({ isOpen, onClose, investor, onSuccess }: InvestorConnectionModalProps) {
     const [goal, setGoal] = useState("");
     const [message, setMessage] = useState("");
     const [attachedDocs, setAttachedDocs] = useState([
@@ -41,16 +44,30 @@ export function InvestorConnectionModal({ isOpen, onClose, investor }: InvestorC
         { id: 2, name: "Báo cáo tài chính 2024" }
     ]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = async () => {
+        if (!investor) return;
         setIsSubmitting(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setIsSubmitting(false);
-        onClose();
-        // Reset form
-        setGoal("");
-        setMessage("");
+        setError(null);
+        try {
+            const res = await CreateConnection({
+                investorId: investor.investorId,
+                message: `[${goal}] ${message}`,
+            }) as any as IBackendRes<IConnectionItem>;
+            if (res.success && res.data) {
+                onSuccess?.(res.data.connectionID);
+                onClose();
+                setGoal("");
+                setMessage("");
+            } else {
+                setError(res.message || "Gửi lời mời thất bại. Vui lòng thử lại.");
+            }
+        } catch {
+            setError("Có lỗi xảy ra. Vui lòng thử lại.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const removeDoc = (id: number) => {
@@ -162,6 +179,11 @@ export function InvestorConnectionModal({ isOpen, onClose, investor }: InvestorC
                                 Lời mời này sẽ được gửi kèm hồ sơ Startup của bạn tới nhà đầu tư. Hãy đảm bảo thông tin hồ sơ đã được cập nhật mới nhất.
                             </p>
                         </div>
+
+                        {/* Error */}
+                        {error && (
+                            <p className="text-sm text-red-500 font-medium px-1">{error}</p>
+                        )}
 
                         {/* Action Buttons */}
                         <div className="flex items-center gap-4 pt-4">
