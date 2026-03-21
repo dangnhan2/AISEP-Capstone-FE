@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i 's/amount: 120,/amount: 3000000,/g' app/startup/payments/page.tsx)",
+      "Bash(sed -i 's/amount: 80,/amount: 2000000,/g' app/startup/payments/page.tsx)",
+      "Bash(sed -i 's/amount: 150,/amount: 3750000,/g' app/startup/payments/page.tsx)",
+      "Bash(sed -i 's/amount: 60,/amount: 1500000,/g' app/startup/payments/page.tsx)",
+      "Bash(grep -n '\\\\$' \"c:/Users/Acer/Documents/Github/AISEP-Capstone-FE/components/startup/mentorship-request-modal.tsx\")",
+      "Bash(npx next:*)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Acer\\Documents\\Github\\AISEP-Capstone-FE\\app\\startup\\investors\\[id]"
+    ]
+  }
+}

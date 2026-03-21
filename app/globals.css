@@ -197,3 +197,16 @@
   animation: slideFromRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: 0.2s;
 }
+
+/* ─── Print / Export PDF ─────────────────────────────────── */
+@media print {
+  body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Hide shell chrome */
+  header, nav, .no-print { display: none !important; }
+  /* Remove sticky so sidebar renders fully */
+  .sticky { position: static !important; }
+  /* Full width content */
+  main { padding: 0 !important; max-width: 100% !important; }
+  /* Avoid page breaks inside cards */
+  .bg-white { break-inside: avoid; }
+}

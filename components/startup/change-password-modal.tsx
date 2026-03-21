@@ -1,18 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Lock, X, Eye, EyeOff, Check } from "lucide-react";
+import { Lock, X, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ChangePasswordModalProps {
     isOpen: boolean;
@@ -20,157 +10,190 @@ interface ChangePasswordModalProps {
     onSuccess: () => void;
 }
 
-export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswordModalProps) {
-    const [showPassword, setShowPassword] = useState(false);
-    const [formData, setFormData] = useState({
-        current: "",
-        new: "",
-        confirm: ""
-    });
+const inputCls = (hasError: boolean) =>
+    cn(
+        "w-full bg-slate-50 border rounded-xl px-4 py-2.5 pr-11 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all",
+        hasError ? "border-red-300 bg-red-50/30 focus:border-red-400 focus:ring-red-500/10" : "border-slate-200"
+    );
 
-    // Simple strength calculation
-    const getStrength = (pwd: string) => {
-        if (!pwd) return { label: "Yếu", level: 0, color: "bg-red-500" };
-        if (pwd.length < 6) return { label: "Yếu", level: 1, color: "bg-red-500" };
-        if (pwd.length < 10) return { label: "Trung bình", level: 2, color: "bg-orange-500" };
-        return { label: "Mạnh", level: 4, color: "bg-[#e6cc4c]" };
-    };
+const POLICY = [
+    { rule: (p: string) => p.length >= 8,       label: "Ít nhất 8 ký tự" },
+    { rule: (p: string) => /[A-Z]/.test(p),      label: "Có chữ hoa" },
+    { rule: (p: string) => /[0-9]/.test(p),      label: "Có chữ số" },
+];
 
-    const strength = getStrength(formData.new);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        // Simulate API call
-        setTimeout(() => {
-            onSuccess();
-        }, 500);
-    };
-
+function PasswordField({
+    label, name, value, onChange, placeholder, error, hint,
+}: {
+    label: string; name: string; value: string;
+    onChange: (v: string) => void; placeholder: string;
+    error?: string; hint?: React.ReactNode;
+}) {
+    const [show, setShow] = useState(false);
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[480px] bg-white rounded-[32px] p-0 border-none overflow-hidden shadow-2xl">
-                <DialogHeader className="p-6 border-b border-neutral-surface flex flex-row items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#e6cc4c]/10 flex items-center justify-center">
-                            <Lock className="w-5 h-5 text-[#e6cc4c]" />
-                        </div>
-                        <DialogTitle className="text-xl font-black text-[#171611]">Thay đổi mật khẩu</DialogTitle>
-                    </div>
-                    <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-neutral-surface flex items-center justify-center transition-colors">
-                        <X className="w-5 h-5 text-neutral-muted" />
-                    </button>
-                </DialogHeader>
-
-                <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                    <div className="space-y-2">
-                        <Label className="block text-sm font-black text-[#171611]">Mật khẩu hiện tại</Label>
-                        <div className="relative group">
-                            <Input
-                                type={showPassword ? "text" : "password"}
-                                value={formData.current}
-                                onChange={(e) => setFormData(prev => ({ ...prev, current: e.target.value }))}
-                                className="w-full h-12 px-5 bg-[#f8f8f6] border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-[#e6cc4c]/30 outline-none transition-all font-bold placeholder:text-neutral-muted/60 text-sm"
-                                placeholder="Nhập mật khẩu hiện tại"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-muted hover:text-[#171611] transition-colors"
-                            >
-                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label className="block text-sm font-black text-[#171611]">Mật khẩu mới</Label>
-                        <div className="relative group">
-                            <Input
-                                type="password"
-                                value={formData.new}
-                                onChange={(e) => setFormData(prev => ({ ...prev, new: e.target.value }))}
-                                />
-                            <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-muted hover:text-[#171611]">
-                                <Eye className="w-5 h-5" />
-                            </button>
-                        </div>
-                        {formData.new && (
-                            <div className="pt-2">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-black text-neutral-muted uppercase tracking-widest leading-none">Độ mạnh mật khẩu</span>
-                                    <span className={cn("text-[10px] font-black uppercase tracking-widest leading-none", strength.color.replace('bg-', 'text-'))}>{strength.label}</span>
-                                </div>
-                                <div className="flex gap-1.5 h-1.5">
-                                    <div className={cn("h-full flex-1 rounded-full transition-all duration-500", strength.level >= 1 ? strength.color : "bg-neutral-200")}></div>
-                                    <div className={cn("h-full flex-1 rounded-full transition-all duration-500", strength.level >= 2 ? strength.color : "bg-neutral-200")}></div>
-                                    <div className={cn("h-full flex-1 rounded-full transition-all duration-500", strength.level >= 3 ? strength.color : "bg-neutral-200")}></div>
-                                    <div className={cn("h-full flex-1 rounded-full transition-all duration-500", strength.level >= 4 ? strength.color : "bg-neutral-200")}></div>
-                                </div>
-                            </div>
-                        )}
-                        <p className="text-[10px] text-neutral-muted font-bold leading-relaxed pt-1">
-                            Mật khẩu phải có ít nhất <span className="text-[#171611]">8 ký tự</span>, bao gồm <span className="text-[#171611]">chữ và số</span>.
-                        </p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label className="block text-sm font-black text-[#171611]">Xác nhận mật khẩu mới</Label>
-                        <Input
-                            type="password"
-                            value={formData.confirm}
-                            onChange={(e) => setFormData(prev => ({ ...prev, confirm: e.target.value }))}
-                            className="w-full h-12 px-5 bg-[#f8f8f6] border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-[#e6cc4c]/30 outline-none transition-all font-bold placeholder:text-neutral-muted/60 text-sm"
-                            placeholder="Nhập lại mật khẩu mới"
-                        />
-                    </div>
-                </form>
-
-                <DialogFooter className="p-6 bg-[#f8f8f6] border-t border-neutral-surface flex flex-col sm:flex-row gap-3">
-                    <Button
-                        variant="ghost"
-                        onClick={onClose}
-                        className="flex-1 h-12 rounded-2xl font-black text-neutral-muted hover:bg-neutral-surface"
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        onClick={handleSubmit}
-                        className="flex-1 h-12 bg-[#e6cc4c] text-[#171611] text-sm font-black rounded-2xl shadow-lg shadow-[#e6cc4c]/20 hover:bg-[#d4ba3d] transition-all active:scale-95"
-                    >
-                        Cập nhật mật khẩu
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <div className="space-y-1.5">
+            <label className="block text-[12px] font-medium text-slate-500">{label}</label>
+            <div className="relative">
+                <input
+                    type={show ? "text" : "password"}
+                    name={name}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    className={inputCls(!!error)}
+                />
+                <button
+                    type="button"
+                    onClick={() => setShow(s => !s)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    aria-label={show ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                    {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+            </div>
+            {error && (
+                <p className="flex items-center gap-1.5 text-[12px] text-red-500 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
+                </p>
+            )}
+            {hint}
+        </div>
     );
 }
 
-export function SuccessModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function ChangePasswordModal({ isOpen, onClose, onSuccess }: ChangePasswordModalProps) {
+    const [form, setForm] = useState({ current: "", newPwd: "", confirm: "" });
+    const [errors, setErrors] = useState<Partial<typeof form>>({});
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setForm({ current: "", newPwd: "", confirm: "" });
+            setErrors({});
+            setSubmitting(false);
+        }
+    }, [isOpen]);
+
+    const validate = () => {
+        const errs: Partial<typeof form> = {};
+        if (!form.current) errs.current = "Vui lòng nhập mật khẩu hiện tại.";
+        if (!form.newPwd) errs.newPwd = "Vui lòng nhập mật khẩu mới.";
+        else if (form.newPwd.length < 8) errs.newPwd = "Mật khẩu phải có ít nhất 8 ký tự.";
+        if (!form.confirm) errs.confirm = "Vui lòng xác nhận mật khẩu mới.";
+        else if (form.confirm !== form.newPwd) errs.confirm = "Mật khẩu xác nhận không khớp.";
+        setErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validate()) return;
+        setSubmitting(true);
+        setTimeout(() => {
+            setSubmitting(false);
+            onSuccess();
+        }, 700);
+    };
+
+    const policyChecks = POLICY.map(p => ({ ...p, passed: p.rule(form.newPwd) }));
+    const canSubmit = form.current && form.newPwd && form.confirm && !submitting;
+
+    if (!isOpen) return null;
+
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[440px] bg-white rounded-[40px] p-0 border-none overflow-hidden shadow-2xl">
-                <div className="p-4 flex justify-end">
-                    <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-neutral-surface flex items-center justify-center transition-colors">
-                        <X className="w-6 h-6 text-neutral-muted" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 overflow-hidden">
+
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                            <Lock className="w-4 h-4 text-slate-600" />
+                        </div>
+                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Đổi mật khẩu</h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                    >
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
-                <div className="px-8 pb-12 flex flex-col items-center text-center">
-                    <div className="w-24 h-24 bg-[#10b981]/10 rounded-full flex items-center justify-center mb-8 relative">
-                        <div className="absolute inset-0 bg-[#10b981]/5 rounded-full animate-pulse"></div>
-                        <Check className="w-12 h-12 text-[#10b981] relative z-10" />
-                    </div>
-                    <h3 className="text-2xl font-black text-[#171611] mb-4 tracking-tight">Cập nhật mật khẩu thành công</h3>
-                    <p className="text-neutral-muted text-sm font-bold leading-relaxed mb-10 max-w-[280px]">
-                        Mật khẩu của bạn đã được thay đổi. Vui lòng sử dụng mật khẩu mới cho lần đăng nhập sau.
-                    </p>
-                    <Button
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+                    <PasswordField
+                        label="Mật khẩu hiện tại"
+                        name="current"
+                        value={form.current}
+                        onChange={v => { setForm(p => ({ ...p, current: v })); setErrors(e => ({ ...e, current: undefined })); }}
+                        placeholder="Nhập mật khẩu hiện tại"
+                        error={errors.current}
+                    />
+
+                    <PasswordField
+                        label="Mật khẩu mới"
+                        name="newPwd"
+                        value={form.newPwd}
+                        onChange={v => { setForm(p => ({ ...p, newPwd: v })); setErrors(e => ({ ...e, newPwd: undefined })); }}
+                        placeholder="Tối thiểu 8 ký tự"
+                        error={errors.newPwd}
+                        hint={
+                            form.newPwd ? (
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                    {policyChecks.map(({ label, passed }) => (
+                                        <span key={label} className={cn("flex items-center gap-1 text-[11px]", passed ? "text-emerald-600" : "text-slate-400")}>
+                                            <CheckCircle2 className="w-3 h-3" /> {label}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-slate-400 mt-0.5">Tối thiểu 8 ký tự, bao gồm chữ hoa và chữ số.</p>
+                            )
+                        }
+                    />
+
+                    <PasswordField
+                        label="Xác nhận mật khẩu mới"
+                        name="confirm"
+                        value={form.confirm}
+                        onChange={v => { setForm(p => ({ ...p, confirm: v })); setErrors(e => ({ ...e, confirm: undefined })); }}
+                        placeholder="Nhập lại mật khẩu mới"
+                        error={errors.confirm}
+                    />
+                </form>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button
+                        type="button"
                         onClick={onClose}
-                        className="w-full max-w-[200px] h-12 bg-[#e6cc4c] text-[#171611] text-sm font-black rounded-2xl shadow-lg shadow-[#e6cc4c]/20 hover:bg-[#d4ba3d] transition-all active:scale-95"
+                        className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors"
                     >
-                        Đóng
-                    </Button>
+                        Hủy bỏ
+                    </button>
+                    <button
+                        type="submit"
+                        onClick={handleSubmit}
+                        disabled={!canSubmit}
+                        className={cn(
+                            "px-5 py-2.5 rounded-xl text-[13px] font-medium transition-all shadow-sm",
+                            canSubmit
+                                ? "bg-[#0f172a] text-white hover:bg-slate-800"
+                                : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                        )}
+                    >
+                        {submitting ? "Đang lưu..." : "Cập nhật mật khẩu"}
+                    </button>
                 </div>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </div>
     );
+}
+
+// Keep SuccessModal export for backward compatibility (no longer used)
+export function SuccessModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+    if (!isOpen) return null;
+    return null;
 }

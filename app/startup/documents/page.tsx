@@ -1,294 +1,474 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { UploadDocumentModal } from "@/components/startup/upload-document-modal";
 import {
-  Search,
-  ChevronDown,
-  ChevronRight,
-  ChevronLeft,
-  Upload,
-  Eye,
-  Shield,
-  RefreshCcw,
-  Info,
-  FileText,
-  FileSpreadsheet,
-  FileArchive,
-  Award,
-  MoreHorizontal,
-  FolderOpen,
-  ShieldCheck,
-  HardDrive
+    Search, Upload, FolderOpen, ShieldCheck, Clock, HardDrive,
+    FileText, FileSpreadsheet, FileArchive, FileCode,
+    Shield, RefreshCcw, AlertTriangle, CheckCircle2, XCircle,
+    Eye, Download, Lock, Users, UserCheck, Pencil, Trash2,
+    ChevronDown, ChevronLeft, ChevronRight, ArrowUpDown, ExternalLink,
+    Info, AlertCircle,
 } from "lucide-react";
 
-const documents = [
-  {
-    id: "1",
-    name: "Pitch_Deck_NextGen_v2.pdf",
-    size: "2.4 MB",
-    owner: "Admin",
-    category: "Pitch Deck",
-    uploadDate: "12/02/2026",
-    status: "Protected",
-    icon: FileText,
-    iconColor: "text-red-500 bg-red-50",
-  },
-  {
-    id: "2",
-    name: "Financial_Report_Q4.xlsx",
-    size: "1.1 MB",
-    owner: "Tài chính",
-    category: "Tài chính",
-    uploadDate: "10/02/2026",
-    status: "Pending",
-    icon: FileSpreadsheet,
-    iconColor: "text-blue-500 bg-blue-50",
-  },
-  {
-    id: "3",
-    name: "Algorithm_Core_Specs.txt",
-    size: "0.5 MB",
-    owner: "Kỹ thuật",
-    category: "Kỹ thuật",
-    uploadDate: "08/02/2026",
-    status: "Not Protected",
-    icon: FileText,
-    iconColor: "text-purple-500 bg-purple-50",
-  },
-  {
-    id: "4",
-    name: "Trade_Secrets_V1.zip",
-    size: "15.8 MB",
-    owner: "Pháp lý",
-    category: "Pháp lý",
-    uploadDate: "05/02/2026",
-    status: "Failed",
-    icon: FileArchive,
-    iconColor: "text-orange-500 bg-orange-50",
-  },
+/* ─── Types ───────────────────────────────────────────────── */
+type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
+type Visibility = "private" | "investors" | "advisors" | "both";
+type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
+
+interface Doc {
+    id: string;
+    name: string;
+    type: DocType;
+    tags: string[];
+    visibility: Visibility;
+    version: string;
+    updatedAt: string;
+    blockchainStatus: BlockchainStatus;
+    size: string;
+    uploader: string;
+    txHashShort?: string;
+    lastChecked?: string;
+}
+
+/* ─── Mock data ───────────────────────────────────────────── */
+const INITIAL_DOCS: Doc[] = [
+    { id:"1", name:"Pitch_Deck_NextGen_v2.pdf",  type:"Pitch Deck", tags:["2026","Series A"],   visibility:"investors", version:"v2", updatedAt:"12/02/2026", blockchainStatus:"recorded",      size:"2.4 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x1a2b...c3d4", lastChecked:"12/02 · 15:30" },
+    { id:"2", name:"Financial_Report_Q4.xlsx",   type:"Tài chính",  tags:["Q4","2025"],          visibility:"private",   version:"v1", updatedAt:"10/02/2026", blockchainStatus:"pending",       size:"1.1 MB",  uploader:"Trần Thị B",   txHashShort:"0x5e6f...7890", lastChecked:"10/02 · 09:15" },
+    { id:"3", name:"Algorithm_Core_Specs.txt",   type:"Kỹ thuật",   tags:["core","algorithm"],   visibility:"private",   version:"v3", updatedAt:"08/02/2026", blockchainStatus:"not_submitted", size:"0.5 MB",  uploader:"Nguyễn Văn A" },
+    { id:"4", name:"Trade_Secrets_V1.zip",        type:"Pháp lý",    tags:["IP","confidential"], visibility:"private",   version:"v1", updatedAt:"05/02/2026", blockchainStatus:"failed",        size:"15.8 MB", uploader:"Lê Văn C",     lastChecked:"05/02 · 11:20" },
+    { id:"5", name:"Product_Roadmap_2026.pptx",  type:"Pitch Deck", tags:["roadmap"],            visibility:"advisors",  version:"v2", updatedAt:"01/02/2026", blockchainStatus:"matched",       size:"5.2 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x7b8c...d9e0", lastChecked:"01/02 · 14:45" },
+    { id:"6", name:"Term_Sheet_Draft_v3.pdf",    type:"Pháp lý",    tags:["legal","terms"],      visibility:"investors", version:"v3", updatedAt:"28/01/2026", blockchainStatus:"mismatch",      size:"0.8 MB",  uploader:"Trần Thị B",   txHashShort:"0xa1b2...c3d4", lastChecked:"28/01 · 10:00" },
 ];
 
-const statusStyles = {
-  Protected: "ip-badge-protected",
-  Pending: "ip-badge-pending",
-  "Not Protected": "ip-badge-not-protected",
-  Failed: "ip-badge-failed",
+/* ─── Config ──────────────────────────────────────────────── */
+function fileIconProps(name: string): { Icon: React.ElementType; cls: string } {
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    if (ext === "pdf")                          return { Icon: FileText,        cls: "text-red-500 bg-red-50 border-red-100" };
+    if (["xlsx","xls","csv"].includes(ext))     return { Icon: FileSpreadsheet, cls: "text-emerald-600 bg-emerald-50 border-emerald-100" };
+    if (ext === "pptx")                         return { Icon: FileText,        cls: "text-orange-500 bg-orange-50 border-orange-100" };
+    if (ext === "zip")                          return { Icon: FileArchive,     cls: "text-violet-500 bg-violet-50 border-violet-100" };
+    return                                             { Icon: FileCode,        cls: "text-blue-500 bg-blue-50 border-blue-100" };
+}
+
+const BC: Record<BlockchainStatus, {
+    label: string; cls: string; Icon: React.ElementType; spin?: boolean; hint?: string; cta?: string;
+}> = {
+    not_submitted: { label: "Chưa gửi",     cls: "bg-slate-100 text-slate-500 border-slate-200",       Icon: Shield },
+    pending:       { label: "Chờ xác nhận", cls: "bg-amber-50 text-amber-600 border-amber-100",         Icon: RefreshCcw, spin: true },
+    recorded:      { label: "Đã ghi nhận",  cls: "bg-emerald-50 text-emerald-600 border-emerald-100",   Icon: CheckCircle2 },
+    matched:       { label: "Khớp hash",    cls: "bg-teal-50 text-teal-600 border-teal-100",            Icon: ShieldCheck },
+    mismatch:      { label: "Hash lệch",    cls: "bg-red-50 text-red-600 border-red-100",               Icon: AlertTriangle, hint: "File có thể đã bị thay đổi sau khi ghi nhận", cta: "Kiểm tra on-chain" },
+    failed:        { label: "Thất bại",     cls: "bg-rose-50 text-rose-600 border-rose-100",            Icon: XCircle, hint: "Giao dịch blockchain không thành công", cta: "Gửi lại hash" },
 };
 
-const statusIcons = {
-  Protected: "verified",
-  Pending: "hourglass_empty",
-  "Not Protected": "lock_open",
-  Failed: "error",
+const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementType }> = {
+    private:   { label: "Riêng tư",     cls: "bg-slate-100 text-slate-600 border-slate-200",   Icon: Lock },
+    investors: { label: "Nhà đầu tư",   cls: "bg-blue-50 text-blue-600 border-blue-100",       Icon: Users },
+    advisors:  { label: "Cố vấn",       cls: "bg-violet-50 text-violet-600 border-violet-100", Icon: UserCheck },
+    both:      { label: "NĐT & Cố vấn", cls: "bg-indigo-50 text-indigo-600 border-indigo-100", Icon: Users },
 };
 
+const SORT_OPTS: { value: SortKey; label: string }[] = [
+    { value: "updatedAt",        label: "Mới cập nhật" },
+    { value: "name",             label: "Tên A–Z" },
+    { value: "type",             label: "Loại tài liệu" },
+    { value: "blockchainStatus", label: "Trạng thái blockchain" },
+    { value: "version",         label: "Phiên bản mới nhất" },
+];
+
+function sortDocs(docs: Doc[], key: SortKey): Doc[] {
+    return [...docs].sort((a, b) => {
+        switch (key) {
+            case "name":             return a.name.localeCompare(b.name);
+            case "type":             return a.type.localeCompare(b.type);
+            case "blockchainStatus": return a.blockchainStatus.localeCompare(b.blockchainStatus);
+            case "version":          return b.version.localeCompare(a.version);
+            default: {
+                const parse = (s: string) => { const [d,m,y] = s.split("/"); return new Date(+y,+m-1,+d).getTime(); };
+                return parse(b.updatedAt) - parse(a.updatedAt);
+            }
+        }
+    });
+}
+
+/* ─── Toast ───────────────────────────────────────────────── */
+function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"success"|"error"; onClose: () => void }) {
+    useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, []);
+    return (
+        <div className={cn(
+            "fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2.5 px-5 py-3 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.15)] text-[13px] font-medium pointer-events-none whitespace-nowrap",
+            type === "success" ? "bg-emerald-600 text-white" :
+            type === "error"   ? "bg-red-600 text-white" :
+                                 "bg-[#0f172a] text-white"
+        )}>
+            {type === "success" ? <CheckCircle2 className="w-4 h-4" /> :
+             type === "error"   ? <AlertCircle  className="w-4 h-4" /> :
+                                  <Info          className="w-4 h-4" />}
+            {msg}
+        </div>
+    );
+}
+
+/* ─── FSelect ─────────────────────────────────────────────── */
+function FSelect({ value, onChange, options, labels }: {
+    value: string; onChange: (v: string) => void; options: string[]; labels: string[];
+}) {
+    return (
+        <div className="relative flex-shrink-0">
+            <select value={value} onChange={e => onChange(e.target.value)}
+                className="appearance-none pl-3 pr-7 py-2 text-[12px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 cursor-pointer transition-all whitespace-nowrap">
+                {options.map((o, i) => <option key={o} value={o}>{labels[i]}</option>)}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+        </div>
+    );
+}
+
+/* ─── Page ────────────────────────────────────────────────── */
 export default function StartupDocumentsPage() {
-  const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const router = useRouter();
+    const [localDocs, setLocalDocs]       = useState<Doc[]>(INITIAL_DOCS);
+    const [search, setSearch]             = useState("");
+    const [typeFilter, setTypeFilter]     = useState("all");
+    const [visFilter, setVisFilter]       = useState("all");
+    const [bcFilter, setBcFilter]         = useState("all");
+    const [sortBy, setSortBy]             = useState<SortKey>("updatedAt");
+    const [showUpload, setShowUpload]     = useState(false);
+    const [menuState, setMenuState]       = useState<{ docId: string; x: number; y: number } | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
+    const [page, setPage]                 = useState(1);
+    const PAGE_SIZE = 10;
 
-  return (
-    <StartupShell>
-      <main className={cn(
-        "flex-1 max-w-[1440px] mx-auto w-full p-6 md:p-8 space-y-8 animate-in fade-in duration-500",
-        isUploadModalOpen && "blur-sm pointer-events-none select-none transition-all duration-300"
-      )}>
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-[13px] font-medium text-slate-400 mb-6">
-          <Link href="/startup" className="hover:text-slate-600 transition-colors">Workspace</Link>
-          <ChevronRight className="size-4 text-slate-300" />
-          <span className="text-slate-600 font-semibold">Tài liệu & IP</span>
-        </nav>
+    // Close dropdown on outside click
+    useEffect(() => {
+        if (!menuState) return;
+        const close = () => { setMenuState(null); setDeleteConfirmId(null); };
+        document.addEventListener("click", close);
+        return () => document.removeEventListener("click", close);
+    }, [menuState]);
 
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
-          <div className="space-y-1.5">
-            <h1 className="text-[28px] font-bold text-slate-900 tracking-tight">Thư viện Tài liệu & IP</h1>
-            <p className="text-slate-500 text-[15px] font-medium leading-relaxed">Giao diện quản lý danh sách tập trung và bảo vệ tài sản trí tuệ.</p>
-          </div>
-          <Button
-            onClick={() => setIsUploadModalOpen(true)}
-            className="bg-[#eec54e] hover:bg-[#dab13b] text-slate-900 font-bold h-11 px-7 rounded-xl shadow-sm border-none flex items-center gap-2.5 transition-all active:scale-[0.98]"
-          >
-            <div className="size-6 bg-slate-900/10 rounded-md flex items-center justify-center">
-              <Upload className="size-3.5 text-slate-900" />
-            </div>
-            + Tải lên tài liệu
-          </Button>
-        </div>
+    const showToast = (msg: string, type: "info"|"success"|"error" = "info") => setToast({ msg, type });
 
-        {/* Search & Filters */}
-        <div className="bg-white rounded-[24px] p-4 shadow-sm border border-slate-100 flex flex-col lg:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
-            <Input
-              placeholder="Tìm kiếm tài liệu, phân loại hoặc trạng thái IP..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-14 h-12 bg-[#f8fafc]/50 border-none rounded-2xl font-bold text-sm focus:ring-1 focus:ring-yellow-400/30 transition-all placeholder:text-slate-400"
-            />
-          </div>
-          <div className="flex items-center gap-6 w-full lg:w-auto px-4">
-            <div className="flex items-center gap-3 cursor-pointer group">
-              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-widest whitespace-nowrap">Loại tài liệu</span>
-              <ChevronDown className="size-4 text-slate-900 transition-transform group-hover:translate-y-0.5" />
-            </div>
-            <div className="w-px h-5 bg-slate-200"></div>
-            <div className="flex items-center gap-3 cursor-pointer group">
-              <span className="text-[11px] font-bold text-slate-900 uppercase tracking-widest whitespace-nowrap">Trạng thái IP</span>
-              <ChevronDown className="size-4 text-slate-900 transition-transform group-hover:translate-y-0.5" />
-            </div>
-          </div>
-        </div>
+    const filtered = localDocs.filter(d => {
+        const q = search.toLowerCase();
+        return (
+            (!q || d.name.toLowerCase().includes(q) || d.tags.some(t => t.toLowerCase().includes(q))) &&
+            (typeFilter === "all" || d.type === typeFilter) &&
+            (visFilter  === "all" || d.visibility === visFilter) &&
+            (bcFilter   === "all" || d.blockchainStatus === bcFilter)
+        );
+    });
+    const sorted    = sortDocs(filtered, sortBy);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    const docs      = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-        {/* Document Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-slate-50/30 border-b border-slate-100/80">
-                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left">Tên tài liệu</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-left whitespace-nowrap">Phân loại</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Ngày tải lên</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">Trạng thái IP</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/60">
-              {documents.map((doc) => (
-                <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className={cn("size-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm border border-white", doc.iconColor)}>
-                        <doc.icon className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-bold text-slate-900 truncate mb-0.5 tracking-tight">{doc.name}</p>
-                        <p className="text-[11px] text-slate-400 font-medium">{doc.size} • {doc.owner}</p>
-                      </div>
+    const protectedCount = localDocs.filter(d => d.blockchainStatus === "recorded" || d.blockchainStatus === "matched").length;
+    const pendingCount   = localDocs.filter(d => d.blockchainStatus === "pending").length;
+
+    const openMenu = (e: React.MouseEvent, docId: string) => {
+        e.stopPropagation();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setDeleteConfirmId(null);
+        setMenuState({ docId, x: rect.right - 188, y: rect.bottom + 6 });
+    };
+
+    const handleDelete = (docId: string) => {
+        setLocalDocs(prev => prev.filter(d => d.id !== docId));
+        setMenuState(null);
+        setDeleteConfirmId(null);
+        showToast("Đã xóa tài liệu", "success");
+    };
+
+    const handleBcAction = (doc: Doc) => {
+        if (doc.blockchainStatus === "mismatch") {
+            showToast("Đang kiểm tra hash trên mạng Ethereum Sepolia...", "info");
+        } else if (doc.blockchainStatus === "failed") {
+            setLocalDocs(prev => prev.map(d => d.id === doc.id ? { ...d, blockchainStatus: "pending" } : d));
+            showToast("Đã gửi lại yêu cầu ghi nhận blockchain", "success");
+        }
+    };
+
+    return (
+        <StartupShell>
+            <div className="max-w-[1100px] mx-auto space-y-5 pb-20">
+
+                {/* Header */}
+                <div className="flex items-end justify-between mb-2">
+                    <div>
+                        <h1 className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">Tài liệu & IP</h1>
+                        <p className="text-[13px] text-slate-500 mt-1">Quản lý tài liệu và bảo vệ tài sản trí tuệ qua blockchain.</p>
                     </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg text-[10px] font-bold border border-slate-100/50">
-                      {doc.category}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-center text-[13px] font-medium text-slate-500 whitespace-nowrap">
-                    {doc.uploadDate}
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-all",
-                      doc.status === "Protected" && "bg-emerald-50 text-emerald-600 border-emerald-100",
-                      doc.status === "Pending" && "bg-amber-50 text-amber-600 border-amber-100",
-                      doc.status === "Not Protected" && "bg-slate-100 text-slate-500 border-slate-200",
-                      doc.status === "Failed" && "bg-rose-50 text-rose-600 border-rose-100"
-                    )}>
-                      {doc.status === "Protected" && <Shield className="size-3" fill="currentColor" />}
-                      {doc.status === "Pending" && <RefreshCcw className="size-3" />}
-                      {doc.status === "Not Protected" && <Shield className="size-3" />}
-                      {doc.status === "Failed" && <Info className="size-3" fill="currentColor" />}
-                      {doc.status}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                        <Eye className="size-4" />
-                      </button>
-                      {doc.status === "Protected" && (
-                        <button className="p-2 text-emerald-500 hover:text-emerald-700 transition-colors">
-                          <Award className="size-4" />
-                        </button>
-                      )}
-                      {doc.status === "Not Protected" && (
-                        <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#eec54e] text-slate-900 rounded-lg hover:bg-[#dab13b] shadow-sm transition-all active:scale-[0.98]">
-                          <Shield className="size-3.5" fill="currentColor" />
-                          <span className="text-[10px] font-bold uppercase">Protect IP</span>
-                        </button>
-                      )}
-                      {doc.status === "Failed" && (
-                        <button className="p-2 text-rose-500 hover:text-rose-700 transition-colors">
-                          <RefreshCcw className="size-4" />
-                        </button>
-                      )}
+                    <button
+                        onClick={() => setShowUpload(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all shadow-sm"
+                    >
+                        <Upload className="w-3.5 h-3.5" /> Tải lên tài liệu
+                    </button>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-4 gap-4">
+                    {[
+                        { Icon: FolderOpen,  label: "Tổng tài liệu", value: String(localDocs.length), sub: "+2 tuần này" },
+                        { Icon: ShieldCheck, label: "Đã bảo vệ IP",  value: String(protectedCount),   sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "—" },
+                        { Icon: Clock,       label: "Chờ xác nhận",  value: String(pendingCount),     sub: "Trên blockchain" },
+                        { Icon: HardDrive,   label: "Dung lượng",    value: "2.4 GB",                 sub: "/ 5 GB" },
+                    ].map(({ Icon, label, value, sub }) => (
+                        <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-5 py-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                                    <Icon className="w-3.5 h-3.5 text-slate-500" />
+                                </div>
+                                <span className="text-[11px] text-slate-500">{label}</span>
+                            </div>
+                            <p className="text-[22px] font-semibold text-[#0f172a] leading-none">{value}</p>
+                            <p className="text-[11px] text-slate-400 mt-1">{sub}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Filters + Sort */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-4 py-3 flex items-center gap-3 flex-wrap">
+                    <div className="relative flex-1 min-w-[180px]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input
+                            className="w-full pl-9 pr-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-900/10 transition-all placeholder:text-slate-400"
+                            placeholder="Tìm tên tài liệu, tags..."
+                            value={search}
+                            onChange={e => { setSearch(e.target.value); setPage(1); }}
+                        />
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-8 py-5 bg-white border-t border-slate-100 flex items-center justify-between">
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Hiển thị 1 - 4 trong tổng số 24 tài liệu</p>
-            <div className="flex items-center gap-1.5">
-              <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-all">
-                <ChevronLeft className="size-4" />
-              </button>
-              <button className="size-8 rounded-lg flex items-center justify-center bg-[#eec54e] text-slate-900 text-[11px] font-bold shadow-sm transition-all">1</button>
-              <button className="size-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 text-[11px] font-bold transition-all">2</button>
-              <button className="size-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 text-[11px] font-bold transition-all">3</button>
-              <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-all">
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          </div>
-        </div>
+                    <FSelect value={typeFilter} onChange={v => { setTypeFilter(v); setPage(1); }}
+                        options={["all","Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"]}
+                        labels={["Loại: Tất cả","Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"]} />
+                    <FSelect value={visFilter} onChange={v => { setVisFilter(v); setPage(1); }}
+                        options={["all","private","investors","advisors","both"]}
+                        labels={["Hiển thị: Tất cả","Riêng tư","Nhà đầu tư","Cố vấn","NĐT & Cố vấn"]} />
+                    <FSelect value={bcFilter} onChange={v => { setBcFilter(v); setPage(1); }}
+                        options={["all","not_submitted","pending","recorded","matched","mismatch","failed"]}
+                        labels={["Blockchain: Tất cả","Chưa gửi","Chờ xác nhận","Đã ghi nhận","Khớp hash","Hash lệch","Thất bại"]} />
+                    <div className="w-px h-5 bg-slate-200 flex-shrink-0" />
+                    <div className="relative flex-shrink-0">
+                        <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                        <select value={sortBy} onChange={e => setSortBy(e.target.value as SortKey)}
+                            className="appearance-none pl-7 pr-7 py-2 text-[12px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-slate-400 cursor-pointer transition-all">
+                            {SORT_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                    </div>
+                </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
-              <FolderOpen className="size-8" />
-            </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Tổng số tài liệu</p>
-            <div className="flex items-end justify-between relative z-10">
-              <h4 className="text-[32px] font-bold text-slate-900 leading-none">24</h4>
-              <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg uppercase tracking-wider border border-emerald-100/50">+2 tuần này</span>
-            </div>
-          </div>
-          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
-              <ShieldCheck className="size-8" />
-            </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Xác thực IP (Protected)</p>
-            <div className="flex items-end justify-between relative z-10">
-              <h4 className="text-[32px] font-bold text-slate-900 leading-none">18</h4>
-              <div className="flex flex-col items-end gap-1.5">
-                <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg uppercase tracking-wider border border-slate-200/50">75% hoàn thành</span>
-              </div>
-            </div>
-          </div>
-          <div className="p-7 bg-white rounded-[20px] border border-slate-100 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-6 right-6 text-slate-100 group-hover:text-slate-200 transition-colors">
-              <HardDrive className="size-8" />
-            </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em] mb-4">Dung lượng sử dụng</p>
-            <div className="flex items-end justify-between relative z-10">
-              <h4 className="text-[32px] font-bold text-slate-900 leading-none">2.4 <span className="text-sm text-slate-400 font-medium">GB</span></h4>
-              <div className="w-20 bg-slate-100 rounded-full h-1 mb-1.5 overflow-hidden">
-                <div className="bg-slate-900 h-full w-[45%]"></div>
-              </div>
-            </div>
-          </div>
-        </div>
+                {/* Table */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-slate-100">
+                                {["Tài liệu","Loại","Hiển thị","Phiên bản","Cập nhật","Blockchain",""].map((h, i) => (
+                                    <th key={i} className={cn("px-5 py-3.5 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 6 ? "text-right" : "text-left")}>
+                                        {h}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {docs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-5 py-12 text-center">
+                                        <FolderOpen className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                        <p className="text-[13px] text-slate-400">Không tìm thấy tài liệu phù hợp</p>
+                                    </td>
+                                </tr>
+                            ) : docs.map(doc => {
+                                const fi  = fileIconProps(doc.name);
+                                const bc  = BC[doc.blockchainStatus];
+                                const vis = VIS[doc.visibility];
+                                const isError = doc.blockchainStatus === "mismatch" || doc.blockchainStatus === "failed";
 
-        <footer className="pt-16 pb-8 text-center">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.35em] leading-relaxed opacity-80">
-            © 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG QUẢN TRỊ TÀI LIỆU & BẢO VỆ TÀI SẢN TRÍ TUỆ
-          </p>
-        </footer>
-      </main>
+                                return (
+                                    <tr key={doc.id} className="group hover:bg-slate-50/60 transition-colors">
+                                        <td className="px-5 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0", fi.cls)}>
+                                                    <fi.Icon className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <Link href={`/startup/documents/${doc.id}`}
+                                                        className="text-[13px] font-medium text-[#0f172a] hover:underline underline-offset-2 line-clamp-1 block">
+                                                        {doc.name}
+                                                    </Link>
+                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                        <span className="text-[11px] text-slate-400">{doc.size} · {doc.uploader}</span>
+                                                        {doc.tags.slice(0, 2).map(t => (
+                                                            <span key={t} className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t}</span>
+                                                        ))}
+                                                        {doc.tags.length > 2 && <span className="text-[10px] text-slate-400">+{doc.tags.length - 2}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md whitespace-nowrap">{doc.type}</span>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md border whitespace-nowrap", vis.cls)}>
+                                                <vis.Icon className="w-3 h-3" /> {vis.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version}</td>
+                                        <td className="px-4 py-4 text-[12px] text-slate-500 whitespace-nowrap">{doc.updatedAt}</td>
+                                        <td className="px-4 py-4">
+                                            <div>
+                                                <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border whitespace-nowrap", bc.cls)} title={bc.hint}>
+                                                    <bc.Icon className={cn("w-3 h-3 flex-shrink-0", bc.spin && "animate-spin")} />
+                                                    {bc.label}
+                                                </span>
+                                                {doc.txHashShort && <p className="text-[10px] text-slate-400 font-mono mt-1 pl-0.5">{doc.txHashShort}</p>}
+                                                {doc.lastChecked  && <p className="text-[10px] text-slate-400 mt-0.5 pl-0.5">{doc.lastChecked}</p>}
+                                                {isError && bc.cta && (
+                                                    <button
+                                                        onClick={() => handleBcAction(doc)}
+                                                        className="mt-1.5 pl-0.5 flex items-center gap-1 text-[10px] font-medium text-red-600 hover:text-red-700 transition-colors"
+                                                    >
+                                                        <ExternalLink className="w-2.5 h-2.5" /> {bc.cta}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Link href={`/startup/documents/${doc.id}`}>
+                                                    <span className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all" title="Xem chi tiết">
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </span>
+                                                </Link>
+                                                <button
+                                                    onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                                    title="Tải xuống"
+                                                >
+                                                    <Download className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={e => openMenu(e, doc.id)}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                                    title="Thêm thao tác"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+                                                        <circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
 
-      <UploadDocumentModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-      />
-    </StartupShell>
-  );
+                    {/* Pagination */}
+                    <div className="px-5 py-3.5 border-t border-slate-100 flex items-center justify-between">
+                        <p className="text-[12px] text-slate-400">Hiển thị {docs.length} trong {filtered.length} tài liệu</p>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                <button key={p} onClick={() => setPage(p)}
+                                    className={cn("w-7 h-7 flex items-center justify-center rounded-lg text-[12px] transition-all",
+                                        page === p ? "bg-[#0f172a] text-white font-medium" : "text-slate-500 hover:bg-slate-100")}>
+                                    {p}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Row actions dropdown (fixed-positioned) */}
+            {menuState && (() => {
+                const menuDoc = localDocs.find(d => d.id === menuState.docId);
+                if (!menuDoc) return null;
+                const isConfirmingDelete = deleteConfirmId === menuState.docId;
+
+                return (
+                    <div
+                        className="fixed z-[70] bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1 w-[188px]"
+                        style={{ left: menuState.x, top: menuState.y }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {isConfirmingDelete ? (
+                            <div className="px-3.5 py-3 space-y-2.5">
+                                <p className="text-[12px] text-slate-600 font-medium">Xóa tài liệu này?</p>
+                                <p className="text-[11px] text-slate-400 leading-relaxed">Thao tác này không thể hoàn tác.</p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setDeleteConfirmId(null)}
+                                        className="flex-1 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50 transition-colors"
+                                    >Hủy</button>
+                                    <button
+                                        onClick={() => handleDelete(menuState.docId)}
+                                        className="flex-1 py-1.5 rounded-lg bg-red-500 text-white text-[12px] font-medium hover:bg-red-600 transition-colors"
+                                    >Xóa ngay</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <Link href={`/startup/documents/${menuState.docId}`}>
+                                    <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                                        <Eye className="w-3.5 h-3.5 text-slate-400" /> Xem chi tiết
+                                    </button>
+                                </Link>
+                                <button
+                                    onClick={() => { setMenuState(null); router.push(`/startup/documents/${menuState.docId}`); }}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                                >
+                                    <Pencil className="w-3.5 h-3.5 text-slate-400" /> Sửa metadata
+                                </button>
+                                <button
+                                    onClick={() => { setMenuState(null); setShowUpload(true); }}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                                >
+                                    <Upload className="w-3.5 h-3.5 text-slate-400" /> Tải phiên bản mới
+                                </button>
+                                <button
+                                    onClick={() => { setMenuState(null); router.push(`/startup/documents/${menuState.docId}`); }}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                                >
+                                    <ShieldCheck className="w-3.5 h-3.5 text-slate-400" /> Xem trạng thái blockchain
+                                </button>
+                                <div className="my-1 border-t border-slate-100" />
+                                <button
+                                    onClick={() => setDeleteConfirmId(menuState.docId)}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors text-left"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Xóa tài liệu
+                                </button>
+                            </>
+                        )}
+                    </div>
+                );
+            })()}
+
+            {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+            <UploadDocumentModal isOpen={showUpload} onClose={() => setShowUpload(false)} />
+        </StartupShell>
+    );
 }

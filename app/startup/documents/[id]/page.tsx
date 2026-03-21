@@ -1,285 +1,680 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, use } from "react";
+import { useRouter, notFound } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { Button } from "@/components/ui/button";
+import { UploadDocumentModal } from "@/components/startup/upload-document-modal";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { 
-  ChevronRight, 
-  FileText, 
-  User, 
-  Calendar, 
-  Database, 
-  Share2, 
-  Upload, 
-  EyeOff, 
-  Download, 
-  ShieldCheck, 
-  Copy, 
-  ExternalLink, 
-  CheckCircle2, 
-  ShieldAlert, 
-  MoreVertical, 
-  Brain, 
-  Sparkles, 
-  ArrowRight, 
-  History as LucideHistory 
+import {
+    FileText, User, Calendar, HardDrive, Upload, Download,
+    ShieldCheck, Shield, Copy, ExternalLink, CheckCircle2, AlertTriangle,
+    RefreshCcw, XCircle, Brain, Sparkles, ArrowRight,
+    History as LucideHistory, Lock, Users, UserCheck, Pencil, X,
+    ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle,
 } from "lucide-react";
 
-const versions = [
-    {
-        version: "v4.0.0",
-        isCurrent: true,
-        user: "Nguyễn Văn A",
-        avatar: "https://lh3.googleusercontent.com/a/default-user",
-        date: "Hôm nay, 15:30",
-        status: "Verified",
-    },
-    {
-        version: "v3.2.1",
-        isCurrent: false,
-        user: "Trần Thị B",
-        avatar: "https://lh3.googleusercontent.com/a/default-user",
-        date: "08/02/2026",
-        status: "Verified",
-    },
-    {
-        version: "v2.1.0",
-        isCurrent: false,
-        user: "Nguyễn Văn A",
-        avatar: "https://lh3.googleusercontent.com/a/default-user",
-        date: "01/02/2026",
-        status: "Unverified",
-    },
-    {
-        version: "v1.0.0",
-        isCurrent: false,
-        user: "Nguyễn Văn A",
-        avatar: "https://lh3.googleusercontent.com/a/default-user",
-        date: "12/01/2026",
-        status: "Verified",
-    },
+/* ─── Types ───────────────────────────────────────────────── */
+type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
+type Visibility = "private" | "investors" | "advisors" | "both";
+type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+
+interface DocData {
+    id: string; name: string; type: DocType; visibility: Visibility;
+    tags: string[]; description: string; size: string; uploader: string;
+    role: string; createdAt: string; updatedAt: string; currentVersion: string;
+    blockchainStatus: BlockchainStatus; hash: string; txHash: string;
+    recordedAt: string; network: string;
+}
+
+interface VersionRow {
+    version: string; isCurrent?: boolean; uploader: string;
+    date: string; blockchainStatus: BlockchainStatus; size: string; hashShort: string;
+}
+
+/* ─── Mock data ───────────────────────────────────────────── */
+const INITIAL_DOC: DocData = {
+    id: "1", name: "Business_Plan_2026.pdf", type: "Pitch Deck", visibility: "investors",
+    tags: ["2026", "Series A", "gọi vốn"],
+    description: "Kế hoạch kinh doanh chi tiết cho vòng gọi vốn Series A năm 2026, bao gồm phân tích thị trường, chiến lược tăng trưởng và kế hoạch tài chính 3 năm.",
+    size: "4.8 MB", uploader: "Nguyễn Văn A", role: "Founder",
+    createdAt: "12/01/2026", updatedAt: "14/02/2026", currentVersion: "v4.0.0",
+    blockchainStatus: "matched",
+    hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    txHash: "0x7a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+    recordedAt: "14/02/2026 · 15:30", network: "Ethereum Sepolia",
+};
+
+const INITIAL_VERSIONS: VersionRow[] = [
+    { version: "v4.0.0", isCurrent: true,  uploader: "Nguyễn Văn A", date: "14/02/2026", blockchainStatus: "matched",       size: "4.8 MB", hashShort: "e3b0c4...b855" },
+    { version: "v3.2.1",                   uploader: "Trần Thị B",   date: "08/02/2026", blockchainStatus: "recorded",      size: "4.5 MB", hashShort: "f4c5d6...a1b2" },
+    { version: "v2.1.0",                   uploader: "Nguyễn Văn A", date: "01/02/2026", blockchainStatus: "not_submitted", size: "4.2 MB", hashShort: "—" },
+    { version: "v1.0.0",                   uploader: "Nguyễn Văn A", date: "12/01/2026", blockchainStatus: "recorded",      size: "3.8 MB", hashShort: "a1b2c3...9f8e" },
 ];
 
-export default function DocumentDetailPage() {
-    const { id } = useParams();
+/* ─── Status configs ──────────────────────────────────────── */
+const BC: Record<BlockchainStatus, { label: string; cls: string; Icon: React.ElementType; spin?: boolean }> = {
+    not_submitted: { label: "Chưa gửi",     cls: "bg-slate-100 text-slate-500 border-slate-200",       Icon: Shield },
+    pending:       { label: "Chờ xác nhận", cls: "bg-amber-50 text-amber-600 border-amber-100",         Icon: RefreshCcw, spin: true },
+    recorded:      { label: "Đã ghi nhận",  cls: "bg-emerald-50 text-emerald-600 border-emerald-100",   Icon: CheckCircle2 },
+    matched:       { label: "Khớp hash",    cls: "bg-teal-50 text-teal-600 border-teal-100",            Icon: ShieldCheck },
+    mismatch:      { label: "Hash lệch",    cls: "bg-red-50 text-red-600 border-red-100",               Icon: AlertTriangle },
+    failed:        { label: "Thất bại",     cls: "bg-rose-50 text-rose-600 border-rose-100",            Icon: XCircle },
+};
+
+const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementType; hint: string }> = {
+    private:   { label: "Riêng tư",     cls: "bg-slate-100 text-slate-600 border-slate-200",   Icon: Lock,      hint: "Chỉ thành viên nội bộ startup có thể xem." },
+    investors: { label: "Nhà đầu tư",   cls: "bg-blue-50 text-blue-600 border-blue-100",       Icon: Users,     hint: "Các nhà đầu tư đã kết nối có thể xem tài liệu này." },
+    advisors:  { label: "Cố vấn",       cls: "bg-violet-50 text-violet-600 border-violet-100", Icon: UserCheck, hint: "Các cố vấn đang mentoring startup có thể xem." },
+    both:      { label: "NĐT & Cố vấn", cls: "bg-indigo-50 text-indigo-600 border-indigo-100", Icon: Users,     hint: "Cả nhà đầu tư và cố vấn đã kết nối đều có thể xem." },
+};
+
+/* ─── Toast ───────────────────────────────────────────────── */
+function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"success"|"error"; onClose: () => void }) {
+    useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, []);
+    return (
+        <div className={cn(
+            "fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2.5 px-5 py-3 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.15)] text-[13px] font-medium pointer-events-none whitespace-nowrap",
+            type === "success" ? "bg-emerald-600 text-white" :
+            type === "error"   ? "bg-red-600 text-white" : "bg-[#0f172a] text-white"
+        )}>
+            {type === "success" ? <CheckCircle2 className="w-4 h-4" /> :
+             type === "error"   ? <AlertCircle  className="w-4 h-4" /> :
+                                  <Info          className="w-4 h-4" />}
+            {msg}
+        </div>
+    );
+}
+
+/* ─── Edit Metadata Modal ─────────────────────────────────── */
+function EditMetadataModal({ doc, onClose, onSave }: {
+    doc: DocData;
+    onClose: () => void;
+    onSave: (updated: DocData) => void;
+}) {
+    const [form, setForm] = useState({
+        name: doc.name, type: doc.type, visibility: doc.visibility,
+        tags: doc.tags.join(", "), description: doc.description,
+    });
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-lg mx-4 overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Pencil className="w-4 h-4 text-slate-600" /></div>
+                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Chỉnh sửa metadata</h2>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="px-6 py-5 space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="block text-[12px] font-medium text-slate-500">Tên tài liệu</label>
+                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all"
+                            value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[12px] font-medium text-slate-500">Loại tài liệu</label>
+                            <div className="relative">
+                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
+                                    value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as DocType }))}>
+                                    {["Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"].map(t => <option key={t}>{t}</option>)}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-[12px] font-medium text-slate-500">Hiển thị với</label>
+                            <div className="relative">
+                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
+                                    value={form.visibility} onChange={e => setForm(p => ({ ...p, visibility: e.target.value as Visibility }))}>
+                                    <option value="private">Riêng tư</option>
+                                    <option value="investors">Nhà đầu tư</option>
+                                    <option value="advisors">Cố vấn</option>
+                                    <option value="both">Nhà đầu tư & Cố vấn</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="block text-[12px] font-medium text-slate-500">Tags <span className="text-slate-400 font-normal">(phân cách bằng dấu phẩy)</span></label>
+                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all"
+                            value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="Ví dụ: 2026, Series A, pitch" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="block text-[12px] font-medium text-slate-500">Mô tả</label>
+                        <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all resize-none"
+                            rows={3} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors">Hủy bỏ</button>
+                    <button
+                        onClick={() => onSave({
+                            ...doc,
+                            name: form.name,
+                            type: form.type,
+                            visibility: form.visibility,
+                            tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
+                            description: form.description,
+                        })}
+                        className="px-5 py-2.5 rounded-xl text-[13px] font-medium bg-[#0f172a] text-white hover:bg-slate-800 transition-all shadow-sm"
+                    >
+                        Lưu thay đổi
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ─── Blockchain Panel ────────────────────────────────────── */
+function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, onRetry, onVerify }: {
+    status: BlockchainStatus; hash: string; txHash: string; recordedAt: string; network: string;
+    onSubmit: () => void; onRetry: () => void; onVerify: () => void;
+}) {
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const bc = BC[status];
+    const isVerified     = status === "recorded" || status === "matched";
+    const isMismatch     = status === "mismatch";
+    const isNotSubmitted = status === "not_submitted";
+    const isFailed       = status === "failed";
+    const isPending      = status === "pending";
+
+    const copyText = (text: string, key: string) => {
+        navigator.clipboard.writeText(text);
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(null), 2000);
+    };
+
+    return (
+        <div className={cn("bg-white rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden",
+            isMismatch ? "border-red-200" : isVerified ? "border-teal-200/60" : "border-slate-200/80")}>
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center",
+                        isVerified ? "bg-teal-50" : isMismatch ? "bg-red-50" : "bg-slate-100")}>
+                        <ShieldCheck className={cn("w-3.5 h-3.5", isVerified ? "text-teal-600" : isMismatch ? "text-red-500" : "text-slate-400")} />
+                    </div>
+                    <span className="text-[13px] font-semibold text-slate-700">Bảo vệ IP (Blockchain)</span>
+                </div>
+                <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border", bc.cls)}>
+                    <bc.Icon className={cn("w-3 h-3", bc.spin && "animate-spin")} /> {bc.label}
+                </span>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+                {isNotSubmitted && (
+                    <div className="space-y-3">
+                        <p className="text-[12px] text-slate-500 leading-relaxed">Tài liệu chưa được bảo vệ trên blockchain. Gửi ngay để đăng ký tài sản trí tuệ.</p>
+                        <button onClick={onSubmit} className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all">
+                            <Shield className="w-3.5 h-3.5" /> Gửi lên Blockchain
+                        </button>
+                    </div>
+                )}
+                {isPending && (
+                    <div className="flex items-center gap-3 py-2">
+                        <RefreshCcw className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />
+                        <p className="text-[12px] text-amber-700">Hash đang được tính toán và gửi lên mạng. Vui lòng chờ...</p>
+                    </div>
+                )}
+                {isMismatch && (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                        <p className="text-[12px] text-red-700 leading-relaxed">
+                            <span className="font-semibold">Cảnh báo:</span> Hash hiện tại không khớp với hash đã ghi trên blockchain. Tài liệu có thể đã bị sửa đổi.
+                        </p>
+                    </div>
+                )}
+                {isFailed && (
+                    <div className="space-y-3">
+                        <p className="text-[12px] text-slate-500">Giao dịch thất bại. Vui lòng thử gửi lại.</p>
+                        <button onClick={onRetry} className="w-full flex items-center justify-center gap-2 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-[13px] font-medium hover:bg-slate-50 transition-all">
+                            <RefreshCcw className="w-3.5 h-3.5" /> Gửi lại
+                        </button>
+                    </div>
+                )}
+
+                {(isVerified || isMismatch) && (
+                    <>
+                        <div className="space-y-1.5">
+                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">SHA-256 Hash</p>
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                <code className="text-[11px] text-slate-600 font-mono truncate flex-1">{hash}</code>
+                                <button onClick={() => copyText(hash, "hash")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép hash">
+                                    {copiedKey === "hash" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Ghi nhận lúc</p>
+                                <p className="text-[12px] text-slate-600">{recordedAt}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Mạng</p>
+                                <p className="text-[12px] text-slate-600">{network}</p>
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Transaction Hash</p>
+                                <div className="flex items-center gap-2">
+                                    <code className="text-[12px] text-blue-600 font-mono truncate flex-1">
+                                        {txHash.slice(0, 20)}...{txHash.slice(-6)}
+                                    </code>
+                                    <button onClick={() => copyText(txHash, "tx")} className="flex-shrink-0 text-slate-400 hover:text-slate-600 transition-colors" title="Sao chép tx hash">
+                                        {copiedKey === "tx" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-2 pt-1">
+                            <a href={`https://sepolia.etherscan.io/tx/${txHash}`} target="_blank" rel="noopener noreferrer"
+                                className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all">
+                                <ExternalLink className="w-3.5 h-3.5" /> Xem trên Blockchain Explorer
+                            </a>
+                            {isMismatch ? (
+                                <button onClick={() => alert("Đang kiểm tra on-chain...")} className="w-full flex items-center justify-center gap-2 py-2 border border-red-200 text-red-600 bg-red-50 rounded-xl text-[12px] font-medium hover:bg-red-100 transition-all">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Kiểm tra on-chain
+                                </button>
+                            ) : (
+                                <button onClick={onVerify} className="w-full flex items-center justify-center gap-2 py-2 border border-slate-200 text-slate-500 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all">
+                                    <RotateCcw className="w-3.5 h-3.5" /> Xác minh lại
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/* ─── Page ────────────────────────────────────────────────── */
+export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
+    if (id !== INITIAL_DOC.id) notFound();
     const router = useRouter();
+
+    const [doc, setDoc]                   = useState<DocData>(INITIAL_DOC);
+    const [versions, setVersions]         = useState<VersionRow[]>(INITIAL_VERSIONS);
+    const [localBcStatus, setLocalBcStatus] = useState<BlockchainStatus>(INITIAL_DOC.blockchainStatus);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showMoreMenu, setShowMoreMenu]  = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState(false);
+    const [showUpload, setShowUpload]      = useState(false);
+    const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
+
+    const showToast = useCallback((msg: string, type: "info"|"success"|"error" = "info") => {
+        setToast({ msg, type });
+    }, []);
+
+    // Close more menu on outside click
+    useEffect(() => {
+        if (!showMoreMenu) return;
+        const close = () => { setShowMoreMenu(false); setDeleteConfirm(false); };
+        document.addEventListener("click", close);
+        return () => document.removeEventListener("click", close);
+    }, [showMoreMenu]);
+
+    const vis = VIS[doc.visibility];
+    const bc  = BC[localBcStatus];
+
+    const handleSaveMetadata = (updated: DocData) => {
+        setDoc(updated);
+        setShowEditModal(false);
+        showToast("Đã cập nhật thông tin tài liệu", "success");
+    };
+
+    const handleSubmitBlockchain = () => {
+        setLocalBcStatus("pending");
+        showToast("Đang gửi lên blockchain...", "info");
+    };
+
+    const handleRetryBlockchain = () => {
+        setLocalBcStatus("pending");
+        showToast("Đã gửi lại yêu cầu ghi nhận", "info");
+    };
+
+    const handleVerifyBlockchain = () => {
+        setLocalBcStatus("matched");
+        showToast("Hash đã được xác minh — khớp on-chain", "success");
+    };
+
+    const handleRestoreVersion = (version: string) => {
+        setVersions(prev => prev.map(v => ({ ...v, isCurrent: v.version === version })));
+        setDoc(prev => ({ ...prev, currentVersion: version }));
+        showToast(`Đã khôi phục phiên bản ${version}`, "success");
+    };
+
+    const handleDelete = () => {
+        showToast("Đã xóa tài liệu", "success");
+        setTimeout(() => router.push("/startup/documents"), 1500);
+    };
 
     return (
         <StartupShell>
-            <main className="flex-1 max-w-[1440px] mx-auto w-full p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
-                {/* Breadcrumbs */}
-                <nav className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                    <Link href="/startup" className="hover:text-primary transition-colors">Workspace</Link>
-                    <ChevronRight className="w-4 h-4" />
-                    <Link href="/startup/documents" className="hover:text-primary transition-colors">Tài liệu & IP</Link>
-                    <ChevronRight className="w-4 h-4" />
-                    <span className="text-slate-600">Chi tiết tài liệu</span>
-                </nav>
+            <div className="max-w-[1100px] mx-auto space-y-6 pb-20">
 
-                {/* Page Header */}
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                    <div className="flex items-start gap-5">
-                        <div className="size-16 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 shrink-0 shadow-sm border border-red-100/50">
-                            <FileText className="w-10 h-10" />
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-5">
+                    <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-center text-red-500 flex-shrink-0">
+                            <FileText className="w-7 h-7" />
                         </div>
-                        <div className="space-y-1.5 min-w-0">
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight truncate">Business_Plan_2026.pdf</h1>
-                            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-slate-500">
-                                <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <User className="w-4 h-4 opacity-60" />
-                                    Chủ sở hữu: <span className="text-slate-900 font-bold">Nguyễn Văn A (Founder)</span>
-                                </span>
-                                <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <Calendar className="w-4 h-4 opacity-60" />
-                                    Ngày tạo: <span className="text-slate-900 font-bold">12/01/2026</span>
-                                </span>
-                                <span className="flex items-center gap-2 font-medium whitespace-nowrap">
-                                    <Database className="w-4 h-4 opacity-60" />
-                                    Dung lượng: <span className="text-slate-900 font-bold">4.8 MB</span>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h1 className="text-[20px] font-semibold text-[#0f172a] tracking-[-0.02em]">{doc.name}</h1>
+                                <span className="px-2 py-0.5 bg-[#0f172a] text-white text-[10px] font-medium rounded-md">{doc.currentVersion}</span>
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-md border border-emerald-100">Hiện tại</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
+                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><User className="w-3.5 h-3.5" /> {doc.uploader} · {doc.role}</span>
+                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><Calendar className="w-3.5 h-3.5" /> Tạo {doc.createdAt}</span>
+                                <span className="flex items-center gap-1.5 text-[12px] text-slate-500"><HardDrive className="w-3.5 h-3.5" /> {doc.size}</span>
+                                <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border", vis.cls)}>
+                                    <vis.Icon className="w-3 h-3" /> {vis.label}
                                 </span>
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <Button variant="outline" className="h-11 px-5 rounded-xl border-neutral-surface font-black text-[#171611] hover:bg-neutral-surface/50 flex items-center gap-2 transition-all">
-                            <Share2 className="w-5 h-5" />
-                            Chia sẻ
-                        </Button>
-                        <Button className="h-11 px-5 rounded-xl bg-[#e6cc4c] hover:bg-[#d4ba3d] text-[#171611] font-black shadow-lg shadow-[#e6cc4c]/10 flex items-center gap-2 transition-all active:scale-95">
-                            <Upload className="w-5 h-5 font-black" />
-                            Tải phiên bản mới
-                        </Button>
+
+                    {/* CTAs */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                            onClick={() => setShowEditModal(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all"
+                        >
+                            <Pencil className="w-3.5 h-3.5" /> Chỉnh sửa metadata
+                        </button>
+                        <button
+                            onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 rounded-xl text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-all"
+                        >
+                            <Download className="w-3.5 h-3.5" /> Tải xuống
+                        </button>
+                        <button
+                            onClick={() => setShowUpload(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-xl text-[13px] font-medium hover:bg-slate-800 transition-all shadow-sm"
+                        >
+                            <Upload className="w-3.5 h-3.5" /> Tạo phiên bản mới
+                        </button>
+
+                        {/* More menu */}
+                        <div className="relative">
+                            <button
+                                onClick={e => { e.stopPropagation(); setShowMoreMenu(v => !v); setDeleteConfirm(false); }}
+                                className="w-9 h-9 flex items-center justify-center border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-all"
+                            >
+                                <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                            {showMoreMenu && (
+                                <div
+                                    className="absolute right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1 w-[176px] z-20"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {deleteConfirm ? (
+                                        <div className="px-3.5 py-3 space-y-2.5">
+                                            <p className="text-[12px] text-slate-600 font-medium">Xóa tài liệu này?</p>
+                                            <p className="text-[11px] text-slate-400">Thao tác không thể hoàn tác.</p>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-1.5 rounded-lg border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50 transition-colors">Hủy</button>
+                                                <button onClick={handleDelete} className="flex-1 py-1.5 rounded-lg bg-red-500 text-white text-[12px] font-medium hover:bg-red-600 transition-colors">Xóa ngay</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button onClick={() => { setShowMoreMenu(false); showToast("Đang mở trang xem công khai..."); }}
+                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left">
+                                                <Eye className="w-3.5 h-3.5 text-slate-400" /> Xem công khai
+                                            </button>
+                                            <button onClick={() => { setShowMoreMenu(false); showToast("Đã lưu trữ tài liệu", "success"); }}
+                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left">
+                                                <LucideHistory className="w-3.5 h-3.5 text-slate-400" /> Lưu trữ
+                                            </button>
+                                            <div className="my-1 border-t border-slate-100" />
+                                            <button onClick={() => setDeleteConfirm(true)}
+                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left">
+                                                <X className="w-3.5 h-3.5" /> Xóa tài liệu
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    {/* Left Column: Preview & IP Info */}
-                    <div className="lg:col-span-4 space-y-6">
-                        <div className="bg-white rounded-[32px] border border-neutral-surface shadow-sm overflow-hidden flex flex-col">
-                            <div className="px-6 py-4 border-b border-neutral-surface bg-neutral-surface/20 flex items-center justify-between">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-muted">Xem trước tài liệu</h3>
-                                <span className="px-2 py-0.5 bg-neutral-surface rounded-md text-[10px] font-black text-neutral-muted">PDF</span>
-                            </div>
-                            <div className="aspect-[3/4] p-10 flex flex-col items-center justify-center text-center space-y-6 relative group">
-                                <div className="size-24 bg-neutral-surface/50 rounded-full flex items-center justify-center transition-transform group-hover:scale-110">
-                                    <EyeOff className="w-12 h-12 text-neutral-muted/40" />
+                {/* Body */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+                    {/* Left column */}
+                    <div className="lg:col-span-4 space-y-4">
+
+                        {/* Compact file card */}
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="w-14 h-14 bg-red-50 border border-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <FileText className="w-7 h-7 text-red-500" />
                                 </div>
-                                <p className="text-sm font-bold text-neutral-muted max-w-[200px] leading-relaxed italic">Bản xem trước hiện không khả dụng cho tệp này.</p>
-                                <Button className="bg-[#171611] hover:bg-black text-white px-8 h-12 rounded-2xl font-black text-sm flex items-center gap-2 transition-all">
-                                    <Download className="w-5 h-5" />
-                                    Tải xuống tệp gốc
-                                </Button>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] font-medium text-[#0f172a] truncate">{doc.name}</p>
+                                    <p className="text-[12px] text-slate-400 mt-0.5">{doc.size} · PDF</p>
+                                    <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border mt-1.5", bc.cls)}>
+                                        <bc.Icon className={cn("w-2.5 h-2.5", bc.spin && "animate-spin")} /> {bc.label}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => showToast("Không có xem trước cho tệp này — vui lòng tải xuống")}
+                                    className="flex items-center justify-center gap-1.5 py-2.5 bg-[#0f172a] text-white rounded-xl text-[12px] font-medium hover:bg-slate-800 transition-all"
+                                >
+                                    <Eye className="w-3.5 h-3.5" /> Mở tệp
+                                </button>
+                                <button
+                                    onClick={() => showToast(`Đang tải xuống ${doc.name}...`)}
+                                    className="flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-[12px] font-medium hover:bg-slate-50 transition-all"
+                                >
+                                    <Download className="w-3.5 h-3.5" /> Tải xuống
+                                </button>
                             </div>
                         </div>
 
-                        {/* Blockchain IP Protection */}
-                        <div className="bg-white rounded-[32px] border-2 border-[#10b981]/10 shadow-sm p-6 space-y-5 group hover:border-[#10b981]/30 transition-all">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="size-10 bg-[#10b981]/10 rounded-xl flex items-center justify-center text-[#10b981]">
-                                        <ShieldCheck className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-black text-[#171611] tracking-tight">Bảo vệ IP (Blockchain)</h3>
-                                    </div>
-                                </div>
-                                <span className="px-2.5 py-1 bg-[#10b981]/10 text-[#10b981] rounded-lg text-[9px] font-black uppercase tracking-wider">Đã xác thực</span>
+                        {/* Metadata card */}
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <span className="text-[13px] font-semibold text-slate-700">Thông tin</span>
+                                <button onClick={() => setShowEditModal(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-slate-500 hover:bg-slate-100 rounded-lg transition-all">
+                                    <Pencil className="w-3 h-3" /> Chỉnh sửa
+                                </button>
                             </div>
-                            <div className="space-y-4">
-                                <div className="space-y-1.5">
-                                    <p className="text-[10px] text-neutral-muted font-black uppercase tracking-widest pl-1">Mã Hash (SHA-256)</p>
-                                    <div className="flex items-center gap-2 bg-neutral-surface/30 p-3 rounded-xl border border-neutral-surface/50 group-hover:border-[#10b981]/20 transition-all">
-                                        <code className="text-[11px] font-black text-neutral-muted truncate flex-1 font-mono">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>
-                                        <button className="text-neutral-muted hover:text-[#e6cc4c] transition-colors"><Copy className="w-4 h-4" /></button>
-                                    </div>
+                            <div className="px-5 pt-4 pb-3 space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[12px] text-slate-400">Loại</span>
+                                    <span className="text-[12px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">{doc.type}</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] text-neutral-muted font-black uppercase tracking-widest pl-1">Thời gian ghi</p>
-                                        <p className="text-xs font-black text-[#171611] pl-1">14/02/2026 - 15:30</p>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] text-neutral-muted font-black uppercase tracking-widest pl-1">Transaction Hash</p>
-                                        <p className="text-xs font-black text-[#e6cc4c] hover:underline cursor-pointer transition-all pl-1 truncate">0x7a2...f4e2</p>
-                                    </div>
+                                <div className="flex items-start justify-between gap-2">
+                                    <span className="text-[12px] text-slate-400">Hiển thị</span>
+                                    <span className={cn("inline-flex items-center gap-1 text-[12px] font-medium px-2 py-0.5 rounded-md border", vis.cls)}>
+                                        <vis.Icon className="w-3 h-3" /> {vis.label}
+                                    </span>
+                                </div>
+                                <div className="flex items-start gap-2 px-2.5 py-2 bg-slate-50 rounded-lg">
+                                    <Info className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-slate-500 leading-relaxed">{vis.hint}</p>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[12px] text-slate-400">Tạo lúc</span>
+                                    <span className="text-[12px] text-slate-600">{doc.createdAt}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[12px] text-slate-400">Cập nhật</span>
+                                    <span className="text-[12px] text-slate-600">{doc.updatedAt}</span>
                                 </div>
                             </div>
-                            <Button variant="ghost" className="w-full h-10 rounded-xl bg-neutral-surface/40 hover:bg-neutral-surface transition-all font-black text-[11px] uppercase tracking-widest flex items-center gap-2">
-                                <ExternalLink className="w-5 h-5" />
-                                Xem trên Blockchain Explorer
-                            </Button>
+                            {doc.description && (
+                                <div className="px-5 py-3 border-t border-slate-100">
+                                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Mô tả</p>
+                                    <p className="text-[12px] text-slate-600 leading-relaxed">{doc.description}</p>
+                                </div>
+                            )}
+                            {doc.tags.length > 0 && (
+                                <div className="px-5 py-3 border-t border-slate-100">
+                                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Tags</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {doc.tags.map(tag => (
+                                            <span key={tag} className="flex items-center gap-1 text-[11px] text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+                                                <Tag className="w-2.5 h-2.5 text-slate-400" /> {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Blockchain panel */}
+                        <BlockchainPanel
+                            status={localBcStatus}
+                            hash={doc.hash}
+                            txHash={doc.txHash}
+                            recordedAt={doc.recordedAt}
+                            network={doc.network}
+                            onSubmit={handleSubmitBlockchain}
+                            onRetry={handleRetryBlockchain}
+                            onVerify={handleVerifyBlockchain}
+                        />
                     </div>
 
-                    {/* Right Column: Version History & Insights */}
-                    <div className="lg:col-span-8 space-y-8">
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between">
-                                <h3 className="font-bold text-slate-900 tracking-tight">Lịch sử Phiên bản</h3>
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest opacity-60">Tổng số: 4 phiên bản</span>
+                    {/* Right column */}
+                    <div className="lg:col-span-8 space-y-5">
+
+                        {/* Version history */}
+                        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                                <span className="text-[13px] font-semibold text-slate-700">Lịch sử phiên bản</span>
+                                <span className="text-[12px] text-slate-400">{versions.length} phiên bản</span>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
-                                        <tr className="bg-slate-50/50">
-                                            <th className="px-8 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-left">Phiên bản</th>
-                                            <th className="px-8 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-left whitespace-nowrap">Người cập nhật</th>
-                                            <th className="px-8 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-left whitespace-nowrap">Ngày cập nhật</th>
-                                            <th className="px-8 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-left">Trạng thái IP</th>
-                                            <th className="px-8 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right whitespace-nowrap">Thao tác</th>
+                                        <tr className="border-b border-slate-100">
+                                            {["Phiên bản","Hash","Người tải","Ngày","Dung lượng","Blockchain",""].map((h, i) => (
+                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 6 ? "text-right" : "text-left")}>{h}</th>
+                                            ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {versions.map((v, i) => (
-                                            <tr key={v.version} className={cn("transition-colors", v.isCurrent ? "bg-[#e6cc4c]/5" : "hover:bg-neutral-surface/20")}>
-                                                <td className="px-8 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-slate-900">{v.version}</span>
-                                                        {v.isCurrent && (
-                                                            <span className="px-2 py-0.5 bg-primary text-slate-900 text-[9px] font-bold uppercase rounded-md">Hiện tại</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="size-8 rounded-full border-2 border-white overflow-hidden shrink-0 shadow-sm">
-                                                            <img src={v.avatar} alt={v.user} className="w-full h-full object-cover" />
+                                        {versions.map(v => {
+                                            const vbc = BC[v.blockchainStatus];
+                                            return (
+                                                <tr key={v.version} className={cn("transition-colors", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}>
+                                                    <td className="px-5 py-3.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{v.version}</span>
+                                                            {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
                                                         </div>
-                                                        <span className="text-sm font-semibold text-slate-900 whitespace-nowrap">{v.user}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-4">
-                                                    <span className="text-xs font-medium text-slate-400 whitespace-nowrap">{v.date}</span>
-                                                </td>
-                                                <td className="px-8 py-4">
-                                                    <span className={cn(
-                                                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tight whitespace-nowrap",
-                                                        v.status === "Verified" ? "bg-[#10b981]/10 text-[#10b981]" : "bg-amber-50 text-amber-700 border border-amber-100/50"
-                                                    )}>
-                                                        {v.status === "Verified" ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                                                        {v.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <button className="p-2 text-slate-400 hover:text-primary transition-all"><Download className="w-5 h-5" /></button>
-                                                        {!v.isCurrent && (
-                                                            <button className="p-2 text-slate-400 hover:text-slate-900 transition-all"><MoreVertical className="w-5 h-5" /></button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                    <td className="px-4 py-3.5"><code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code></td>
+                                                    <td className="px-4 py-3.5 text-[12px] text-slate-600 whitespace-nowrap">{v.uploader}</td>
+                                                    <td className="px-4 py-3.5 text-[12px] text-slate-500 whitespace-nowrap">{v.date}</td>
+                                                    <td className="px-4 py-3.5 text-[12px] text-slate-500 whitespace-nowrap">{v.size}</td>
+                                                    <td className="px-4 py-3.5">
+                                                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
+                                                            <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button
+                                                                onClick={() => showToast(`Đang tải xuống ${v.version}...`)}
+                                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                                                title="Tải xuống phiên bản này"
+                                                            >
+                                                                <Download className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            {!v.isCurrent && (
+                                                                <button
+                                                                    onClick={() => handleRestoreVersion(v.version)}
+                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                                                                    title="Đặt làm phiên bản hiện tại"
+                                                                >
+                                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => showToast(`Xem chi tiết ${v.version}`)}
+                                                                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                                                title="Xem chi tiết phiên bản"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        {/* AI Insights and Edit History */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="p-8 bg-slate-900 text-white rounded-2xl shadow-xl relative overflow-hidden group">
-                                <div className="absolute -bottom-6 -right-6 opacity-5 group-hover:scale-110 transition-transform text-white">
-                                    <Brain className="w-32 h-32 rotate-12" />
+                        {/* Edit history + AI Insight */}
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                            <div className="md:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                                <div className="px-5 py-4 border-b border-slate-100">
+                                    <span className="text-[13px] font-semibold text-slate-700">Lịch sử chỉnh sửa</span>
                                 </div>
-                                <div className="relative z-10 space-y-4">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mb-1">AI Insight</p>
-                                    <h4 className="text-xl font-bold flex items-center gap-3 tracking-tight">
-                                        <Sparkles className="w-8 h-8 text-[#e6cc4c]" />
-                                        Phân tích Tài liệu
-                                    </h4>
-                                    <p className="text-[13px] text-slate-300 font-medium leading-relaxed pr-4">
-                                        AI đã phát hiện 3 điểm mâu thuẫn giữa <span className="text-white font-bold border-b border-primary/50">v4</span> và <span className="text-white font-bold border-b border-primary/50">v3</span> trong mục "Kế hoạch doanh thu".
-                                    </p>
-                                    <button className="pt-2 text-primary text-[13px] font-bold flex items-center gap-2 hover:gap-4 transition-all uppercase tracking-wider group/btn">
-                                        Xem so sánh ngay
-                                        <ArrowRight className="w-5 h-5" />
-                                    </button>
+                                <div className="px-5 py-4 space-y-3.5">
+                                    {[
+                                        { user: "Nguyễn Văn A", action: "Tải lên phiên bản v4.0.0", time: "2 giờ trước" },
+                                        { user: "Trần Thị B",   action: "Cập nhật metadata",        time: "Hôm qua" },
+                                        { user: "Nguyễn Văn A", action: "Gửi lên blockchain",        time: "3 ngày trước" },
+                                    ].map((item, i) => (
+                                        <div key={i} className="flex items-start gap-3">
+                                            <div className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                <LucideHistory className="w-3.5 h-3.5 text-slate-400" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[12px] text-slate-600"><span className="font-medium text-slate-700">{item.user}</span> {item.action}</p>
+                                                <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="p-8 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center space-y-5">
-                                <div className="flex items-center gap-5">
-                                    <div className="size-14 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center shrink-0 border border-slate-100">
-                                        <LucideHistory className="w-8 h-8" />
+                            {/* AI Insight — demoted */}
+                            <div className="md:col-span-2 bg-white rounded-2xl border border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden relative">
+                                <div className="absolute -bottom-4 -right-4 opacity-[0.06]">
+                                    <Brain className="w-24 h-24 text-amber-900" />
+                                </div>
+                                <div className="relative px-5 py-4 space-y-3">
+                                    <div className="flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                        <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">AI Insight</span>
                                     </div>
-                                    <div className="space-y-0.5">
-                                        <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Lịch sử Chỉnh sửa</h4>
-                                        <p className="text-[12px] text-slate-500 font-medium">Cập nhật lần cuối bởi <b className="text-slate-900">Nguyễn Văn A</b> cách đây 2 giờ.</p>
-                                    </div>
+                                    <p className="text-[13px] font-semibold text-[#0f172a] leading-snug">Phân tích tài liệu</p>
+                                    <p className="text-[12px] text-slate-500 leading-relaxed">
+                                        AI phát hiện <span className="text-slate-700 font-medium">3 điểm mâu thuẫn</span> giữa v4 và v3 trong mục "Kế hoạch doanh thu".
+                                    </p>
+                                    <button
+                                        onClick={() => showToast("Tính năng so sánh AI đang phát triển")}
+                                        className="flex items-center gap-1.5 text-[12px] font-medium text-amber-600 hover:text-amber-700 transition-colors group"
+                                    >
+                                        Xem so sánh
+                                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <footer className="pt-12 text-center">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] leading-relaxed">
-                        © 2026 AISEP STARTUP WORKSPACE • BẢO VỆ TÀI SẢN TRÍ TUỆ & MINH BẠCH GỌI VỐN
-                    </p>
-                </footer>
-            </main>
+            {showEditModal && <EditMetadataModal doc={doc} onClose={() => setShowEditModal(false)} onSave={handleSaveMetadata} />}
+            {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+            <UploadDocumentModal isOpen={showUpload} onClose={() => setShowUpload(false)} />
         </StartupShell>
     );
 }

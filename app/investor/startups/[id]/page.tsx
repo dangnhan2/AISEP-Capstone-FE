@@ -24,27 +24,13 @@ import {
   ArrowUpRight,
   Hash,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { SearchStartups, AddToWatchlist } from "@/services/investor/investor.api";
-import { CreateConnection } from "@/services/connection/connection.api";
-
-// ── Mock data ──
-const MOCK_STARTUPS: IStartupSearchItem[] = [
-  { startupID: 1, companyName: "NeuralViet AI", oneLiner: "Nền tảng AI tự động hoá quy trình doanh nghiệp Việt Nam, giúp tiết kiệm 60% chi phí vận hành.", stage: "Seed", industry: "AI & Machine Learning", subIndustry: "Enterprise AI", location: "Hồ Chí Minh", country: "Vietnam", logoURL: "", fundingStage: "Seed", profileStatus: "Active", updatedAt: "2026-03-15T10:00:00Z" },
-  { startupID: 2, companyName: "PayGo Finance", oneLiner: "Ví điện tử và giải pháp thanh toán không tiền mặt cho thị trường nông thôn Đông Nam Á.", stage: "Series A", industry: "FinTech", subIndustry: "Digital Payments", location: "Hà Nội", country: "Vietnam", logoURL: "", fundingStage: "Series A", profileStatus: "Active", updatedAt: "2026-03-12T08:30:00Z" },
-  { startupID: 3, companyName: "MediScan", oneLiner: "Ứng dụng chẩn đoán hình ảnh y tế bằng AI, hỗ trợ bác sĩ phát hiện sớm ung thư với độ chính xác 95%.", stage: "Pre-Seed", industry: "HealthTech", subIndustry: "Medical Imaging", location: "Đà Nẵng", country: "Vietnam", logoURL: "", fundingStage: "Angel", profileStatus: "Active", updatedAt: "2026-03-10T14:20:00Z" },
-  { startupID: 4, companyName: "EduNova", oneLiner: "Nền tảng học tập cá nhân hoá dùng AI, adaptive learning cho học sinh K-12.", stage: "Seed", industry: "EdTech", subIndustry: "K-12 Learning", location: "Hồ Chí Minh", country: "Vietnam", logoURL: "", fundingStage: "Pre-Seed", profileStatus: "Active", updatedAt: "2026-03-08T09:15:00Z" },
-  { startupID: 5, companyName: "GreenFarm IoT", oneLiner: "Hệ thống IoT giám sát và tự động hoá canh tác nông nghiệp thông minh.", stage: "Idea", industry: "AgriTech", subIndustry: "Smart Farming", location: "Cần Thơ", country: "Vietnam", logoURL: "", fundingStage: "Bootstrapped", profileStatus: "Draft", updatedAt: "2026-03-05T16:45:00Z" },
-  { startupID: 6, companyName: "ShopeeX Logistics", oneLiner: "Giải pháp giao hàng last-mile bằng drone và xe tự hành cho thương mại điện tử.", stage: "Series A", industry: "E-Commerce", subIndustry: "Logistics", location: "Hồ Chí Minh", country: "Vietnam", logoURL: "", fundingStage: "Series A", profileStatus: "Active", updatedAt: "2026-03-14T11:30:00Z" },
-  { startupID: 7, companyName: "CloudBase", oneLiner: "Nền tảng SaaS quản lý dữ liệu đám mây cho doanh nghiệp SME tại Việt Nam.", stage: "Seed", industry: "SaaS", subIndustry: "Cloud Infrastructure", location: "Hà Nội", country: "Vietnam", logoURL: "", fundingStage: "Seed", profileStatus: "Active", updatedAt: "2026-03-13T07:00:00Z" },
-  { startupID: 8, companyName: "SolarVN Energy", oneLiner: "Giải pháp năng lượng mặt trời và pin lưu trữ cho hộ gia đình và doanh nghiệp nhỏ.", stage: "Series B", industry: "CleanTech", subIndustry: "Solar Energy", location: "Bình Dương", country: "Vietnam", logoURL: "", fundingStage: "Series B", profileStatus: "Active", updatedAt: "2026-03-11T13:00:00Z" },
-  { startupID: 9, companyName: "PropMatch", oneLiner: "Nền tảng kết nối chủ đầu tư bất động sản với nhà đầu tư, sử dụng AI matching.", stage: "Pre-Seed", industry: "PropTech", subIndustry: "Real Estate Marketplace", location: "Hồ Chí Minh", country: "Vietnam", logoURL: "", fundingStage: "Angel", profileStatus: "Active", updatedAt: "2026-03-09T15:30:00Z" },
-  { startupID: 10, companyName: "InsureEasy", oneLiner: "Bảo hiểm số micro-insurance cho người lao động và freelancer tại Đông Nam Á.", stage: "Seed", industry: "InsurTech", subIndustry: "Micro Insurance", location: "Hà Nội", country: "Vietnam", logoURL: "", fundingStage: "Seed", profileStatus: "Active", updatedAt: "2026-03-07T10:45:00Z" },
-  { startupID: 11, companyName: "VoiceAI Lab", oneLiner: "Công nghệ nhận dạng giọng nói tiếng Việt, chatbot và trợ lý ảo cho doanh nghiệp.", stage: "Series A", industry: "AI & Machine Learning", subIndustry: "NLP / Voice", location: "Hồ Chí Minh", country: "Vietnam", logoURL: "", fundingStage: "Series A", profileStatus: "Active", updatedAt: "2026-03-16T09:00:00Z" },
-  { startupID: 12, companyName: "WealthBot", oneLiner: "Robo-advisor quản lý tài sản cá nhân với AI, đầu tư tự động cho nhà đầu tư nhỏ lẻ.", stage: "Pre-Seed", industry: "FinTech", subIndustry: "WealthTech", location: "Đà Nẵng", country: "Vietnam", logoURL: "", fundingStage: "Pre-Seed", profileStatus: "Draft", updatedAt: "2026-03-06T12:00:00Z" },
-];
+import { GetStartupById, AddToWatchlist } from "@/services/investor/investor.api";
+import { CreateConnection, GetSentConnections } from "@/services/connection/connection.api";
+import { CreateConversation } from "@/services/messaging/messaging.api";
 
 const MONOGRAM_PALETTES = [
   { bg: "bg-slate-100", text: "text-slate-600" },
@@ -76,34 +62,57 @@ export default function StartupDetailPage() {
   const [connectSent, setConnectSent] = useState(false);
   const [connectMessage, setConnectMessage] = useState("");
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectionAccepted, setConnectionAccepted] = useState<IConnectionItem | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
 
   const fetchStartup = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = (await SearchStartups(1, 100)) as unknown as IBackendRes<IPaginatedRes<IStartupSearchItem>>;
+      const res = await GetStartupById(startupId) as unknown as IBackendRes<IStartupSearchItem>;
       if (res.success && res.data) {
-        const found = (res.data.items ?? []).find((s) => s.startupID === startupId);
-        if (found) { setStartup(found); } else {
-          const m = MOCK_STARTUPS.find((s) => s.startupID === startupId);
-          setStartup(m || null);
-          if (!m) setError("Không tìm thấy startup này.");
-        }
+        setStartup(res.data);
       } else {
-        const m = MOCK_STARTUPS.find((s) => s.startupID === startupId);
-        setStartup(m || null);
-        if (!m) setError("Không tìm thấy startup này.");
+        setError(res.message || "Không tìm thấy startup này.");
       }
     } catch {
-      const m = MOCK_STARTUPS.find((s) => s.startupID === startupId);
-      setStartup(m || null);
-      if (!m) setError("Không tìm thấy startup này.");
+      setError("Không thể tải thông tin startup.");
     } finally {
       setLoading(false);
     }
   }, [startupId]);
 
   useEffect(() => { if (startupId) fetchStartup(); }, [startupId, fetchStartup]);
+
+  // Check if there's an accepted connection with this startup
+  useEffect(() => {
+    if (!startupId) return;
+    GetSentConnections(1, 50, "Accepted")
+      .then((res: any) => {
+        if (res.success && res.data) {
+          const match = res.data.items.find((c: IConnectionItem) => c.startupID === startupId);
+          if (match) setConnectionAccepted(match);
+        }
+      })
+      .catch(() => {});
+  }, [startupId]);
+
+  const handleStartChat = async () => {
+    if (!connectionAccepted) return;
+    setChatLoading(true);
+    try {
+      const res = await CreateConversation({ connectionId: connectionAccepted.connectionID }) as any as IBackendRes<IConversation>;
+      if (res.success && res.data) {
+        router.push(`/investor/messaging?conversationId=${res.data.conversationId}`);
+      } else {
+        router.push("/investor/messaging");
+      }
+    } catch {
+      router.push("/investor/messaging");
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   const handleAddToWatchlist = async () => {
     if (!startup || watchlistAdded) return;
@@ -336,6 +345,11 @@ export default function StartupDetailPage() {
                   <ActionButton icon={watchlistLoading ? Loader2 : Heart} label={watchlistAdded ? "Đã thêm vào Watchlist" : "Thêm vào Watchlist"} onClick={handleAddToWatchlist} disabled={watchlistAdded || watchlistLoading} done={watchlistAdded} spinning={watchlistLoading} />
                   <ActionButton icon={GitCompare} label="So sánh với Startup khác" onClick={() => router.push(`/investor/compare?ids=${startup.startupID}`)} />
                   <ActionButton icon={connectSent ? CheckCircle2 : Send} label={connectSent ? "Đã gửi yêu cầu kết nối" : "Gửi yêu cầu kết nối"} onClick={() => setShowConnectModal(true)} disabled={connectSent} done={connectSent} primary={!connectSent} />
+                  {connectionAccepted ? (
+                    <ActionButton icon={chatLoading ? Loader2 : MessageCircle} label="Nhắn tin cho Startup" onClick={handleStartChat} disabled={chatLoading} spinning={chatLoading} primary />
+                  ) : (
+                    <ActionButton icon={MessageCircle} label="Nhắn tin (cần kết nối)" disabled />
+                  )}
                 </div>
               </div>
 
@@ -470,6 +484,11 @@ export default function StartupDetailPage() {
                 <div className="space-y-2">
                   <ActionButton icon={watchlistLoading ? Loader2 : Heart} label={watchlistAdded ? "Đã thêm vào Watchlist" : "Thêm vào Watchlist"} onClick={handleAddToWatchlist} disabled={watchlistAdded || watchlistLoading} done={watchlistAdded} spinning={watchlistLoading} />
                   <ActionButton icon={connectSent ? CheckCircle2 : Send} label={connectSent ? "Đã gửi yêu cầu" : "Gửi yêu cầu kết nối"} onClick={() => setShowConnectModal(true)} disabled={connectSent} done={connectSent} primary={!connectSent} />
+                  {connectionAccepted ? (
+                    <ActionButton icon={chatLoading ? Loader2 : MessageCircle} label="Nhắn tin cho Startup" onClick={handleStartChat} disabled={chatLoading} spinning={chatLoading} primary />
+                  ) : (
+                    <ActionButton icon={MessageCircle} label="Nhắn tin (cần kết nối)" disabled />
+                  )}
                 </div>
               </div>
             </div>

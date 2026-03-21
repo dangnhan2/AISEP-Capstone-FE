@@ -3,6 +3,8 @@ export { };
 declare global {
     interface IBackendRes<T> {
         success: boolean
+        isSuccess: boolean   // alias — BE .NET dùng isSuccess
+        statusCode: number   // alias — BE .NET trả kèm status code
         data?: T | null
         message: string
         error: IError | null
@@ -212,6 +214,83 @@ declare global {
         updatedAt: string
     }
 
+    // ── Startup Profile ──────────────────────────────────────────────────────
+    interface IStartupProfile {
+        startupID: number
+        companyName: string
+        oneLiner: string
+        description: string
+        industry: string
+        subIndustry: string
+        stage: string
+        fundingStage: string
+        targetFunding: number | null
+        raisedAmount: number | null
+        teamSize: number | null
+        foundedYear: number | null
+        location: string
+        country: string
+        logoURL: string
+        website: string
+        linkedInURL: string
+        pitchDeckURL: string | null
+        profileStatus: string
+        profileCompleteness: number
+        createdAt: string
+        updatedAt: string
+        // ── Spec fields (Business & Market) ──
+        problemStatement?: string
+        solutionSummary?: string
+        marketScope?: string            // B2B | B2C | B2G | B2B2C
+        productStatus?: string          // Concept | Prototype | MVP | Launched | Scaling
+        currentNeeds?: string[]          // Funding | Mentorship | Talent | Partnership ...
+        // ── Spec fields (Team & Validation) ──
+        validationStatus?: string       // Not Validated | In Progress | Validated
+        metricSummary?: string
+        // ── Spec fields (Visibility) ──
+        visibilityStatus?: string       // Visible | Hidden | PendingApproval
+        // ── Spec fields (Contact & Links) ──
+        contactEmail?: string
+        contactPhone?: string
+        productUrl?: string
+        demoUrl?: string
+    }
+
+    interface IStartupTeamMember {
+        memberId?: number
+        name: string
+        title: string
+        roles: string[]
+        bio: string
+        status: string
+        avatarUrl: string
+        linkedInUrl: string
+    }
+
+    // ── Investor Search (startup xem danh sách investor) ──
+    interface IInvestorSearchItem {
+        investorID: number
+        fullName: string
+        firmName: string
+        investorType: "Institutional" | "Individual"
+        title: string
+        bio: string
+        profilePhotoURL: string
+        preferredIndustries: string[]
+        preferredStages: string[]
+        preferredGeographies: string[]
+        ticketSizeMin?: number | null
+        ticketSizeMax?: number | null
+        portfolioCount?: number | null
+        matchScore?: number | null
+        acceptingConnections: boolean
+        location: string
+        country: string
+        linkedInURL: string
+        website: string
+        updatedAt: string
+    }
+
     // ── Connection ──
     interface IConnectionItem {
         connectionID: number
@@ -255,7 +334,8 @@ declare global {
     }
 
     interface ICreateConnection {
-        startupId: number
+        startupId?: number   // dùng khi investor kết nối với startup
+        investorId?: number  // dùng khi startup kết nối với investor
         message: string
     }
 
@@ -333,5 +413,73 @@ declare global {
         event: string;
         date: string;
         status: string;
+    }
+
+    // ── Messaging ──
+
+    interface IConversation {
+        conversationId: number;
+        connectionId: number | null;
+        mentorshipId: number | null;
+        status: "Open" | "Closed";
+        title: string;
+        participantId: number;
+        participantName: string;
+        participantRole: "Startup" | "Investor" | "Advisor";
+        participantAvatarUrl: string | null;
+        lastMessagePreview: string | null;
+        unreadCount: number;
+        createdAt: string;
+        lastMessageAt: string | null;
+    }
+
+    interface IConversationDetail {
+        conversationId: number;
+        connectionId: number | null;
+        mentorshipId: number | null;
+        status: "Open" | "Closed";
+        title: string;
+        participants: IParticipant[];
+        createdAt: string;
+        lastMessageAt: string | null;
+    }
+
+    interface IParticipant {
+        userId: number;
+        displayName: string;
+        userType: "Startup" | "Investor" | "Advisor";
+    }
+
+    interface IMessage {
+        messageId: number;
+        conversationId: number;
+        senderUserId: number;
+        senderDisplayName: string;
+        isMine: boolean;
+        content: string;
+        attachmentUrls: string | null;
+        isRead: boolean;
+        sentAt: string;
+        readAt: string | null;
+    }
+
+    interface IIncomingMessage {
+        messageId: number;
+        conversationId: number;
+        senderId: number;
+        content: string;
+        attachmentUrl: string | null;
+        createdAt: string;
+    }
+
+    interface ICreateConversationBody {
+        connectionId?: number;
+        mentorshipId?: number;
+    }
+
+    interface ISendMessageBody {
+        conversationId: number;
+        content: string;
+        attachmentUrl?: string | null;
     }
 }
