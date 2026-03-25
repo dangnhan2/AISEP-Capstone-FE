@@ -27,6 +27,7 @@ interface AdvisorProfileOptionalFields {
   mentorshipPhilosophy?: string | null;
   items?: ExpertiseItemDto[];
   servicePricing?: ServicePricingDto;
+  advisorIndustryFocus?: { industryId: number }[];
 }
 
 const buildAdvisorFormData = (
@@ -82,6 +83,12 @@ const buildAdvisorFormData = (
         String(item.yearsOfExperience),
       );
     }
+  });
+
+  // AdvisorIndustryFocus (from main)
+  const focuses = options.advisorIndustryFocus ?? [];
+  focuses.forEach((item, index) => {
+    formData.append(`AdvisorIndustryFocus[${index}].IndustryId`, String(item.industryId));
   });
 
   return formData;
