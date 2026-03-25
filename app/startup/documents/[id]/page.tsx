@@ -13,43 +13,7 @@ import {
     ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle,
 } from "lucide-react";
 
-/* ─── Types ───────────────────────────────────────────────── */
-type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type Visibility = "private" | "investors" | "advisors" | "both";
-type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
-
-interface DocData {
-    id: string; name: string; type: DocType; visibility: Visibility;
-    tags: string[]; description: string; size: string; uploader: string;
-    role: string; createdAt: string; updatedAt: string; currentVersion: string;
-    blockchainStatus: BlockchainStatus; hash: string; txHash: string;
-    recordedAt: string; network: string;
-}
-
-interface VersionRow {
-    version: string; isCurrent?: boolean; uploader: string;
-    date: string; blockchainStatus: BlockchainStatus; size: string; hashShort: string;
-}
-
-/* ─── Mock data ───────────────────────────────────────────── */
-const INITIAL_DOC: DocData = {
-    id: "1", name: "Business_Plan_2026.pdf", type: "Pitch Deck", visibility: "investors",
-    tags: ["2026", "Series A", "gọi vốn"],
-    description: "Kế hoạch kinh doanh chi tiết cho vòng gọi vốn Series A năm 2026, bao gồm phân tích thị trường, chiến lược tăng trưởng và kế hoạch tài chính 3 năm.",
-    size: "4.8 MB", uploader: "Nguyễn Văn A", role: "Founder",
-    createdAt: "12/01/2026", updatedAt: "14/02/2026", currentVersion: "v4.0.0",
-    blockchainStatus: "matched",
-    hash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    txHash: "0x7a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
-    recordedAt: "14/02/2026 · 15:30", network: "Ethereum Sepolia",
-};
-
-const INITIAL_VERSIONS: VersionRow[] = [
-    { version: "v4.0.0", isCurrent: true,  uploader: "Nguyễn Văn A", date: "14/02/2026", blockchainStatus: "matched",       size: "4.8 MB", hashShort: "e3b0c4...b855" },
-    { version: "v3.2.1",                   uploader: "Trần Thị B",   date: "08/02/2026", blockchainStatus: "recorded",      size: "4.5 MB", hashShort: "f4c5d6...a1b2" },
-    { version: "v2.1.0",                   uploader: "Nguyễn Văn A", date: "01/02/2026", blockchainStatus: "not_submitted", size: "4.2 MB", hashShort: "—" },
-    { version: "v1.0.0",                   uploader: "Nguyễn Văn A", date: "12/01/2026", blockchainStatus: "recorded",      size: "3.8 MB", hashShort: "a1b2c3...9f8e" },
-];
+import { MOCK_DOCS, getDocVersions, Doc as DocData, VersionRow, BlockchainStatus, Visibility, DocType } from "@/services/startup/documents.mock";
 
 /* ─── Status configs ──────────────────────────────────────── */
 const BC: Record<BlockchainStatus, { label: string; cls: string; Icon: React.ElementType; spin?: boolean }> = {
@@ -60,6 +24,7 @@ const BC: Record<BlockchainStatus, { label: string; cls: string; Icon: React.Ele
     mismatch:      { label: "Hash lệch",    cls: "bg-red-50 text-red-600 border-red-100",               Icon: AlertTriangle },
     failed:        { label: "Thất bại",     cls: "bg-rose-50 text-rose-600 border-rose-100",            Icon: XCircle },
 };
+
 
 const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementType; hint: string }> = {
     private:   { label: "Riêng tư",     cls: "bg-slate-100 text-slate-600 border-slate-200",   Icon: Lock,      hint: "Chỉ thành viên nội bộ startup có thể xem." },
@@ -293,12 +258,14 @@ function BlockchainPanel({ status, hash, txHash, recordedAt, network, onSubmit, 
 /* ─── Page ────────────────────────────────────────────────── */
 export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    if (id !== INITIAL_DOC.id) notFound();
+    const mockDoc = MOCK_DOCS.find(d => d.id === id);
+    if (!mockDoc) notFound();
+    
     const router = useRouter();
 
-    const [doc, setDoc]                   = useState<DocData>(INITIAL_DOC);
-    const [versions, setVersions]         = useState<VersionRow[]>(INITIAL_VERSIONS);
-    const [localBcStatus, setLocalBcStatus] = useState<BlockchainStatus>(INITIAL_DOC.blockchainStatus);
+    const [doc, setDoc]                   = useState<DocData>(mockDoc);
+    const [versions, setVersions]         = useState<VersionRow[]>(getDocVersions(id));
+    const [localBcStatus, setLocalBcStatus] = useState<BlockchainStatus>(mockDoc.blockchainStatus);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showMoreMenu, setShowMoreMenu]  = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -343,7 +310,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
     const handleRestoreVersion = (version: string) => {
         setVersions(prev => prev.map(v => ({ ...v, isCurrent: v.version === version })));
-        setDoc(prev => ({ ...prev, currentVersion: version }));
+        setDoc(prev => ({ ...prev, version: version }));
         showToast(`Đã khôi phục phiên bản ${version}`, "success");
     };
 
@@ -365,7 +332,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h1 className="text-[20px] font-semibold text-[#0f172a] tracking-[-0.02em]">{doc.name}</h1>
-                                <span className="px-2 py-0.5 bg-[#0f172a] text-white text-[10px] font-medium rounded-md">{doc.currentVersion}</span>
+                                <span className="px-2 py-0.5 bg-[#0f172a] text-white text-[10px] font-medium rounded-md">{doc.version}</span>
                                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-md border border-emerald-100">Hiện tại</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">
@@ -536,10 +503,10 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         {/* Blockchain panel */}
                         <BlockchainPanel
                             status={localBcStatus}
-                            hash={doc.hash}
-                            txHash={doc.txHash}
-                            recordedAt={doc.recordedAt}
-                            network={doc.network}
+                            hash={doc.hash || "—"}
+                            txHash={doc.txHash || "—"}
+                            recordedAt={doc.recordedAt || "—"}
+                            network={doc.network || "—"}
                             onSubmit={handleSubmitBlockchain}
                             onRetry={handleRetryBlockchain}
                             onVerify={handleVerifyBlockchain}

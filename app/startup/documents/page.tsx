@@ -15,36 +15,10 @@ import {
     Info, AlertCircle,
 } from "lucide-react";
 
-/* ─── Types ───────────────────────────────────────────────── */
-type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type Visibility = "private" | "investors" | "advisors" | "both";
-type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+import { MOCK_DOCS, Doc, BlockchainStatus, Visibility, DocType } from "@/services/startup/documents.mock";
+
 type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
 
-interface Doc {
-    id: string;
-    name: string;
-    type: DocType;
-    tags: string[];
-    visibility: Visibility;
-    version: string;
-    updatedAt: string;
-    blockchainStatus: BlockchainStatus;
-    size: string;
-    uploader: string;
-    txHashShort?: string;
-    lastChecked?: string;
-}
-
-/* ─── Mock data ───────────────────────────────────────────── */
-const INITIAL_DOCS: Doc[] = [
-    { id:"1", name:"Pitch_Deck_NextGen_v2.pdf",  type:"Pitch Deck", tags:["2026","Series A"],   visibility:"investors", version:"v2", updatedAt:"12/02/2026", blockchainStatus:"recorded",      size:"2.4 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x1a2b...c3d4", lastChecked:"12/02 · 15:30" },
-    { id:"2", name:"Financial_Report_Q4.xlsx",   type:"Tài chính",  tags:["Q4","2025"],          visibility:"private",   version:"v1", updatedAt:"10/02/2026", blockchainStatus:"pending",       size:"1.1 MB",  uploader:"Trần Thị B",   txHashShort:"0x5e6f...7890", lastChecked:"10/02 · 09:15" },
-    { id:"3", name:"Algorithm_Core_Specs.txt",   type:"Kỹ thuật",   tags:["core","algorithm"],   visibility:"private",   version:"v3", updatedAt:"08/02/2026", blockchainStatus:"not_submitted", size:"0.5 MB",  uploader:"Nguyễn Văn A" },
-    { id:"4", name:"Trade_Secrets_V1.zip",        type:"Pháp lý",    tags:["IP","confidential"], visibility:"private",   version:"v1", updatedAt:"05/02/2026", blockchainStatus:"failed",        size:"15.8 MB", uploader:"Lê Văn C",     lastChecked:"05/02 · 11:20" },
-    { id:"5", name:"Product_Roadmap_2026.pptx",  type:"Pitch Deck", tags:["roadmap"],            visibility:"advisors",  version:"v2", updatedAt:"01/02/2026", blockchainStatus:"matched",       size:"5.2 MB",  uploader:"Nguyễn Văn A", txHashShort:"0x7b8c...d9e0", lastChecked:"01/02 · 14:45" },
-    { id:"6", name:"Term_Sheet_Draft_v3.pdf",    type:"Pháp lý",    tags:["legal","terms"],      visibility:"investors", version:"v3", updatedAt:"28/01/2026", blockchainStatus:"mismatch",      size:"0.8 MB",  uploader:"Trần Thị B",   txHashShort:"0xa1b2...c3d4", lastChecked:"28/01 · 10:00" },
-];
 
 /* ─── Config ──────────────────────────────────────────────── */
 function fileIconProps(name: string): { Icon: React.ElementType; cls: string } {
@@ -88,7 +62,10 @@ function sortDocs(docs: Doc[], key: SortKey): Doc[] {
             case "name":             return a.name.localeCompare(b.name);
             case "type":             return a.type.localeCompare(b.type);
             case "blockchainStatus": return a.blockchainStatus.localeCompare(b.blockchainStatus);
-            case "version":          return b.version.localeCompare(a.version);
+            case "version": {
+                const parseVer = (v: string) => parseFloat(v.replace(/[^0-9.]/g, "")) || 0;
+                return parseVer(b.version) - parseVer(a.version);
+            }
             default: {
                 const parse = (s: string) => { const [d,m,y] = s.split("/"); return new Date(+y,+m-1,+d).getTime(); };
                 return parse(b.updatedAt) - parse(a.updatedAt);
@@ -133,7 +110,7 @@ function FSelect({ value, onChange, options, labels }: {
 /* ─── Page ────────────────────────────────────────────────── */
 export default function StartupDocumentsPage() {
     const router = useRouter();
-    const [localDocs, setLocalDocs]       = useState<Doc[]>(INITIAL_DOCS);
+    const [localDocs, setLocalDocs]       = useState<Doc[]>(MOCK_DOCS);
     const [search, setSearch]             = useState("");
     const [typeFilter, setTypeFilter]     = useState("all");
     const [visFilter, setVisFilter]       = useState("all");
