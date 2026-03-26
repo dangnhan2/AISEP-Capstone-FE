@@ -16,6 +16,7 @@ export default function VerifyEmailClient() {
 
   const email = searchParams.get("email") || "";
   const purpose = searchParams.get("purpose") || "forgot-password";
+  const userTypeFromUrl = searchParams.get("userType") || "";
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [cooldown, setCooldown] = useState(60);
@@ -102,6 +103,19 @@ export default function VerifyEmailClient() {
         } else {
           router.push(`/auth/reset-password?email=${encodeURIComponent(email)}`);
         }
+
+        setUser({
+          userID: finalUserID,
+          email: finalEmail,
+          userType: finalUserType,
+          roles: finalRoles
+        });
+        setAccessToken(finalAccessToken);
+        setIsAuthen(true);
+        if (typeof window !== "undefined") localStorage.setItem("accessToken", finalAccessToken);
+        setVerifiedUserType(finalUserType || userTypeFromUrl);
+        setVerifiedRolesState(finalRoles || []);
+        setIsSuccess(true);
       } else {
         setError(res.message || "Xác thực OTP không thành công");
       }

@@ -67,7 +67,14 @@ export default function RegisterPage() {
       const res = await Register(email, password, confirmPassword, userType);
 
       if (res.isSuccess && res.statusCode === 200) {
-        router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=register`);
+        // Clear stale onboarding flags so the new account sees onboarding
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("aisep_startup_onboarding_skipped");
+          localStorage.removeItem("aisep_startup_onboarding_completed");
+          localStorage.removeItem("aisep_advisor_onboarding_skipped");
+          localStorage.removeItem("aisep_advisor_onboarding_completed");
+        }
+        router.push(`/auth/verify-email?email=${encodeURIComponent(email)}&purpose=register&userType=${encodeURIComponent(userType)}`);
       } else {
         setError(res.message || "Đăng ký không thành công");
       }

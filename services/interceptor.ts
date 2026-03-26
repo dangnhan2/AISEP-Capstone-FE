@@ -6,6 +6,50 @@ const instance = axios.create({
 });
 
 // Add a request interceptor: attach Bearer token if available
+// ── Refresh-token lock ──────────────────────────────────────────────────────
+// Đảm bảo chỉ có 1 request refresh chạy tại một thời điểm.
+// Các request 401 đến trong khi đang refresh sẽ được xếp hàng chờ.
+let isRefreshing = false;
+let pendingQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+function processQueue(err: unknown, newToken: string | null) {
+  pendingQueue.forEach(({ resolve, reject }) =>
+    err ? reject(err) : resolve(newToken!)
+  );
+  pendingQueue = [];
+}
+
+function clearSessionAndRedirect() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("user");
+  delete instance.defaults.headers.common.Authorization;
+  // Chỉ redirect nếu chưa ở trang login
+  if (!window.location.pathname.startsWith("/auth/login")) {
+    window.location.href = "/auth/login";
+  }
+}
+// ───────────────────────────────────────────────────────────────────────────
+
+function getTokenFromResponseBody(body: any): string | null {
+  return (
+    body?.data?.accessToken ??
+    body?.data?.info?.accessToken ??
+    body?.accessToken ??
+    body?.info?.accessToken ??
+    null
+  );
+}
+
+function isAuthEndpoint(url?: string): boolean {
+  if (!url) return false;
+  return url.includes("/api/auth/");
+}
+
+// Request interceptor: gắn Bearer token
 instance.interceptors.request.use(
   function (config: InternalAxiosRequestConfig) {
     if (typeof window !== "undefined") {
