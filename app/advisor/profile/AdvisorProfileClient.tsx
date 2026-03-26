@@ -8,7 +8,6 @@ import {
   Sparkles, Check, ShieldCheck, KeyRound, AlertCircle,
   Loader2, CheckCircle2, Eye, EyeOff, CreditCard, Info,
 } from "lucide-react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { ChangePassword } from "@/services/auth/auth.api";
@@ -16,44 +15,36 @@ import {
   CreateAdvisorProfile,
   UpdateAdvisorProfile,
   GetAdvisorProfile,
+  UpdateAdvisorAvailability,
 } from "@/services/advisor/advisor.api";
 
 /* ─── Constants ──────────────────────────────────────────────── */
 
-const EXPERTISE_OPTIONS = [
-  { value: "FUNDRAISING", label: "Gọi vốn" },
-  { value: "PRODUCT_STRATEGY", label: "Chiến lược SP" },
-  { value: "GO_TO_MARKET", label: "Go-to-market" },
-  { value: "FINANCE", label: "Tài chính" },
-  { value: "LEGAL_IP", label: "Pháp lý & SHTT" },
-  { value: "OPERATIONS", label: "Vận hành" },
-  { value: "TECHNOLOGY", label: "Công nghệ" },
-  { value: "MARKETING", label: "Marketing" },
-  { value: "HR_OR_TEAM_BUILDING", label: "Nhân sự" },
+const MOCK_INDUSTRIES = [
+  { id: 1, name: "AI & Technology" },
+  { id: 2, name: "Fintech" },
+  { id: 3, name: "Healthcare" },
+  { id: 4, name: "E-commerce" },
+  { id: 5, name: "EdTech" },
+  { id: 6, name: "ClimateTech" },
 ];
 
 /* ─── Completeness ───────────────────────────────────────────── */
 
 function calcCompleteness(f: {
-  name: string; title: string; company: string;
-  yearsOfExperience: number | null; website: string; linkedInURL: string;
-  googleMeetLink: string; msTeamsLink: string;
-  primaryExpertise: string; bio: string; mentorshipPhilosophy: string;
-  isBookable: boolean; hourlyRate: number | null; supportedDurations: number[];
+  name: string; title: string;
+  linkedInURL: string;
+  industryFocus: number[]; bio: string; mentorshipPhilosophy: string;
+  isAcceptingNewMentees: boolean; weeklyAvailableHours: number;
 }) {
   const checks = [
     Boolean(f.name?.trim()),
     Boolean(f.title?.trim()),
-    Boolean(f.company?.trim()),
-    f.yearsOfExperience !== null && f.yearsOfExperience >= 0,
-    Boolean(f.website?.trim() || f.linkedInURL?.trim()),
-    Boolean(f.primaryExpertise),
+    Boolean(f.linkedInURL?.trim()),
+    f.industryFocus.length > 0,
     Boolean(f.bio?.trim()),
     Boolean(f.mentorshipPhilosophy?.trim()),
-    Boolean(f.googleMeetLink?.trim()),
-    Boolean(f.msTeamsLink?.trim()),
-    f.hourlyRate !== null && f.hourlyRate > 0,
-    f.supportedDurations.length > 0,
+    !f.isAcceptingNewMentees || (f.weeklyAvailableHours > 0),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
@@ -89,7 +80,6 @@ export default function AdvisorProfileClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── State ─────────────────────────────────────────────────── */
-  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -98,18 +88,16 @@ export default function AdvisorProfileClient() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    name: "", title: "", company: "",
-    yearsOfExperience: null as number | null,
-    website: "", linkedInURL: "",
-    bio: "", mentorshipPhilosophy: "",
-    googleMeetLink: "", msTeamsLink: "",
-    isBookable: false,
-    hourlyRate: null as number | null,
-    supportedDurations: [60] as number[],
+    name: "", title: "", bio: "", mentorshipPhilosophy: "",
+    linkedInURL: "", industryFocus: [] as number[],
+    sessionFormats: "Online", typicalSessionDuration: 60,
+    weeklyAvailableHours: 5, maxConcurrentMentees: 2,
+    responseTimeCommitment: "24h", isAcceptingNewMentees: false,
   });
 
-  const [primaryExpertise, setPrimaryExpertise] = useState("");
-  const [secondaryExpertises, setSecondaryExpertises] = useState<string[]>([]);
+  const [hasProfile, setHasProfile] = useState(false);
+
+  const [profileCompletion, setProfileCompletion] = useState<number | null>(null);
 
   /* Password dialog */
   const [showPwDialog, setShowPwDialog] = useState(false);
@@ -118,40 +106,71 @@ export default function AdvisorProfileClient() {
   const [pwError, setPwError] = useState("");
   const [isChangingPw, setIsChangingPw] = useState(false);
 
-  const completeness = calcCompleteness({ ...form, primaryExpertise });
+  const derivedCompleteness = calcCompleteness(form);
+  const completeness = profileCompletion ?? derivedCompleteness;
 
   /* ── Load profile ──────────────────────────────────────────── */
   useEffect(() => {
     const load = async () => {
       try {
         const res = await GetAdvisorProfile();
-        if (res.isSuccess && res.data) {
-          const d: any = res.data;
-          const items: any[] = Array.isArray(d.items) ? d.items : [];
-          setForm({
-            name: d.fullName || "",
-            title: d.title || "",
-            company: d.company || "",
-            yearsOfExperience: items[0]?.yearsOfExperience ?? null,
-            website: d.website || "",
-            linkedInURL: d.linkedInURL || "",
-            bio: d.bio || "",
-            mentorshipPhilosophy: d.mentorshipPhilosophy || "",
-            googleMeetLink: d.googleMeetLink || "",
-            msTeamsLink: d.msTeamsLink || "",
-            isBookable: d.servicePricing?.isBookable ?? false,
-            hourlyRate: d.servicePricing?.hourlyRate ?? null,
-            supportedDurations: d.servicePricing?.supportedDurations ?? [60],
-          });
-          if (d.profilePhotoURL) setPhotoPreview(d.profilePhotoURL);
-          setPrimaryExpertise(items[0]?.category || "");
-          setSecondaryExpertises(items.slice(1, 4).map((i: any) => i.category).filter(Boolean));
+        const payload: any = res?.data ?? res;
+
+        const isSuccess =
+          typeof res?.isSuccess === "boolean"
+            ? res.isSuccess
+            : typeof res?.success === "boolean"
+              ? res.success
+              : Boolean(payload);
+
+        if (isSuccess && payload) {
+          // Existing profile
           setHasProfile(true);
+
+          const d: any = payload;
+          const items: any[] = Array.isArray(d.items) ? d.items : [];
+
+          setForm({
+            name: d.fullName ?? "",
+            title: d.title ?? "",
+            linkedInURL: d.linkedInURL ?? d.linkedInUrl ?? "",
+            bio: d.bio ?? "",
+            mentorshipPhilosophy: d.mentorshipPhilosophy ?? "",
+            industryFocus: Array.isArray(d.industry) ? d.industry.map((i: any) => i.industryId) : [],
+            sessionFormats: d.avalability?.sessionFormats ?? "Online",
+            typicalSessionDuration: d.avalability?.typicalSessionDuration ?? 60,
+            weeklyAvailableHours: d.avalability?.weeklyAvailableHours ?? 5,
+            maxConcurrentMentees: d.avalability?.maxConcurrentMentees ?? 2,
+            responseTimeCommitment: d.avalability?.responseTimeCommitment ?? "24h",
+            isAcceptingNewMentees: d.avalability?.isAcceptingNewMentees ?? false,
+          });
+
+          const photoUrl = d.profilePhotoURL ?? d.profilePhotoUrl;
+          if (photoUrl) setPhotoPreview(photoUrl);
+
+          setProfileCompletion(null);
         } else {
+          // No profile -> show empty form for update/create
           setHasProfile(false);
+          setPhotoPreview(null);
+          setProfileCompletion(null);
+          setForm({
+            name: "", title: "", bio: "", mentorshipPhilosophy: "",
+            linkedInURL: "", industryFocus: [],
+            sessionFormats: "Online", typicalSessionDuration: 60,
+            weeklyAvailableHours: 5, maxConcurrentMentees: 2,
+            responseTimeCommitment: "24h", isAcceptingNewMentees: false,
+          });
         }
-      } catch {
-        setLoadError(true);
+      } catch (err: any) {
+        const status = err?.response?.status ?? err?.status;
+        // 404/no-profile -> show empty form
+        if (status === 404) {
+          setHasProfile(false);
+          setLoadError(false);
+        } else {
+          setLoadError(true);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -173,24 +192,70 @@ export default function AdvisorProfileClient() {
   /* ── Save profile ──────────────────────────────────────────── */
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Vui lòng nhập tên Advisor"); return; }
+    if (!form.title.trim()) { toast.error("Vui lòng nhập chức vụ hiện tại"); return; }
+    if (!form.linkedInURL.trim()) {
+      toast.error("Vui lòng cung cấp liên kết LinkedIn");
+      return;
+    }
+    if (form.industryFocus.length === 0) { toast.error("Vui lòng chọn ít nhất 1 lĩnh vực"); return; }
+    if (!form.bio.trim()) { toast.error("Vui lòng nhập phần giới thiệu bản thân"); return; }
+    if (!form.mentorshipPhilosophy.trim()) { toast.error("Vui lòng nhập triết lý cố vấn"); return; }
     setIsSaving(true);
-    const payload = {
-      fullName: form.name,
-      title: form.title || undefined,
-      bio: form.bio || undefined,
-      linkedInURL: form.linkedInURL || undefined,
-      mentorshipPhilosophy: form.mentorshipPhilosophy || undefined,
-      profilePhotoFile: profilePhoto ?? undefined,
-      advisorIndustryFocus: [], // TODO: map industry selections to { industryId } if needed
-    };
     try {
+      const payloadProfile: any = {
+        fullName: form.name,
+        title: form.title,
+        bio: form.bio,
+        linkedInURL: form.linkedInURL,
+        mentorshipPhilosophy: form.mentorshipPhilosophy,
+        advisorIndustryFocus: form.industryFocus.map(id => ({ industryId: id })),
+      };
+      if (profilePhoto) {
+        payloadProfile.profilePhotoURL = profilePhoto;
+      }
+
       if (hasProfile) {
-        await UpdateAdvisorProfile(payload);
+        await UpdateAdvisorProfile(payloadProfile);
       } else {
-        await CreateAdvisorProfile(payload);
+        await CreateAdvisorProfile(payloadProfile);
         setHasProfile(true);
       }
+
+      await UpdateAdvisorAvailability({
+        sessionFormats: form.sessionFormats,
+        typicalSessionDuration: form.typicalSessionDuration,
+        weeklyAvailableHours: form.weeklyAvailableHours,
+        maxConcurrentMentees: form.maxConcurrentMentees,
+        responseTimeCommitment: form.responseTimeCommitment,
+        isAcceptingNewMentees: form.isAcceptingNewMentees
+      });
+
       toast.success("Lưu hồ sơ thành công");
+
+      const refRes = await GetAdvisorProfile();
+      const refData: any = refRes?.data ?? refRes;
+      if (refRes?.isSuccess && refData) {
+        const d: any = refData;
+        setForm({
+            name: d.fullName ?? "",
+            title: d.title ?? "",
+            linkedInURL: d.linkedInURL ?? d.linkedInUrl ?? "",
+            bio: d.bio ?? "",
+            mentorshipPhilosophy: d.mentorshipPhilosophy ?? "",
+            industryFocus: Array.isArray(d.industry) ? d.industry.map((i: any) => i.industryId) : [],
+            sessionFormats: d.avalability?.sessionFormats ?? form.sessionFormats,
+            typicalSessionDuration: d.avalability?.typicalSessionDuration ?? form.typicalSessionDuration,
+            weeklyAvailableHours: d.avalability?.weeklyAvailableHours ?? form.weeklyAvailableHours,
+            maxConcurrentMentees: d.avalability?.maxConcurrentMentees ?? form.maxConcurrentMentees,
+            responseTimeCommitment: d.avalability?.responseTimeCommitment ?? form.responseTimeCommitment,
+            isAcceptingNewMentees: d.avalability?.isAcceptingNewMentees ?? form.isAcceptingNewMentees,
+        });
+
+        const photoUrl = d.profilePhotoURL ?? d.profilePhotoUrl;
+        if (photoUrl) setPhotoPreview(photoUrl);
+      }
+
+      setProfilePhoto(null);
     } catch {
       toast.error("Lưu hồ sơ thất bại. Vui lòng thử lại.");
     } finally {
@@ -319,35 +384,7 @@ export default function AdvisorProfileClient() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Công ty / Tổ chức</label>
-                  <div className="relative">
-                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                    <input value={form.company} onChange={e => setForm(p => ({ ...p, company: e.target.value }))}
-                      placeholder="AI Tech Ventures"
-                      className={cn(inputClass(), "pl-10")} />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Số năm kinh nghiệm</label>
-                  <input
-                    type="number" min={0} max={60}
-                    value={form.yearsOfExperience ?? ""}
-                    onChange={e => setForm(p => ({ ...p, yearsOfExperience: e.target.value === "" ? null : parseInt(e.target.value) }))}
-                    placeholder="8"
-                    className={inputClass()} />
-                </div>
-
-                <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">Website</label>
-                  <div className="relative">
-                    <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                    <input value={form.website} onChange={e => setForm(p => ({ ...p, website: e.target.value }))}
-                      placeholder="https://example.com"
-                      className={cn(inputClass(), "pl-10")} />
-                  </div>
-                </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5">LinkedIn URL</label>
@@ -394,101 +431,36 @@ export default function AdvisorProfileClient() {
               </div>
             </SectionCard>
  
-             {/* Meeting Links */}
-             <SectionCard title="Link họp trực tuyến" icon={Globe}>
-               <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100 flex items-start gap-2.5">
-                 <ShieldCheck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                 <div className="flex-1">
-                   <p className="text-[12px] font-medium text-blue-800">Thông tin bảo mật</p>
-                   <p className="text-[11px] text-blue-700 leading-relaxed">
-                     Các đường dẫn này sẽ được giữ bí mật và chỉ chia sẻ với Startup sau khi buổi tư vấn được xác nhận lịch chính thức.
-                   </p>
-                 </div>
-               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
-                     <Image src="https://thesvg.org/icons/google-meet/default.svg" alt="Google Meet" width={18} height={18} unoptimized />
-                     Google Meet Link
-                   </label>
-                   <input
-                     value={form.googleMeetLink}
-                     onChange={e => setForm(p => ({ ...p, googleMeetLink: e.target.value }))}
-                     placeholder="https://meet.google.com/xxx-yyyy-zzz"
-                     className={inputClass()}
-                   />
-                 </div>
-                 <div>
-                   <label className="block text-[13px] font-semibold text-slate-700 mb-1.5 flex items-center gap-2">
-                     <Image src="https://thesvg.org/icons/microsoft-teams/default.svg" alt="Microsoft Teams" width={18} height={18} unoptimized />
-                     MS Teams Link
-                   </label>
-                   <input
-                     value={form.msTeamsLink}
-                     onChange={e => setForm(p => ({ ...p, msTeamsLink: e.target.value }))}
-                     placeholder="https://teams.microsoft.com/l/meetup-join/..."
-                     className={inputClass()}
-                   />
-                 </div>
-               </div>
-             </SectionCard>
-
-            {/* Expertise */}
-            <SectionCard title="Chuyên môn" icon={Sparkles}>
+            {/* Lĩnh vực tư vấn */}
+            <SectionCard title="Lĩnh vực tư vấn" icon={Sparkles}>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-[13px] font-semibold text-slate-700 mb-2">Chuyên môn chính</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {EXPERTISE_OPTIONS.map(opt => (
-                      <button key={opt.value} type="button"
-                        onClick={() => {
-                          setPrimaryExpertise(opt.value);
-                          setSecondaryExpertises(prev => prev.filter(v => v !== opt.value));
-                        }}
-                        className={cn(
-                          "px-3 py-2.5 rounded-xl border text-[12px] font-semibold text-center transition-all",
-                          primaryExpertise === opt.value
-                            ? "border-[#eec54e] bg-[#fdf8e6] text-slate-800"
-                            : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
                   <label className="block text-[13px] font-semibold text-slate-700 mb-2">
-                    Chuyên môn phụ
-                    <span className="text-slate-400 font-normal text-[12px] ml-1">— Tối đa 3</span>
+                    Các lĩnh vực hỗ trợ
+                    <span className="text-slate-400 font-normal text-[12px] ml-1">— Chọn nhiều</span>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {EXPERTISE_OPTIONS.map(opt => {
-                      const selected = secondaryExpertises.includes(opt.value);
-                      const isPrimary = opt.value === primaryExpertise;
-                      const atMax = secondaryExpertises.length >= 3 && !selected;
-                      
+                    {MOCK_INDUSTRIES.map(opt => {
+                      const selected = form.industryFocus.includes(opt.id);
                       return (
                         <button 
-                          key={opt.value} 
+                          key={opt.id} 
                           type="button" 
-                          disabled={isPrimary || atMax}
-                          onClick={() => setSecondaryExpertises(prev =>
-                            prev.includes(opt.value) ? prev.filter(v => v !== opt.value) : [...prev, opt.value]
-                          )}
+                          onClick={() => setForm(p => ({
+                            ...p, 
+                            industryFocus: selected 
+                              ? p.industryFocus.filter(id => id !== opt.id)
+                              : [...p.industryFocus, opt.id]
+                          }))}
                           className={cn(
                             "px-3.5 py-1.5 rounded-full text-[12px] font-semibold border transition-all flex items-center gap-1.5",
                             selected 
                               ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm" 
-                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700",
-                            isPrimary && "opacity-40 grayscale cursor-not-allowed bg-slate-50 border-slate-100",
-                            atMax && !isPrimary && "opacity-30 cursor-not-allowed"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-400 hover:text-slate-700"
                           )}
                         >
                           {selected ? <CheckCircle2 className="w-3.5 h-3.5" /> : null}
-                          {opt.label}
-                          {isPrimary && <span className="text-[9px] font-normal opacity-70 ml-0.5">(Chính)</span>}
+                          {opt.name}
                         </button>
                       );
                     })}
@@ -497,99 +469,80 @@ export default function AdvisorProfileClient() {
               </div>
             </SectionCard>
 
-            {/* Service & Pricing */}
-            <SectionCard title="Dịch vụ & Mức phí" icon={CreditCard}>
+            {/* Availability */}
+            <SectionCard title="Lịch trình hỗ trợ" icon={CreditCard}>
               <div className="space-y-6">
-                {/* Bookable Toggle & Info */}
+                {/* Accept Mentees Toggle */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-[14px] font-bold text-slate-800">Nhận yêu cầu tư vấn</p>
-                      {form.isBookable ? (
+                      <p className="text-[14px] font-bold text-slate-800">Đang nhận hỗ trợ (Open for Mentees)</p>
+                      {form.isAcceptingNewMentees ? (
                         <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider animate-pulse">Đang mở</span>
                       ) : (
                         <span className="px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">Đang tắt</span>
                       )}
                     </div>
                     <p className="text-[12px] text-slate-500 leading-relaxed">
-                      Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch tư vấn trực tiếp.
+                      Khi bật, Startup có thể tìm thấy bạn và gửi yêu cầu đặt lịch hỗ trợ trực tiếp.
                     </p>
                   </div>
                   
                   {/* Custom Toggle Switch */}
                   <button 
                     type="button"
-                    onClick={() => {
-                      // Basic eligibility check
-                      const canEnable = Boolean(form.name && form.title && form.company && primaryExpertise && (form.website || form.linkedInURL));
-                      if (!canEnable && !form.isBookable) {
-                        toast.error("Vui lòng hoàn thiện hồ sơ cơ bản (Tên, Chức vụ, Chuyên môn) để bật nhận tư vấn.");
-                        return;
-                      }
-                      setForm(p => ({ ...p, isBookable: !p.isBookable }));
-                    }}
+                    onClick={() => setForm(p => ({ ...p, isAcceptingNewMentees: !p.isAcceptingNewMentees }))}
                     className={cn(
                       "relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#eec54e] focus:ring-offset-2",
-                      form.isBookable ? "bg-[#eec54e]" : "bg-slate-200"
+                      form.isAcceptingNewMentees ? "bg-[#eec54e]" : "bg-slate-200"
                     )}
                   >
                     <span
                       aria-hidden="true"
                       className={cn(
                         "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                        form.isBookable ? "translate-x-5" : "translate-x-0"
+                        form.isAcceptingNewMentees ? "translate-x-5" : "translate-x-0"
                       )}
                     />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Hourly Rate */}
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-                      Đơn giá theo giờ (Hourly Rate)
-                      <span className="text-red-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <input 
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={form.hourlyRate ?? ""}
-                        onChange={e => setForm(p => ({ ...p, hourlyRate: e.target.value === "" ? null : parseFloat(e.target.value) }))}
-                        placeholder="Ví dụ: 500.000"
-                        className={cn(inputClass(), "pr-20")}
-                      />
-                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[11px] font-bold uppercase">
-                        VNĐ / giờ
-                      </div>
-                    </div>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Số giờ tối đa mỗi tuần</label>
+                    <input 
+                      type="number" min={0} max={100}
+                      value={form.weeklyAvailableHours}
+                      onChange={e => setForm(p => ({ ...p, weeklyAvailableHours: parseInt(e.target.value) || 0 }))}
+                      className={inputClass()}
+                      disabled={!form.isAcceptingNewMentees}
+                    />
                   </div>
 
-                  {/* Durations */}
                   <div>
-                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">
-                      Thời lượng hỗ trợ
-                      <span className="text-slate-400 font-normal text-[12px] ml-1.5">— Phút</span>
-                    </label>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Số lượng Mentee tối đa</label>
+                    <input 
+                      type="number" min={1} max={50}
+                      value={form.maxConcurrentMentees}
+                      onChange={e => setForm(p => ({ ...p, maxConcurrentMentees: parseInt(e.target.value) || 1 }))}
+                      className={inputClass()}
+                      disabled={!form.isAcceptingNewMentees}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Thời lượng tiêu chuẩn (phút)</label>
                     <div className="flex flex-wrap gap-2">
-                      {[30, 60, 90, 120].map(d => {
-                        const selected = form.supportedDurations.includes(d);
+                      {[30, 45, 60].map(d => {
+                        const selected = form.typicalSessionDuration === d;
                         return (
                           <button
-                            key={d}
-                            type="button"
-                            onClick={() => setForm(p => ({
-                              ...p,
-                              supportedDurations: selected 
-                                ? p.supportedDurations.filter(v => v !== d)
-                                : [...p.supportedDurations, d].sort((a, b) => a - b)
-                            }))}
+                            key={d} type="button"
+                            onClick={() => setForm(p => ({ ...p, typicalSessionDuration: d }))}
+                            disabled={!form.isAcceptingNewMentees}
                             className={cn(
                               "px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-all",
-                              selected 
-                                ? "bg-[#171611] text-white border-[#171611] shadow-sm" 
-                                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                              selected ? "bg-[#171611] text-white border-[#171611] shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
                             )}
                           >
                             {d}m
@@ -598,58 +551,29 @@ export default function AdvisorProfileClient() {
                       })}
                     </div>
                   </div>
-                </div>
 
-                {/* Price Preview Table */}
-                {form.hourlyRate && form.hourlyRate > 0 && form.supportedDurations.length > 0 && (
-                  <div className="mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-1 h-4 rounded-full bg-[#eec54e]" />
-                      <p className="text-[13px] font-bold text-slate-800 tracking-tight">Xem trước phân bổ doanh thu</p>
-                      <Info className="w-3.5 h-3.5 text-slate-300" />
-                    </div>
-                    <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                      <table className="w-full text-[12px]">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
-                            <th className="px-4 py-3 text-left font-bold">Thời lượng</th>
-                            <th className="px-4 py-3 text-right font-bold text-slate-500">Giá buổi (100%)</th>
-                            <th className="px-4 py-3 text-right font-bold text-blue-400/80">Phí nền tảng (15%)</th>
-                            <th className="px-4 py-3 text-right font-bold text-emerald-600">Thực nhận dự kiến</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {form.supportedDurations.map(d => {
-                            const price = Math.round((form.hourlyRate! * d) / 60);
-                            const fee = Math.round(price * 0.15);
-                            const payout = price - fee;
-                            
-                            const fmt = (val: number) => val.toLocaleString('vi-VN');
-                            
-                            return (
-                              <tr key={d} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-4 py-3 font-bold text-slate-700">{d} phút</td>
-                                <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(price)} đ</td>
-                                <td className="px-4 py-3 text-right text-slate-400">-{fmt(fee)} đ</td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className="inline-flex items-center justify-center px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold">
-                                    {fmt(payout)} đ
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100/50 flex items-start gap-2.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5" />
-                      <p className="text-[11px] text-amber-700 leading-relaxed italic">
-                        Lưu ý: Mức thực nhận trên là dự kiến dựa trên phí nền tảng hiện tại (15%). Số tiền thanh toán cuối cùng có thể thay đổi tùy thuộc vào các chương trình khuyến mãi hoặc chính sách thuế tại thời điểm thanh toán.
-                      </p>
+                  <div>
+                    <label className="block text-[13px] font-semibold text-slate-700 mb-2">Hình thức tương tác</label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Online", "Offline", "Mixed"].map(f => {
+                        const selected = form.sessionFormats === f;
+                        return (
+                          <button
+                            key={f} type="button"
+                            onClick={() => setForm(p => ({ ...p, sessionFormats: f }))}
+                            disabled={!form.isAcceptingNewMentees}
+                            className={cn(
+                              "px-3.5 py-1.5 rounded-xl text-[12px] font-bold border transition-all",
+                              selected ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                            )}
+                          >
+                            {f}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             </SectionCard>
 
@@ -694,16 +618,11 @@ export default function AdvisorProfileClient() {
                 {[
                   { label: "Họ và tên", done: Boolean(form.name?.trim()) },
                   { label: "Chức vụ", done: Boolean(form.title?.trim()) },
-                  { label: "Công ty / Tổ chức", done: Boolean(form.company?.trim()) },
-                  { label: "Số năm kinh nghiệm", done: form.yearsOfExperience !== null },
-                  { label: "Ít nhất 1 liên kết công khai", done: Boolean(form.website?.trim() || form.linkedInURL?.trim()) },
-                  { label: "Chuyên môn chính", done: Boolean(primaryExpertise) },
+                  { label: "Liên kết LinkedIn", done: Boolean(form.linkedInURL?.trim()) },
+                  { label: "Lĩnh vực tư vấn", done: form.industryFocus.length > 0 },
                   { label: "Giới thiệu bản thân", done: Boolean(form.bio?.trim()) },
                   { label: "Triết lý cố vấn", done: Boolean(form.mentorshipPhilosophy?.trim()) },
-                  { label: "Link Google Meet", done: Boolean(form.googleMeetLink?.trim()) },
-                  { label: "Link MS Teams", done: Boolean(form.msTeamsLink?.trim()) },
-                  { label: "Đơn giá tư vấn", done: form.hourlyRate !== null && form.hourlyRate > 0 },
-                  { label: "Thời lượng hỗ trợ", done: form.supportedDurations.length > 0 },
+                  { label: "Sẵn sàng hỗ trợ", done: !form.isAcceptingNewMentees || form.weeklyAvailableHours > 0 },
                 ].map((item, i) => (
                   <li key={i} className="flex items-center gap-2.5">
                     <div className={cn(

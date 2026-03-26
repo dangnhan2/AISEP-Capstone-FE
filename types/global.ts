@@ -91,6 +91,16 @@ declare global {
         updatedAt: string
     }
 
+    interface IAdvisorSearchResult {
+        advisorID: number
+        fullName: string
+        title: string
+        bio: string
+        profilePhotoURL: string
+        averageRating: number
+        industry: IAdvisorIndustryFocus[]
+    }
+
     interface IStartupProfile {
         startupID: number
         userID: number
@@ -146,6 +156,9 @@ declare global {
         isAnalyzed : boolean
         analysisStatus : string
         uploadedAt : string
+        proofStatus : string
+        fileHash: string
+        transactionHash : string
     }
 
     interface IBlockchainVerification{
