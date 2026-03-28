@@ -25,14 +25,10 @@ declare global {
     }
 
     interface IPagingData<T> {
-        items: T[]
-        paging: IPaging
-    }
-
-    interface IPaging {
+        data: T[]
         page: number
         pageSize: number
-        totalItems: number
+        total: number
     }
 
     interface IRegisterInfo {
@@ -147,32 +143,89 @@ declare global {
     }
 
     interface IDocument {
-        documentID : number
-        startupID : number
-        documentType : string
-        version : string
-        fileUrl : string
-        isArchived : boolean
-        isAnalyzed : boolean
-        analysisStatus : string
-        uploadedAt : string
-        proofStatus : string
+        documentID: number
+        startupID: number
+        documentType: string
+        version: string
+        fileUrl: string
+        isArchived: boolean
+        isAnalyzed: boolean
+        analysisStatus: string
+        uploadedAt: string
+        proofStatus: string
         fileHash: string
-        transactionHash : string
+        transactionHash: string
     }
 
-    interface IBlockchainVerification{
-        documentID : number
-        computedHash : string
-        onChainVerified : boolean
-        status : string
+    interface IBlockchainVerification {
+        documentID: number
+        computedHash: string
+        onChainVerified: boolean
+        status: string
     }
 
-    interface IBlockchainChecking{
-        documentID : number
-        transactionHash : string
-        status : string
-        blockNumber : string
-        confirmedAt : string
+    interface IBlockchainChecking {
+        documentID: number
+        transactionHash: string
+        status: string
+        blockNumber: string
+        confirmedAt: string
+    }
+
+    interface IMentorship {
+        mentorshipID: number
+        startupID: number
+        startupName: string
+        advisorID: number
+        advisorName: string
+        mentorshipStatus: string
+        challengeDescription: string
+        preferredFormat: string
+        requestedAt: string
+        createdAt: string
+    }
+
+    interface IMentorshipDetail {
+        mentorshipID: number;
+        startupID: number;
+        startupName: string;
+        advisorID: number;
+        advisorName: string;
+        mentorshipStatus: string;
+        challengeDescription: string;
+        expectedDuration: string;
+        requestedAt: string;
+        acceptedAt: string;
+        rejectedAt: string;
+        rejectedReason: string;
+        completedAt: string;
+        completionConfirmedByStartup: boolean;
+        completionConfirmedByAdvisor: boolean;
+        createdAt: string;
+        updatedAt: string;
+    }
+
+    interface ISession {
+        mentorshipID: number
+        startupID: number
+        startupName: string
+        advisorID: number
+        advisorName: string
+        mentorshipStatus: string
+        challengeDescription: string
+        requestedAt: string
+        createdAt: string
+    }
+
+    interface ISlot {
+        slotID: number,
+        advisorID: number,
+        startTime: string,
+        endTime: string,
+        isBooked: boolean,
+        bookedSessionID: number,
+        notes: string,
+        createdAt: string,
+        updatedAt: string
     }
 }

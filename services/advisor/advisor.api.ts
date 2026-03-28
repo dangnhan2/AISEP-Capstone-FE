@@ -2,13 +2,13 @@ import axios from "../interceptor";
 
 
 interface IAdvisorProfileRequest {
-  fullName : string
-  title : string
-  bio : string
-  profilePhotoURL : File
-  linkedInURL : string
-  mentorshipPhilosophy : string
-  advisorIndustryFocus : IAdvisorIndustryFocus[]
+  fullName: string
+  title: string
+  bio: string
+  profilePhotoURL: File
+  linkedInURL: string
+  mentorshipPhilosophy: string
+  advisorIndustryFocus: IAdvisorIndustryFocus[]
 }
 
 interface IAdvisorIndustryFocus {
@@ -16,7 +16,7 @@ interface IAdvisorIndustryFocus {
 }
 
 interface IAdvisorAvailabilityRequest {
-  sessionFormats : string
+  sessionFormats: string
   typicalSessionDuration: number
   weeklyAvailableHours: number
   maxConcurrentMentees: number
@@ -26,13 +26,13 @@ interface IAdvisorAvailabilityRequest {
 
 export const CreateAdvisorProfile = (data: IAdvisorProfileRequest) => {
   const formData = new FormData();
-  formData.append("fullName", data.fullName); 
+  formData.append("fullName", data.fullName);
   formData.append("title", data.title);
   formData.append("bio", data.bio);
   formData.append("profilePhotoURL", data.profilePhotoURL);
   formData.append("linkedInURL", data.linkedInURL);
   formData.append("mentorshipPhilosophy", data.mentorshipPhilosophy);
-  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus)); 
+  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus));
   return axios.post("/api/advisors", formData, {
     headers: {
       "Content-Type": "multipart/form-data"
@@ -42,13 +42,13 @@ export const CreateAdvisorProfile = (data: IAdvisorProfileRequest) => {
 
 export const UpdateAdvisorProfile = (data: IAdvisorProfileRequest) => {
   const formData = new FormData();
-  formData.append("fullName", data.fullName); 
+  formData.append("fullName", data.fullName);
   formData.append("title", data.title);
   formData.append("bio", data.bio);
   formData.append("profilePhotoURL", data.profilePhotoURL);
   formData.append("linkedInURL", data.linkedInURL);
   formData.append("mentorshipPhilosophy", data.mentorshipPhilosophy);
-  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus)); 
+  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus));
   return axios.put("/api/advisors/me", formData, {
     headers: {
       "Content-Type": "multipart/form-data"
@@ -56,7 +56,7 @@ export const UpdateAdvisorProfile = (data: IAdvisorProfileRequest) => {
   });
 };
 
-export const UpdateAdvisorAvailability = (data : IAdvisorAvailabilityRequest) => {
+export const UpdateAdvisorAvailability = (data: IAdvisorAvailabilityRequest) => {
   return axios.put("/api/advisors/me/availability", data);
 }
 
@@ -64,7 +64,26 @@ export const GetAdvisorProfile = () => {
   return axios.get<IBackendRes<IAdvisorProfile>>("/api/advisors/me");
 }
 
-// export const SearchAdvisors = (query: string) => {
-//   return axios.get<IBackendRes<IPagingData<IAdvisorSearchResult>>>(`/api/advisors/${query}`);
-// };
+export const GetAdvisorProfileById = (id: number) => {
+  return axios.get<IBackendRes<IAdvisorProfile>>(`/api/advisors/me/${id}`);
+}
+
+interface ISearchAdvisorsParams {
+  key?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export const SearchAdvisors = (params: ISearchAdvisorsParams) => {
+  const query = new URLSearchParams();
+
+  if (params.key?.trim()) {
+    query.set("key", params.key.trim());
+  }
+
+  query.set("page", String(params.page ?? 1));
+  query.set("pageSize", String(params.pageSize ?? 10));
+
+  return axios.get<IBackendRes<IPagingData<IAdvisorSearchResult>>>(`/api/advisors/search?${query.toString()}`);
+};
 

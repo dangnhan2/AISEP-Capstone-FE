@@ -1,76 +1,126 @@
 "use client";
 
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
-import { 
-  Calendar, 
-  Clock, 
-  Plus, 
-  Trash2, 
-  Save, 
+import {
+  Calendar,
+  Plus,
+  Trash2,
+  Save,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  MoreVertical,
-  Check
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-
-interface TimeSlot {
-  id: string;
-  dayOfWeek: number; // 0-6, starting Sunday
-  startTime: string;
-  endTime: string;
-  isActive: boolean;
-}
+import { GetAvailableSlots, CreateWeeklyScheduleBulk, DeleteWeeklySchedule } from "@/services/mentorships/mentorship.api";
 
 const DAYS = [
   "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"
 ];
 
-export default function AdvisorAvailabilityPage() {
-  const [slots, setSlots] = useState<TimeSlot[]>([
-    { id: "1", dayOfWeek: 1, startTime: "09:00", endTime: "11:00", isActive: true },
-    { id: "2", dayOfWeek: 1, startTime: "14:00", endTime: "17:00", isActive: true },
-    { id: "3", dayOfWeek: 3, startTime: "09:00", endTime: "12:00", isActive: true },
-    { id: "4", dayOfWeek: 5, startTime: "13:30", endTime: "16:30", isActive: true },
-  ]);
+const ENG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const getDayIndex = (dayStr: string) => Math.max(0, ENG_DAYS.findIndex((d) => d.toLowerCase() === dayStr.toLowerCase()));
 
+export default function AdvisorAvailabilityPage() {
+  const [slots, setSlots] = useState<ISlot[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchSlots = async () => {
+    setIsLoading(true);
+    try {
+      const res = await GetAvailableSlots({ page: 1, pageSize: 100 });
+      const apiSlots: any[] = Array.isArray(res.data) ? res.data : (res.data as any)?.data || [];
+      const mapped: ISlot[] = apiSlots.map((s: any) => {
+        let st = s.startTime || "09:00";
+        if (st.includes("T")) st = st.split("T")[1];
+        st = st.substring(0, 5);
+
+        let et = s.endTime || "10:00";
+        if (et.includes("T")) et = et.split("T")[1];
+        et = et.substring(0, 5);
+
+        return {
+          slotID: s.slotID || -Math.floor(Math.random() * 1000000),
+          advisorID: s.advisorID || 0,
+          startTime: st,
+          endTime: et,
+          isBooked: s.isBooked || false,
+          bookedSessionID: s.bookedSessionID || 0,
+          notes: s.notes || "Sunday",
+          createdAt: s.createdAt || new Date().toISOString(),
+          updatedAt: s.updatedAt || new Date().toISOString()
+        } as ISlot;
+      });
+      setSlots(mapped);
+    } catch (err) {
+      console.error(err);
+      toast.error("Không thể tải lịch rảnh");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSlots();
+  }, []);
 
   const handleAddSlot = (dayIdx: number) => {
-    const newSlot: TimeSlot = {
-      id: Math.random().toString(36).substr(2, 9),
-      dayOfWeek: dayIdx,
+    const newSlot: ISlot = {
+      slotID: -Math.floor(Math.random() * 1000000),
+      advisorID: 0,
       startTime: "09:00",
       endTime: "10:00",
-      isActive: true,
+      isBooked: false,
+      bookedSessionID: 0,
+      notes: ENG_DAYS[dayIdx] || "Sunday",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     setSlots([...slots, newSlot]);
   };
 
-  const handleRemoveSlot = (id: string) => {
-    setSlots(slots.filter(s => s.id !== id));
+  const handleRemoveSlot = async (id: number) => {
+    const slotToRemove = slots.find(s => s.slotID === id);
+    if (slotToRemove && slotToRemove.slotID > 0) {
+      try {
+        await DeleteWeeklySchedule(slotToRemove.slotID);
+        toast.success("Đã xóa khung giờ");
+      } catch (err) {
+        toast.error("Xóa khung giờ thất bại");
+        return;
+      }
+    }
+    setSlots(slots.filter(s => s.slotID !== id));
   };
 
-  const handleUpdateSlot = (id: string, updates: Partial<TimeSlot>) => {
-    setSlots(slots.map(s => s.id === id ? { ...s, ...updates } : s));
+  const handleUpdateSlot = (id: number, updates: Partial<ISlot>) => {
+    setSlots(slots.map(s => s.slotID === id ? { ...s, ...updates } : s));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const payloadSlots = slots.map(s => ({
+        startTime: `2026-04-01T${s.startTime.substring(0, 5)}:00Z`,
+        endTime: `2026-04-01T${s.endTime.substring(0, 5)}:00Z`,
+        notes: s.notes,
+      }));
+
+      await CreateWeeklyScheduleBulk({ slots: payloadSlots as any });
       toast.success("Cập nhật lịch rảnh thành công");
-    }, 1000);
+      fetchSlots();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || "Lỗi khi lưu lịch rảnh");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <AdvisorShell>
       <div className="max-w-5xl mx-auto space-y-7 animate-in fade-in duration-500">
-        
+
         {/* Header Section */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -85,7 +135,7 @@ export default function AdvisorAvailabilityPage() {
                 </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={handleSave}
               disabled={saving}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-medium hover:bg-[#1e293b] transition-colors shadow-sm disabled:opacity-50"
@@ -105,8 +155,13 @@ export default function AdvisorAvailabilityPage() {
 
         {/* Weekly Schedule Grid */}
         <div className="grid grid-cols-1 gap-4">
-          {DAYS.map((dayName, idx) => {
-            const daySlots = slots.filter(s => s.dayOfWeek === idx).sort((a,b) => a.startTime.localeCompare(b.startTime));
+          {isLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 text-[#0f172a] animate-spin mb-4" />
+              <p className="text-[14px] text-slate-500 font-medium">Đang tải lịch rảnh...</p>
+            </div>
+          ) : DAYS.map((dayName, idx) => {
+            const daySlots = slots.filter(s => getDayIndex(s.notes) === idx).sort((a, b) => a.startTime.localeCompare(b.startTime));
             return (
               <div key={idx} className="group bg-white rounded-2xl border border-slate-200/80 hover:border-[#eec54e]/30 hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all overflow-hidden">
                 <div className="flex flex-col md:flex-row md:items-center gap-4 p-5 md:p-6">
@@ -126,25 +181,25 @@ export default function AdvisorAvailabilityPage() {
                   {/* Slots Area */}
                   <div className="flex-1 flex flex-wrap gap-3">
                     {daySlots.map(slot => (
-                      <div key={slot.id} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 group/slot hover:bg-white hover:border-slate-200 transition-all focus-within:ring-2 focus-within:ring-[#eec54e]/20">
+                      <div key={slot.slotID} className="inline-flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 group/slot hover:bg-white hover:border-slate-200 transition-all focus-within:ring-2 focus-within:ring-[#eec54e]/20">
                         <div className="flex items-center gap-1.5">
-                          <input 
-                            type="time" 
+                          <input
+                            type="time"
                             value={slot.startTime}
-                            onChange={(e) => handleUpdateSlot(slot.id, { startTime: e.target.value })}
+                            onChange={(e) => handleUpdateSlot(slot.slotID, { startTime: e.target.value })}
                             className="bg-transparent text-[13px] font-semibold text-slate-700 focus:outline-none focus:text-[#0f172a]"
                           />
                           <span className="text-slate-300 text-[12px]">—</span>
-                          <input 
-                            type="time" 
+                          <input
+                            type="time"
                             value={slot.endTime}
-                            onChange={(e) => handleUpdateSlot(slot.id, { endTime: e.target.value })}
+                            onChange={(e) => handleUpdateSlot(slot.slotID, { endTime: e.target.value })}
                             className="bg-transparent text-[13px] font-semibold text-slate-700 focus:outline-none focus:text-[#0f172a]"
                           />
                         </div>
                         <div className="w-px h-4 bg-slate-200 mx-1" />
-                        <button 
-                          onClick={() => handleRemoveSlot(slot.id)}
+                        <button
+                          onClick={() => handleRemoveSlot(slot.slotID)}
                           className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover/slot:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -152,7 +207,7 @@ export default function AdvisorAvailabilityPage() {
                       </div>
                     ))}
 
-                    <button 
+                    <button
                       onClick={() => handleAddSlot(idx)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:border-[#eec54e] hover:text-[#0f172a] hover:bg-[#eec54e]/5 text-[12px] font-medium transition-all active:scale-95"
                     >
