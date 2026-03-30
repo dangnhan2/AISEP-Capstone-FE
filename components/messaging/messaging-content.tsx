@@ -272,7 +272,7 @@ export function MessagingContent() {
             .then(res => {
                 if (res.success && res.data) {
                     setMessages([...res.data.items].reverse());
-                    setHasOlderMsgs(res.data.paging.totalPages > 1);
+                    setHasOlderMsgs((res.data.paging.totalPages ?? 1) > 1);
                 } else {
                     setMsgError(true);
                 }
@@ -297,7 +297,7 @@ export function MessagingContent() {
                     const older = [...res.data.items].reverse();
                     setMessages(prev => [...older, ...prev]);
                     setMsgPage(nextPage);
-                    setHasOlderMsgs(res.data.paging.totalPages > nextPage);
+                    setHasOlderMsgs((res.data.paging.totalPages ?? 1) > nextPage);
                     // Keep scroll position stable
                     requestAnimationFrame(() => {
                         if (messagesRef.current) {
@@ -327,7 +327,7 @@ export function MessagingContent() {
                         conversationId:    incoming.conversationId,
                         senderUserId:      incoming.senderId,
                         senderDisplayName: "",
-                        isMine:            incoming.senderId === user?.userID,
+                        isMine:            incoming.senderId === user?.userId,
                         content:           incoming.content,
                         attachmentUrls:    incoming.attachmentUrl,
                         isRead:            false,
@@ -357,7 +357,7 @@ export function MessagingContent() {
         const optimisticMsg: IMessage & { _failed?: boolean } = {
             messageId:         tempId,
             conversationId:    selectedId,
-            senderUserId:      user?.userID ?? 0,
+            senderUserId:      user?.userId ?? 0,
             senderDisplayName: user?.email ?? "",
             isMine:            true,
             content:           text,

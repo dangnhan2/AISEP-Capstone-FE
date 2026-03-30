@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { getNames } from "country-list";
@@ -155,7 +155,7 @@ const TagsInput = ({ value, onChange, placeholder }: { value: string[], onChange
     );
 };
 
-export default function StartupInfoPage() {
+function StartupInfoPageInner() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
@@ -546,5 +546,12 @@ export default function StartupInfoPage() {
                 )}
             </div>
         </div>
+    );
+}
+export default function StartupInfoPage() {
+    return (
+        <Suspense>
+            <StartupInfoPageInner />
+        </Suspense>
     );
 }

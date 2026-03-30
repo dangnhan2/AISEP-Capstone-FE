@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useMemo, useState, Suspense, type ElementType, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -341,7 +341,7 @@ function AuditItem({
   );
 }
 
-export default function AdminUserDetailsPage() {
+function AdminUserDetailsPageInner() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -839,8 +839,8 @@ export default function AdminUserDetailsPage() {
                 <div className="mt-4">
                   <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-2">Active flags</p>
                   <div className="flex flex-wrap gap-2">
-                    {(user.reactivationRequest.activeFlags.length > 0 ? user.reactivationRequest.activeFlags : ["Không còn flag hoạt động"]).map((flag) => (
-                      <span key={flag} className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold border", user.reactivationRequest.activeFlags.length ? "bg-red-50 text-red-600 border-red-200/80" : "bg-slate-50 text-slate-500 border-slate-200/80")}>
+                    {((user.reactivationRequest?.activeFlags?.length ?? 0) > 0 ? user.reactivationRequest!.activeFlags : ["Không còn flag hoạt động"]).map((flag) => (
+                      <span key={flag} className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-semibold border", (user.reactivationRequest?.activeFlags?.length ?? 0) ? "bg-red-50 text-red-600 border-red-200/80" : "bg-slate-50 text-slate-500 border-slate-200/80")}>
                         {flag}
                       </span>
                     ))}
@@ -1011,5 +1011,13 @@ export default function AdminUserDetailsPage() {
         </Dialog>
       </div>
     </AdminShell>
+  );
+}
+
+export default function AdminUserDetailsPage() {
+  return (
+    <Suspense>
+      <AdminUserDetailsPageInner />
+    </Suspense>
   );
 }

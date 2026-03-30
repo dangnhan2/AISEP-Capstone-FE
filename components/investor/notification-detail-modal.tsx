@@ -153,7 +153,7 @@ export function NotificationDetailModal({
                     <Button
                         className="bg-[#e6cc4c] hover:bg-[#d4ba3d] text-[#171611] font-bold rounded-xl text-[13px] font-be-vietnam-pro gap-2 shadow-lg shadow-[#e6cc4c]/20"
                         onClick={() => {
-                        window.location.href = noti.actionUrl;
+                        window.location.href = noti.actionUrl!;
                         onClose();
                         }}
                     >

@@ -29,10 +29,14 @@ declare global {
         paging: IPaging
     }
 
+    // Alias used in some files
+    type IPaginatedRes<T> = IPagingData<T>
+
     interface IPaging {
         page: number
         pageSize: number
         totalItems: number
+        totalPages?: number
     }
 
     interface IRegisterInfo {
@@ -186,5 +190,242 @@ declare global {
         status : string
         blockNumber : string
         confirmedAt : string
+    }
+
+    interface IConnectionItem {
+        connectionID: number
+        startupID: number
+        startupName: string
+        investorID: number
+        investorName: string
+        connectionStatus: string
+        personalizedMessage: string
+        matchScore: number
+        requestedAt: string
+        respondedAt: string
+        responseMessage?: string
+        closedAt?: string
+        closedReason?: string
+    }
+
+    type IConnectionDetail = IConnectionItem
+
+    interface ICreateConnection {
+        investorID: number
+        personalizedMessage: string
+    }
+
+    interface IInvestorSearchItem {
+        investorID: number
+        fullName: string
+        firmName?: string
+        title?: string
+        bio?: string
+        profilePhotoURL?: string
+        investorType?: string
+        acceptingConnections?: boolean
+        website?: string
+        linkedInURL?: string
+        location?: string
+        country?: string
+        preferredStages?: string[]
+        preferredIndustries?: string[]
+        averageRating?: number
+        totalConnections?: number
+        portfolioCount?: number
+        ticketSize?: number
+        ticketSizeMin?: number
+        ticketSizeMax?: number
+        matchScore?: number
+    }
+
+    interface INotificationItem {
+        notificationId: number
+        notificationType: string
+        title: string
+        messagePreview: string
+        isRead: boolean
+        actionUrl?: string
+        createdAt: string
+    }
+
+    interface INotificationDetail {
+        notificationId: number
+        notificationType: string
+        title: string
+        message: string
+        isRead: boolean
+        actionUrl?: string
+        createdAt: string
+        readAt?: string
+    }
+
+    interface IMessage {
+        messageId: number
+        conversationId: number
+        senderUserId: number
+        senderDisplayName: string
+        isMine: boolean
+        content: string
+        attachmentUrls: string | null
+        isRead: boolean
+        sentAt: string
+        readAt: string | null
+    }
+
+    interface ICreateConversationBody {
+        connectionId?: number
+        mentorshipId?: number
+    }
+
+    interface IIncomingMessage {
+        messageId: number
+        conversationId: number
+        senderId: number
+        content: string
+        attachmentUrl: string | null
+        createdAt: string
+    }
+
+    interface ISendMessageBody {
+        conversationId: number
+        content: string
+        attachmentUrl: string | null
+    }
+
+    interface IConversation {
+        conversationId: number
+        connectionId: number | null
+        mentorshipId: number | null
+        status: "Open" | "Closed"
+        title: string
+        participantId: number
+        participantName: string
+        participantRole: "Startup" | "Investor" | "Advisor"
+        participantAvatarUrl: string | null
+        lastMessagePreview: string | null
+        unreadCount: number
+        createdAt: string
+        lastMessageAt: string | null
+    }
+
+    interface IConversationDetail {
+        conversationId: number
+        connectionId: number | null
+        mentorshipId: number | null
+        status: "Open" | "Closed"
+        title: string
+        participants: { userId: number; displayName: string; userType: string }[]
+        createdAt: string
+        lastMessageAt: string | null
+    }
+
+    interface IPermission {
+        id: string
+        name: string
+        description: string
+        category: string
+        isCritical: boolean
+    }
+
+    interface IRole {
+        id: string
+        name: string
+        description: string
+        isProtected: boolean
+        permissionIds: string[]
+        assignedUserCount: number
+        createdAt: string
+        updatedAt: string
+        createdBy: string
+        updatedBy: string
+    }
+
+    interface IInfoRequest {
+        infoRequestId: number
+        connectionId: number
+        requestedBy: number
+        question: string
+        status: string
+        answer?: string | null
+        rejectionReason?: string | null
+        createdAt: string
+        fulfilledAt?: string | null
+    }
+
+    interface ICreateInfoRequest {
+        question: string
+    }
+
+    interface IFulfillInfoRequest {
+        answer: string
+    }
+
+    interface IInvestorProfile {
+        investorID: number
+        fullName: string
+        firmName?: string
+        title?: string
+        bio?: string
+        profilePhotoURL?: string
+        investorType?: string
+        acceptingConnections?: boolean
+        website?: string
+        linkedInURL?: string
+        location?: string
+        country?: string
+        organization?: string
+        investmentThesis?: string
+        connectionGuidance?: string
+        supportOffered?: string[]
+        investmentThesisTags?: string[]
+        preferredStages?: string[]
+        preferredIndustries?: string[]
+        preferredGeographies?: string[]
+        preferredMarketScopes?: string[]
+        preferredMaturityLevels?: string[]
+        preferredValidationLevels?: string[]
+        preferredStrengths?: string[]
+        preferredAIScoreRange?: { min: number; max: number }
+        aiScoreImportance?: string
+    }
+
+    interface ICreateInvestor {
+        fullName: string
+        firmName?: string
+        title?: string
+        bio?: string
+        investorType?: string
+    }
+
+    interface IWatchlistItem {
+        watchlistId: number
+        investorID: number
+        startupID: number
+        startupName: string
+        addedAt: string
+    }
+
+    interface ICreateWatchlistItem {
+        startupID: number
+    }
+
+    interface IStartupSearchItem {
+        startupID: number
+        companyName: string
+        industry?: string
+        stage?: string
+        country?: string
+        aiScore?: number
+        profilePhotoURL?: string
+        tagline?: string
+        matchScore?: number
+    }
+
+    interface IKYCStatus {
+        status: string
+        submittedAt?: string | null
+        reviewedAt?: string | null
+        rejectionReason?: string | null
     }
 }

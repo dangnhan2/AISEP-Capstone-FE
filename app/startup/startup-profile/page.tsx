@@ -415,7 +415,7 @@ export default function StartupProfileViewPage() {
                                                 </p>
                                                 {m.linkedInURL && (
                                                     <a href={m.linkedInURL} target="_blank" rel="noreferrer" className="hover:bg-blue-50 p-1.5 rounded-lg transition-colors">
-                                                        <Image src="https://thesvg.org/icons/linkedin/default.svg" alt="LinkedIn" width={16} height={16} unoptimized />
+                                                        <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} />
                                                     </a>
                                                 )}
                                             </div>

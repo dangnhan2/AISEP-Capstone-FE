@@ -156,11 +156,11 @@ export default function VerifyEmailClient() {
         }
 
         setUser({
-          userID: finalUserID,
+          userId: finalUserID,
           email: finalEmail,
           userType: finalUserType,
           roles: finalRoles
-        });
+        } as IUser);
         setAccessToken(finalAccessToken);
         setIsAuthen(true);
         if (typeof window !== "undefined") localStorage.setItem("accessToken", finalAccessToken);

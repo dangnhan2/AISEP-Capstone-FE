@@ -591,7 +591,7 @@ function MemberCard({ member, onEdit, onDelete }: {
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-[12px] font-medium hover:bg-slate-50 hover:text-slate-700 transition-colors"
                             >
-                                <Image src="https://thesvg.org/icons/linkedin/default.svg" alt="LinkedIn" width={14} height={14} unoptimized />
+                                <Image src="/linkedin.svg" alt="LinkedIn" width={14} height={14} />
                                 LinkedIn
                             </a>
                         )}
