@@ -65,8 +65,6 @@ export const CheckOnchainStatus = (documentId: number) => {
     return axios.get<IBackendRes<IBlockchainVerification>>(`/api/documents/${documentId}/chain/tx-status`);
 }
 
-// export const VerifyDocumentOnchainByStaff = (documentId: string) => {
-//     return axios.post<IBackendRes<IBlockchainChecking>>(`/api/staff/documents/${documentId}/check-onchain-hash`);
-// }
+
 
 

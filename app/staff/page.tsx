@@ -6,7 +6,6 @@ import {
   Users,
   ShieldCheck,
   AlertCircle,
-  Clock,
   ArrowUpRight,
   Activity,
   MessageSquareWarning,
@@ -30,9 +29,7 @@ export default function StaffDashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("7D");
   
   // Counters for KPI cards
-  const activeUsers = useCountUp(1240, 1000, 0);
   const pendingKYC = useCountUp(12, 800, 100);
-  const aiExceptions = useCountUp(5, 600, 300);
   const pendingDisputes = useCountUp(3, 700, 500);
 
   const chartData = selectedPeriod === "7D" 
@@ -76,20 +73,20 @@ export default function StaffDashboardPage() {
                 <div className="w-2 h-6 bg-[#eec54e] rounded-full" />
                 System Health
               </h2>
-              <Link href="/staff/activity" className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest flex items-center gap-2 group">
-                Xem chi tiết monitoring <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              <Link href="/staff/document" className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest flex items-center gap-2 group">
+                Xem tài liệu <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
               </Link>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Tổng người dùng", value: "1,284", sub: "+12 hôm nay", icon: Users, status: "healthy", href: "/staff/activity" },
+                { label: "Tổng người dùng", value: "1,284", sub: "+12 hôm nay", icon: Users, status: "healthy", href: "/staff/document" },
                 { label: "Tài khoản bị khoá", value: "3", sub: "cần xem xét", icon: Lock, status: "warning", href: "/staff/kyc" },
                 { label: "Active Roles", value: "12", sub: "3 thay đổi gần đây", icon: ShieldCheck, status: "healthy", href: "/staff/profile-changes" },
-                { label: "AI Service", value: "99.8%", sub: "uptime 30 ngày", icon: Cpu, status: "healthy", href: "/staff/activity" },
-                { label: "Blockchain Node", value: "Online", sub: "sync 100%", icon: Globe, status: "healthy", href: "/staff/activity" },
-                { label: "Database", value: "Healthy", sub: "latency 12ms", icon: Database, status: "healthy", href: "/staff/activity" },
-                { label: "API Gateway", value: "Degraded", sub: "p95 > 2s", icon: Terminal, status: "warning", href: "/staff/activity" },
+                { label: "AI Service", value: "99.8%", sub: "uptime 30 ngày", icon: Cpu, status: "healthy", href: "/staff/document" },
+                { label: "Blockchain Node", value: "Online", sub: "sync 100%", icon: Globe, status: "healthy", href: "/staff/document" },
+                { label: "Database", value: "Healthy", sub: "latency 12ms", icon: Database, status: "healthy", href: "/staff/document" },
+                { label: "API Gateway", value: "Degraded", sub: "p95 > 2s", icon: Terminal, status: "warning", href: "/staff/document" },
                 { label: "Open Alerts", value: "5", sub: "2 critical", icon: AlertTriangle, status: "warning", href: "/staff/issue-reports" },
               ].map((item, i) => (
                 <Link 
@@ -222,7 +219,7 @@ export default function StaffDashboardPage() {
                 <Activity className="w-5 h-5 text-slate-300" />
                 Live Feed
               </h3>
-              <Link href="/staff/activity" className="text-[11px] font-bold text-slate-400 hover:text-[#eec54e] transition-colors uppercase tracking-widest">
+              <Link href="/staff/document" className="text-[11px] font-bold text-slate-400 hover:text-[#eec54e] transition-colors uppercase tracking-widest">
                 Tất cả »
               </Link>
             </div>

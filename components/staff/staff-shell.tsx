@@ -11,8 +11,8 @@ import { AuthGuard } from "@/components/auth-guard";
 
 const routeLabels: Record<string, string> = {
   staff: "Vận hành",
-  activity: "Giám sát nền tảng",
   kyc: "Xét duyệt KYC",
+  document: "Tài liệu",
   "ai-exceptions": "AI Exceptions",
   complaints: "Khiếu nại & Tranh chấp",
   "profile-changes": "Thay đổi hồ sơ",

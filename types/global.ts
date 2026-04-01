@@ -156,30 +156,98 @@ declare global {
     interface IDocument {
         documentID: number
         startupID: number
-        documentType: string
+        documentType: DocumentTypes | number
         version: string
-        fileUrl: string
+        fileUrl: string | null
         isArchived: boolean
         isAnalyzed: boolean
-        analysisStatus: string
+        analysisStatus: AnalysisStatus | number
         uploadedAt: string
-        proofStatus: string
+        proofStatus: ProofStatus | null | number
         fileHash: string
         transactionHash: string
     }
 
+    enum DocumentTypes {
+        Pitch_Deck = 0,
+        Bussiness_Plan = 1,
+    }
+
+    enum AnalysisStatus {
+        NOTANALYZE = 0,
+        COMPLETED = 1,
+        FAILED = 2,
+    }
+
+    enum ProofStatus {
+        Anchored = 0,       
+        Revoked = 1,        
+        HashComputed = 2,   
+        Pending = 3
+    }
+
     interface IBlockchainVerification {
         documentID: number
-        computedHash: string
-        onChainVerified: boolean
-        status: string
+        transactionHash : string
+        status : string
+        blockNumber : boolean
+        confirmedAt : string
     }
 
     interface IBlockchainChecking {
         documentID: number
-        transactionHash: string
+        computedHash: string
+        onChainVerified : boolean
         status: string
-        blockNumber: string
-        confirmedAt: string
+    }
+
+    interface IInvestor {
+        investorID: number,
+        fullName : string,
+        firmName : string,
+        title : string,
+        bio : string,
+        profilePhotoURL : string,
+        investmentThesis : string,
+        location : string,
+        country : string,
+        linkedInURL : string,
+        website : string,
+        profileStatus : string,
+        createdAt : string,
+        updatedAt : string
+    }
+
+    interface IStartup {
+        startupID: number,
+        userID: number,     
+        oneLiner: string,
+        description: string,
+        industryID: number,
+        industryName: string,
+        stage : string,
+        foundedDate: string,
+        logoURL: string,
+        fundingAmountSought: number,
+        currentFundingRaised: number,
+        valuation: number,   
+        contactPhone: string,   
+        marketScope: string,
+        problemStatement: string,
+        solutionSummary: string,
+        linkedInURL: string,
+        teamSize: number,
+        profileStatus: string,
+        createdAt: string,
+        updatedAt: string,
+        teamMembers: ITeamMember[],    
+        //KYC
+        companyName: string,
+        bussinessCode: string,
+        fileCertificateBusiness : string,
+        fullNameOfApplicant: string,
+        roleOfApplicant: string,
+        contactEmail: string,
+        website: string,
     }
 }

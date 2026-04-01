@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { ElementType } from "react";
 import { cn } from "@/lib/utils";
 import { 
   LayoutGrid, 
-  Activity, 
+  FileText,
   ShieldCheck, 
   Zap, 
   MessageSquare, 
@@ -15,7 +15,6 @@ import {
   Users, 
   CreditCard,
   X,
-  Menu
 } from "lucide-react";
 
 interface StaffSidebarProps {
@@ -31,9 +30,9 @@ const menuItems = [
     href: "/staff",
   },
   {
-    icon: Activity,
-    label: "Giám sát nền tảng", // Platform Activity
-    href: "/staff/activity",
+    icon: FileText,
+    label: "Tài liệu", // Documents
+    href: "/staff/document",
   },
   {
     icon: ShieldCheck,
@@ -81,7 +80,7 @@ const operationsItems = [
 export function StaffSidebar({ isOpen, onClose }: StaffSidebarProps) {
   const pathname = usePathname();
 
-  const renderLink = (item: any) => {
+  const renderLink = (item: { icon: ElementType; label: string; href: string }) => {
     const isActive = pathname === item.href || (item.href !== "/staff" && pathname.startsWith(item.href));
     const Icon = item.icon;
 

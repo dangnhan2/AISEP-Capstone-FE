@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -8,10 +8,6 @@ import {
   ChevronDown,
   Clock,
   ShieldCheck,
-  User,
-  Building2,
-  Calendar,
-  AlertCircle,
   ArrowRight
 } from "lucide-react";
 import Link from "next/link";
@@ -19,8 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
@@ -30,30 +24,12 @@ import {
   KYC_SUBTYPE_CONFIGS 
 } from "@/types/staff-kyc";
 
+import { GetPendingStartups, GetPendingAdvisors, GetPendingInvestors } from "@/services/staff/staff.api";
+
 // --- Types ---
+type KYCListKind = "startup" | "advisor" | "investor";
+
 type KYCStatus = "PENDING" | "IN_REVIEW" | "PENDING_MORE_INFO" | "APPROVED" | "REJECTED";
-type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-
-interface KYCSubmission {
-  id: string;
-  applicantName: string;
-  entityName: string;
-  role: "STARTUP" | "INVESTOR" | "ADVISOR";
-  subtype: KYCSubtype;
-  submittedAt: string;
-  status: KYCStatus;
-  priority: Priority;
-  slaDays: number;
-}
-
-// --- Dummy Data ---
-const DUMMY_KYC: KYCSubmission[] = [
-  { id: "KYC-2024-001", applicantName: "Nguyễn Văn A", entityName: "TechAlpha Co.", role: "STARTUP", subtype: "STARTUP_ENTITY", submittedAt: "2024-03-22T10:00:00Z", status: "PENDING", priority: "HIGH", slaDays: 2 },
-  { id: "KYC-2024-002", applicantName: "Lê Thị B", entityName: "MedChain AI", role: "STARTUP", subtype: "STARTUP_NO_ENTITY", submittedAt: "2024-03-24T08:30:00Z", status: "IN_REVIEW", priority: "MEDIUM", slaDays: 1 },
-  { id: "KYC-2024-003", applicantName: "Trần Văn C", entityName: "VinaCapital Ventures", role: "INVESTOR", subtype: "INSTITUTIONAL_INVESTOR", submittedAt: "2024-03-23T15:45:00Z", status: "PENDING", priority: "CRITICAL", slaDays: 3 },
-  { id: "KYC-2024-004", applicantName: "Phạm Minh D", entityName: "Angel Fund", role: "INVESTOR", subtype: "INDIVIDUAL_INVESTOR", submittedAt: "2024-03-24T14:20:00Z", status: "PENDING_MORE_INFO", priority: "LOW", slaDays: 0 },
-  { id: "KYC-2024-005", applicantName: "Hoàng Gia E", entityName: "Elite Advisors", role: "ADVISOR", subtype: "ADVISOR", submittedAt: "2024-03-24T09:15:00Z", status: "PENDING", priority: "MEDIUM", slaDays: 1 },
-];
 
 // --- Helper Functions ---
 const AVATAR_COLORS = [
@@ -79,29 +55,145 @@ const STATUS_CFG: Record<KYCStatus, { label: string, badge: string, dot: string 
   REJECTED: { label: "Từ chối", badge: "bg-red-50 text-red-700 border-red-200/80", dot: "bg-red-400" },
 };
 
-const PRIORITY_CFG: Record<Priority, { label: string, color: string }> = {
-  LOW: { label: "Thấp", color: "text-slate-400" },
-  MEDIUM: { label: "Trung bình", color: "text-blue-500" },
-  HIGH: { label: "Cao", color: "text-amber-500" },
-  CRITICAL: { label: "Khẩn cấp", color: "text-red-500" },
-};
+function mapProfileStatusToKycStatus(profileStatus?: string | null): KYCStatus {
+  const raw = profileStatus?.toString().trim().toUpperCase();
+  if (!raw) return "PENDING";
+
+  if (raw.includes("UNDER_REVIEW") || raw.includes("IN_REVIEW")) return "IN_REVIEW";
+  if (raw.includes("PENDING_MORE_INFO") || raw.includes("MORE_INFO")) return "PENDING_MORE_INFO";
+  if (raw.includes("APPROVED") || raw.includes("VERIFIED")) return "APPROVED";
+  if (raw.includes("FAILED") || raw.includes("REJECT") || raw.includes("VERIFICATION_FAILED")) return "REJECTED";
+  if (raw.includes("PENDING") || raw.includes("SUBMITTED") || raw.includes("NOT_SUBMITTED")) return "PENDING";
+
+  return "PENDING";
+}
+
+function inferStartupSubtype(startup: IStartup): KYCSubtype {
+  const hasLegal = Boolean(startup.bussinessCode?.trim()) || Boolean(startup.fileCertificateBusiness?.trim());
+  return hasLegal ? "STARTUP_ENTITY" : "STARTUP_NO_ENTITY";
+}
+
+function inferInvestorSubtype(inv: IInvestor): KYCSubtype {
+  return inv.firmName?.trim() ? "INSTITUTIONAL_INVESTOR" : "INDIVIDUAL_INVESTOR";
+}
 
 export default function KYCPendingListPage() {
-  const [activeTab, setActiveTab] = useState<"ALL" | "STARTUP" | "INVESTOR" | "ADVISOR">("ALL");
+  const [listKind, setListKind] = useState<KYCListKind>("startup");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | KYCStatus>("ALL");
 
-  const filteredData = DUMMY_KYC.filter(item => {
-    const matchesTab = activeTab === "ALL" || item.role === activeTab;
-    const matchesSearch = item.applicantName.toLowerCase().includes(search.toLowerCase()) || 
-                          item.entityName.toLowerCase().includes(search.toLowerCase()) ||
-                          item.id.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || item.status === statusFilter;
-    const matchesPriority = priorityFilter === "ALL" || item.priority === priorityFilter;
-    
-    return matchesTab && matchesSearch && matchesStatus && matchesPriority;
-  });
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [items, setItems] = useState<IStartup[]>([]);
+  const [advisorItems, setAdvisorItems] = useState<IAdvisorProfile[]>([]);
+  const [investorItems, setInvestorItems] = useState<IInvestor[]>([]);
+  const [paging, setPaging] = useState<IPaging | null>(null);
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      setLoading(true);
+      setErrorMsg("");
+      try {
+        const query = `page=${page}&pageSize=${pageSize}`;
+        const res =
+          listKind === "startup"
+            ? await GetPendingStartups(query)
+            : listKind === "advisor"
+              ? await GetPendingAdvisors(query)
+              : await GetPendingInvestors(query);
+        if (!alive) return;
+
+        if (res?.success || res?.isSuccess) {
+          if (listKind === "startup") {
+            setItems((res?.data?.items ?? []) as IStartup[]);
+            setAdvisorItems([]);
+            setInvestorItems([]);
+          } else if (listKind === "advisor") {
+            setAdvisorItems((res?.data?.items ?? []) as IAdvisorProfile[]);
+            setItems([]);
+            setInvestorItems([]);
+          } else {
+            setInvestorItems((res?.data?.items ?? []) as IInvestor[]);
+            setItems([]);
+            setAdvisorItems([]);
+          }
+          setPaging(res?.data?.paging ?? null);
+        } else {
+          setItems([]);
+          setAdvisorItems([]);
+          setInvestorItems([]);
+          setPaging(null);
+          setErrorMsg(
+            typeof res?.message === "string" ? res.message : "Không thể tải danh sách hồ sơ.",
+          );
+        }
+      } catch (e: any) {
+        if (!alive) return;
+        setItems([]);
+        setAdvisorItems([]);
+        setInvestorItems([]);
+        setPaging(null);
+        setErrorMsg(e?.message ?? "Có lỗi xảy ra khi tải dữ liệu.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [page, pageSize, listKind]);
+
+  const filteredData = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (listKind === "startup") {
+      return items.filter((s) => {
+        const status = mapProfileStatusToKycStatus(s.profileStatus);
+        const matchesStatus = statusFilter === "ALL" || status === statusFilter;
+        const matchesSearch =
+          !q ||
+          s.companyName?.toLowerCase().includes(q) ||
+          s.fullNameOfApplicant?.toLowerCase().includes(q) ||
+          String(s.startupID).toLowerCase().includes(q) ||
+          s.bussinessCode?.toLowerCase().includes(q);
+        return matchesStatus && matchesSearch;
+      });
+    }
+    if (listKind === "advisor") {
+      return advisorItems.filter((a) => {
+        const status = mapProfileStatusToKycStatus(a.profileStatus);
+        const matchesStatus = statusFilter === "ALL" || status === statusFilter;
+        const matchesSearch =
+          !q ||
+          a.fullName?.toLowerCase().includes(q) ||
+          a.title?.toLowerCase().includes(q) ||
+          String(a.advisorID).toLowerCase().includes(q);
+        return matchesStatus && matchesSearch;
+      });
+    }
+    return investorItems.filter((inv) => {
+      const status = mapProfileStatusToKycStatus(inv.profileStatus);
+      const matchesStatus = statusFilter === "ALL" || status === statusFilter;
+      const matchesSearch =
+        !q ||
+        inv.fullName?.toLowerCase().includes(q) ||
+        inv.firmName?.toLowerCase().includes(q) ||
+        String(inv.investorID).toLowerCase().includes(q);
+      return matchesStatus && matchesSearch;
+    });
+  }, [listKind, items, advisorItems, investorItems, search, statusFilter]);
+
+  const totalItems = paging?.totalItems ?? 0;
+  const canPrev = page > 1;
+  const canNext = totalItems > 0 ? page * pageSize < totalItems : false;
+
+  const totalLoaded =
+    listKind === "startup" ? items.length : listKind === "advisor" ? advisorItems.length : investorItems.length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-400">
@@ -111,12 +203,33 @@ export default function KYCPendingListPage() {
           <h1 className="text-[20px] font-bold text-slate-900 tracking-tight font-plus-jakarta-sans">Xét duyệt danh tính (KYC)</h1>
           <p className="text-[13px] text-slate-500 mt-1">Quản lý và thẩm định hồ sơ người dùng trên nền tảng.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/staff/kyc/history" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors">
-            <Calendar className="w-4 h-4" />
-            Lịch sử duyệt
-          </Link>
-        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "startup" as const, label: "Startup" },
+            { id: "advisor" as const, label: "Advisor" },
+            { id: "investor" as const, label: "Nhà đầu tư" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setListKind(tab.id);
+              setPage(1);
+            }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-[13px] font-bold border transition-all",
+              listKind === tab.id
+                ? "border-[#eec54e] bg-amber-50 text-[#C8A000] shadow-sm"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Tabs & Search Area */}
@@ -134,32 +247,6 @@ export default function KYCPendingListPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Role Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={cn(
-                  "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  activeTab !== "ALL" 
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                )}>
-                  <div className="flex items-center gap-2">
-                    <User className={cn("w-4 h-4", activeTab !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                    <span>{activeTab === "ALL" ? "Tất cả đối tượng" : activeTab === "STARTUP" ? "Startup" : activeTab === "INVESTOR" ? "Nhà đầu tư" : "Cố vấn"}</span>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-                <DropdownMenuRadioGroup value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-                  <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl">Tất cả đối tượng</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="STARTUP" className="text-[12px] font-medium py-2 rounded-xl">Startup</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="INVESTOR" className="text-[12px] font-medium py-2 rounded-xl">Nhà đầu tư</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="ADVISOR" className="text-[12px] font-medium py-2 rounded-xl">Cố vấn</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             {/* Status Filter */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -171,51 +258,27 @@ export default function KYCPendingListPage() {
                 )}>
                   <div className="flex items-center gap-2">
                     <ShieldCheck className={cn("w-4 h-4", statusFilter !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                    <span>{statusFilter === "ALL" ? "Tất cả trạng thái" : STATUS_CFG[statusFilter as KYCStatus].label}</span>
+                    <span>{statusFilter === "ALL" ? "Tất cả trạng thái" : STATUS_CFG[statusFilter].label}</span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 opacity-50" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-                <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                <DropdownMenuRadioGroup value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
                   <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl">Tất cả trạng thái</DropdownMenuRadioItem>
                   {Object.entries(STATUS_CFG).map(([key, cfg]) => (
-                    <DropdownMenuRadioItem key={key} value={key} className="text-[12px] font-medium py-2 rounded-xl">{cfg.label}</DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Priority Filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className={cn(
-                  "inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  priorityFilter !== "ALL" 
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]" 
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                )}>
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className={cn("w-4 h-4", priorityFilter !== "ALL" ? "text-[#eec54e]" : "text-slate-400")} />
-                    <span>{priorityFilter === "ALL" ? "Tất cả ưu tiên" : PRIORITY_CFG[priorityFilter as Priority].label}</span>
-                  </div>
-                  <ChevronDown className="w-3.5 h-3.5 opacity-50" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[180px] p-1.5 bg-white rounded-2xl shadow-xl border-slate-100 font-plus-jakarta-sans">
-                <DropdownMenuRadioGroup value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <DropdownMenuRadioItem value="ALL" className="text-[12px] font-medium py-2 rounded-xl">Tất cả ưu tiên</DropdownMenuRadioItem>
-                  {Object.entries(PRIORITY_CFG).map(([key, cfg]) => (
-                    <DropdownMenuRadioItem key={key} value={key} className="text-[12px] font-medium py-2 rounded-xl">{cfg.label}</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem key={key} value={key} className="text-[12px] font-medium py-2 rounded-xl">
+                      {cfg.label}
+                    </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
 
             {/* Reset Button */}
-            {(activeTab !== "ALL" || statusFilter !== "ALL" || priorityFilter !== "ALL" || search !== "") && (
+            {(statusFilter !== "ALL" || search !== "") && (
               <button 
-                onClick={() => { setActiveTab("ALL"); setStatusFilter("ALL"); setPriorityFilter("ALL"); setSearch(""); }}
+                onClick={() => { setStatusFilter("ALL"); setSearch(""); }}
                 className="ml-2 p-2.5 rounded-xl border border-rose-100 bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all active:scale-95"
                 title="Xóa tất cả bộ lọc"
               >
@@ -236,85 +299,303 @@ export default function KYCPendingListPage() {
                 <th className="px-6 py-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Đối tượng</th>
                 <th className="px-6 py-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Ngày nộp</th>
                 <th className="px-6 py-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Trạng thái</th>
-                <th className="px-6 py-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wide text-right">Phân loại</th>
                 <th className="px-6 py-4 text-[11px] font-semibold text-slate-400 uppercase tracking-wide text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredData.map((item) => {
-                const status = STATUS_CFG[item.status];
-                const priority = PRIORITY_CFG[item.priority];
-                const isOverdue = item.slaDays > 1 && item.status === "PENDING";
-
-                return (
-                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm", getAvatarGradient(item.applicantName))}>
-                          {item.applicantName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[14px] font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">{item.applicantName}</span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[11px] text-slate-400 font-mono tracking-tight uppercase">#{item.id}</span>
-                            <span className="text-[11px] text-slate-200">•</span>
-                            <span className="text-[11px] text-slate-400 leading-none">{item.entityName}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-medium text-slate-700">{item.role === 'STARTUP' ? 'Startup' : item.role === 'INVESTOR' ? 'Nhà đầu tư' : 'Cố vấn'}</span>
-                        <span className="text-[11px] text-slate-400 mt-0.5">{KYC_SUBTYPE_CONFIGS[item.subtype].label}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-[12px] font-medium text-slate-600">
-                          {new Date(item.submittedAt).toLocaleDateString('vi-VN')}
-                        </span>
-                        <div className={cn("flex items-center gap-1.5 mt-1 text-[11px] font-semibold", isOverdue ? "text-red-500" : "text-slate-400")}>
-                          <Clock className="w-3 h-3" />
-                          <span>{item.slaDays} ngày chờ</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border", status.badge)}>
-                        <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
-                        {status.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className={cn("text-[11px] font-bold uppercase tracking-tight", priority.color)}>
-                        {priority.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link 
-                          href={`/staff/kyc/${item.id}`}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#eec54e]/40 bg-white text-[#C8A000] text-[12px] font-bold hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] hover:scale-105 transition-all shadow-sm active:scale-95"
-                        >
-                          Thẩm định
-                          <ArrowRight className="w-3 h-3" />
-                        </Link>
-                      </div>
+              {loading ? (
+                Array.from({ length: pageSize }).map((_, idx) => (
+                  <tr key={idx}>
+                    <td className="px-6 py-4" colSpan={5}>
+                      <div className="h-10 bg-slate-50 rounded-xl animate-pulse" />
                     </td>
                   </tr>
-                );
-              })}
+                ))
+              ) : errorMsg ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                    {errorMsg}
+                  </td>
+                </tr>
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                    Không có hồ sơ phù hợp với bộ lọc.
+                  </td>
+                </tr>
+              ) : listKind === "startup" ? (
+                (filteredData as IStartup[]).map((startup) => {
+                  const status = STATUS_CFG[mapProfileStatusToKycStatus(startup.profileStatus)];
+                  const subtype = inferStartupSubtype(startup);
+
+                  const avatarSeed = startup.fullNameOfApplicant || startup.companyName || "—";
+                  const displayName = startup.companyName || startup.fullNameOfApplicant || "—";
+
+                  return (
+                    <tr key={startup.startupID} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm",
+                              getAvatarGradient(avatarSeed),
+                            )}
+                          >
+                            {String(avatarSeed).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[14px] font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
+                              {displayName}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-tight uppercase">
+                                #{startup.startupID}
+                              </span>
+                              <span className="text-[11px] text-slate-200">•</span>
+                              <span className="text-[11px] text-slate-400 leading-none">{startup.fullNameOfApplicant}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-medium text-slate-700">Startup</span>
+                          <span className="text-[11px] text-slate-400 mt-0.5">{KYC_SUBTYPE_CONFIGS[subtype].label}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[12px] font-medium text-slate-600">
+                            {startup.createdAt ? new Date(startup.createdAt).toLocaleDateString("vi-VN") : "—"}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-semibold text-slate-400">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {startup.createdAt
+                                ? new Date(startup.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+                                : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border",
+                            status.badge,
+                          )}
+                        >
+                          <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/staff/kyc/${startup.startupID}`}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#eec54e]/40 bg-white text-[#C8A000] text-[12px] font-bold hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] hover:scale-105 transition-all shadow-sm active:scale-95"
+                          >
+                            Thẩm định
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : listKind === "advisor" ? (
+                (filteredData as IAdvisorProfile[]).map((a) => {
+                  const status = STATUS_CFG[mapProfileStatusToKycStatus(a.profileStatus)];
+                  const subtype: KYCSubtype = "ADVISOR";
+                  const avatarSeed = a.fullName || "—";
+                  const displayName = a.fullName || "—";
+
+                  return (
+                    <tr key={a.advisorID} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm",
+                              getAvatarGradient(avatarSeed),
+                            )}
+                          >
+                            {String(avatarSeed).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[14px] font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
+                              {displayName}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-tight uppercase">
+                                #{a.advisorID}
+                              </span>
+                              <span className="text-[11px] text-slate-200">•</span>
+                              <span className="text-[11px] text-slate-400 leading-none">{a.title || "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-medium text-slate-700">Advisor</span>
+                          <span className="text-[11px] text-slate-400 mt-0.5">{KYC_SUBTYPE_CONFIGS[subtype].label}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[12px] font-medium text-slate-600">
+                            {a.createdAt ? new Date(a.createdAt).toLocaleDateString("vi-VN") : "—"}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-semibold text-slate-400">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {a.createdAt
+                                ? new Date(a.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+                                : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border",
+                            status.badge,
+                          )}
+                        >
+                          <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/staff/kyc/advisor/${a.advisorID}`}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#eec54e]/40 bg-white text-[#C8A000] text-[12px] font-bold hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] hover:scale-105 transition-all shadow-sm active:scale-95"
+                          >
+                            Thẩm định
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                (filteredData as IInvestor[]).map((inv) => {
+                  const status = STATUS_CFG[mapProfileStatusToKycStatus(inv.profileStatus)];
+                  const subtype = inferInvestorSubtype(inv);
+                  const avatarSeed = inv.fullName || inv.firmName || "—";
+                  const displayName = inv.firmName?.trim() ? inv.firmName : inv.fullName || "—";
+
+                  return (
+                    <tr key={inv.investorID} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center text-white text-[15px] font-bold shrink-0 shadow-sm",
+                              getAvatarGradient(avatarSeed),
+                            )}
+                          >
+                            {String(avatarSeed).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[14px] font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
+                              {displayName}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-tight uppercase">
+                                #{inv.investorID}
+                              </span>
+                              <span className="text-[11px] text-slate-200">•</span>
+                              <span className="text-[11px] text-slate-400 leading-none">{inv.fullName || "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-medium text-slate-700">Nhà đầu tư</span>
+                          <span className="text-[11px] text-slate-400 mt-0.5">{KYC_SUBTYPE_CONFIGS[subtype].label}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[12px] font-medium text-slate-600">
+                            {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("vi-VN") : "—"}
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-semibold text-slate-400">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {inv.createdAt
+                                ? new Date(inv.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+                                : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border",
+                            status.badge,
+                          )}
+                        >
+                          <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/staff/kyc/investor/${inv.investorID}`}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#eec54e]/40 bg-white text-[#C8A000] text-[12px] font-bold hover:bg-[#eec54e] hover:text-white hover:border-[#eec54e] hover:scale-105 transition-all shadow-sm active:scale-95"
+                          >
+                            Thẩm định
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
         
         {/* Pagination */}
         <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-[12px] text-slate-500 font-medium">Hiển thị <span className="text-slate-900 font-bold">5</span> trên 5 hồ sơ</p>
+          <p className="text-[12px] text-slate-500 font-medium">
+            Hiển thị <span className="text-slate-900 font-bold">{filteredData.length}</span> trên {totalLoaded} hồ sơ
+          </p>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-400 cursor-not-allowed transition-colors">Trước</button>
-            <button className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-slate-400 cursor-not-allowed transition-colors">Sau</button>
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!canPrev || loading}
+              className={cn(
+                "px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-colors",
+                canPrev && !loading
+                  ? "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                  : "border-slate-200 bg-white text-slate-400 cursor-not-allowed",
+              )}
+            >
+              Trước
+            </button>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!canNext || loading}
+              className={cn(
+                "px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-colors",
+                canNext && !loading
+                  ? "border-slate-200 bg-white text-slate-400 hover:bg-slate-50"
+                  : "border-slate-200 bg-white text-slate-400 cursor-not-allowed",
+              )}
+            >
+              Sau
+            </button>
           </div>
         </div>
       </div>
