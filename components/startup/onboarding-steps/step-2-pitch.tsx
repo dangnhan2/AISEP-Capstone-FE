@@ -43,6 +43,9 @@ export function Step2({ data, update, onNext, onPrev, loading }: Step2Props) {
           <div className="flex items-center justify-between">
             <label className={labelCls}>
               Vấn đề bạn đang giải quyết <span className="text-red-400 normal-case">*</span>
+              {data.problem.trim().length > 0 && data.problem.trim().length < 10 && (
+                <span className="text-red-500 normal-case text-[10px] ml-2 font-normal animate-pulse">(Tối thiểu 10 ký tự)</span>
+              )}
             </label>
             <span className={cn(
               "text-[11px] font-semibold tabular-nums transition-colors",
@@ -54,7 +57,7 @@ export function Step2({ data, update, onNext, onPrev, loading }: Step2Props) {
           <div className="relative group">
             <HelpCircle className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
             <textarea
-              className={cn(textareaCls, "min-h-[90px]")}
+              className={cn(textareaCls, "min-h-[90px]", data.problem.trim().length > 0 && data.problem.trim().length < 10 && "border-red-300")}
               value={data.problem}
               onChange={e => update({ ...data, problem: e.target.value.slice(0, 300) })}
               placeholder="Khách hàng của bạn đang gặp vấn đề gì lớn?"
@@ -67,6 +70,9 @@ export function Step2({ data, update, onNext, onPrev, loading }: Step2Props) {
           <div className="flex items-center justify-between">
             <label className={labelCls}>
               Giải pháp của bạn <span className="text-red-400 normal-case">*</span>
+              {data.solution.trim().length > 0 && data.solution.trim().length < 10 && (
+                <span className="text-red-500 normal-case text-[10px] ml-2 font-normal animate-pulse">(Tối thiểu 10 ký tự)</span>
+              )}
             </label>
             <span className={cn(
               "text-[11px] font-semibold tabular-nums transition-colors",
@@ -78,7 +84,7 @@ export function Step2({ data, update, onNext, onPrev, loading }: Step2Props) {
           <div className="relative group">
             <Sparkles className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-300 group-focus-within:text-[#eec54e] transition-colors" />
             <textarea
-              className={cn(textareaCls, "min-h-[90px]")}
+              className={cn(textareaCls, "min-h-[90px]", data.solution.trim().length > 0 && data.solution.trim().length < 10 && "border-red-300")}
               value={data.solution}
               onChange={e => update({ ...data, solution: e.target.value.slice(0, 300) })}
               placeholder="Bạn giải quyết bằng cách nào khác biệt?"

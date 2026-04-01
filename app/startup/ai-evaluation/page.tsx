@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { StartupShell } from "@/components/startup/startup-shell";
@@ -435,7 +435,7 @@ function DashboardView({ latestCompleted }: { latestCompleted: NonNullable<typeo
 
 /* ─── Page ─────────────────────────────────────────────────── */
 
-export default function AIEvaluationHomePage() {
+function AIEvaluationHomePageInner() {
   const searchParams = useSearchParams();
   const latestCompleted = mockReports.find(r => r.status === "COMPLETED" && r.isCurrent);
   const { profile, documents } = mockReadiness;
@@ -454,5 +454,13 @@ export default function AIEvaluationHomePage() {
         }
       </div>
     </StartupShell>
+  );
+}
+
+export default function AIEvaluationHomePage() {
+  return (
+    <Suspense>
+      <AIEvaluationHomePageInner />
+    </Suspense>
   );
 }

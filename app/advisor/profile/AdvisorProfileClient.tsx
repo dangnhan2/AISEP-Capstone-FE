@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -74,7 +74,7 @@ const inputClass = (hasError = false) => cn(
 
 /* ─── Main Component ─────────────────────────────────────────── */
 
-export default function AdvisorProfileClient() {
+function AdvisorProfileClientInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -742,5 +742,13 @@ export default function AdvisorProfileClient() {
         </div>
       )}
     </AdvisorShell>
+  );
+}
+
+export default function AdvisorProfileClient() {
+  return (
+    <Suspense>
+      <AdvisorProfileClientInner />
+    </Suspense>
   );
 }

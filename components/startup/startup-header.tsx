@@ -243,7 +243,7 @@ export function StartupHeader({
                       </div>
                     ) : (
                       notifications.map((item) => {
-                        const cfg = getNotiTypeCfg(item.notificationType);
+                        const cfg = getNotiTypeCfg(item.notificationType ?? "");
                         const Icon = cfg.icon;
                         return (
                           <div

@@ -5,7 +5,7 @@ import {
   MessageSquare, FileText, BarChart3, X, ArrowUpDown, BadgeCheck,
   CalendarCheck, Video, Monitor
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
 import { SessionReviewModal } from "@/components/startup/session-review-modal";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -79,6 +79,14 @@ const PAGE_SIZE = 4;
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function StartupAdvisorsPage() {
+  return (
+    <Suspense>
+      <StartupAdvisorsPageInner />
+    </Suspense>
+  );
+}
+
+function StartupAdvisorsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
