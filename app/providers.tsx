@@ -7,6 +7,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       {children}
+      {/* @ts-expect-error sonner offset prop type mismatch */}
       <Toaster richColors position="top-right" offset={{ top: 80 }} />
     </AuthProvider>
   );

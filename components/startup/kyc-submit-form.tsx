@@ -79,8 +79,25 @@ export function KycSubmitForm({ initialData, isResubmit }: KycSubmitFormProps) {
         toast.error(res.message || "Gửi hồ sơ thất bại. Vui lòng thử lại.");
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || "Lỗi kết nối. Vui lòng thử lại.";
-      toast.error(typeof msg === "string" ? msg : "Lỗi kết nối. Vui lòng thử lại.");
+      console.error("Lỗi API Submit KYC:", err?.response?.data || err);
+      let msg = err?.message || "Lỗi kết nối. Vui lòng thử lại.";
+      
+      if (err?.response?.status === 405) {
+         msg = "Lỗi 405: Backend không cho phép gọi POST vào đường dẫn này (Method Not Allowed). Hãy báo Backend check lại API.";
+      } else if (err?.response?.data?.errors) {
+         const errorKeys = Object.keys(err.response.data.errors);
+         if (errorKeys.length > 0) {
+            msg = errorKeys.map(k => `${k}: ${err.response.data.errors[k].join(", ")}`).join(" | ");
+         }
+      } else if (err?.response?.data?.message) {
+         msg = err.response.data.message;
+      } else if (err?.response?.data?.title) {
+         msg = err.response.data.title;
+      } else if (typeof err?.response?.data === "string") {
+         msg = err.response.data; // Phòng khi backend trả html text
+      }
+      
+      toast.error(`Gửi thất bại: ${msg}`);
     } finally {
       setLoading(false);
     }

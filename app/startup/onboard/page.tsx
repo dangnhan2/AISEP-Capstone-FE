@@ -94,11 +94,14 @@ export default function OnboardingPage() {
         oneLiner:         formData.oneLiner || formData.startupName,
         stage:            (parseInt(formData.stage) || 0) as StartupStage,
         industryID:       formData.industryID ? parseInt(formData.industryID) : undefined,
-        businessCode:     formData.businessCode.trim() || undefined,
+        businessCode: formData.businessCode?.trim() !== "" ? formData.businessCode.trim() : "N/A",
         problemStatement: formData.problem || undefined,
         solutionSummary:  formData.solution || undefined,
         marketScope:      formData.targetAudience || undefined,
-      };
+        contactEmail:     "startup@aisep.local",
+        fullNameOfApplicant: "Startup User",
+        roleOfApplicant:  "Founder",
+      } as any;
       const res = await CreateStartupProfile(payload) as unknown as IBackendRes<string>;
       if (res.success || res.isSuccess) {
         setCurrentStep(3);
@@ -111,8 +114,24 @@ export default function OnboardingPage() {
         setCurrentStep(3);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
-        const msg = err?.response?.data?.message || err?.message || "Lỗi kết nối.";
-        toast.error(typeof msg === "string" ? msg : "Lỗi kết nối.");
+        console.error("API Error Response:", err?.response?.data);
+        let msg = err?.message || "Lỗi kết nối.";
+        
+        if (err?.response?.data?.errors) {
+            const errorKeys = Object.keys(err.response.data.errors);
+            if (errorKeys.length > 0) {
+                // Lấy tất cả các lỗi ghép lại thay vì chỉ lấy lỗi đầu tiên
+                msg = errorKeys.map(k => `${k}: ${err.response.data.errors[k].join(", ")}`).join(" | ");
+            }
+        } else if (err?.response?.data?.message && err?.response?.data?.message !== "Validation failed") {
+            msg = err.response.data.message;
+        } else if (err?.response?.data?.title && err?.response?.data?.title !== "Validation failed") {
+            msg = err.response.data.title; 
+        } else if (err?.response?.data?.detail) {
+            msg = err.response.data.detail;
+        }
+        
+        toast.error(`Chi tiết lỗi: ${msg}`);
       }
     } finally {
       setLoading(false);

@@ -130,7 +130,7 @@ function shortHash(hash: string): string {
     if (s.length <= 12) return s;
     return `${s.slice(0, 6)}...${s.slice(-4)}`;
 }
-import { MOCK_DOCS, getDocVersions, Doc as DocData, VersionRow, BlockchainStatus, Visibility, DocType } from "@/services/startup/documents.mock";
+import { MOCK_DOCS, getDocVersions } from "@/services/startup/documents.mock";
 
 /* ─── Status configs ──────────────────────────────────────── */
 const BC: Record<BlockchainStatus, { label: string; cls: string; Icon: React.ElementType; spin?: boolean }> = {
@@ -527,7 +527,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h1 className="text-[20px] font-semibold text-[#0f172a] tracking-[-0.02em]">{doc.name}</h1>
-                                <span className="px-2 py-0.5 bg-[#0f172a] text-white text-[10px] font-medium rounded-md">{doc.version}</span>
+                                <span className="px-2 py-0.5 bg-[#0f172a] text-white text-[10px] font-medium rounded-md">{doc.currentVersion}</span>
                                 <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-md border border-emerald-100">Hiện tại</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2">

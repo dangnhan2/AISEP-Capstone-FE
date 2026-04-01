@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Fragment, type ElementType, type ReactNode } from "react";
+import { useState, useMemo, Fragment, Suspense, type ElementType, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -920,7 +920,7 @@ function PermissionsMatrixTab({
 }
 
 /* ─── Main Page ──────────────────────────────────────────────────────────── */
-export default function RolesPermissionsPage() {
+function RolesPermissionsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -1011,5 +1011,13 @@ export default function RolesPermissionsPage() {
         )}
       </div>
     </AdminShell>
+  );
+}
+
+export default function RolesPermissionsPage() {
+  return (
+    <Suspense>
+      <RolesPermissionsPageInner />
+    </Suspense>
   );
 }

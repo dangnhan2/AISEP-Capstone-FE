@@ -103,13 +103,6 @@ function appendFormValue(formData: FormData, key: string, value: unknown) {
 export const CreateStartupProfile = (data: ICreateStartupRequest) => {
     const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
-        if (key === "businessCode") {
-            if (value !== undefined && value !== null && String(value).trim() !== "") {
-                const s = String(value).trim();
-                formData.append("bussinessCode", s);
-            }
-            return;
-        }
         if (value !== undefined && value !== null) {
             appendFormValue(formData, key, value);
         }
@@ -132,7 +125,7 @@ export const UpdateStartupProfile = (data: IUpdateStartupRequest) => {
         if (key === "businessCode") {
             if (value !== undefined && value !== null && String(value).trim() !== "") {
                 const s = String(value).trim();
-                formData.append("bussinessCode", s);
+                formData.append("businessCode", s);
             }
             return;
         }
@@ -210,4 +203,8 @@ export const SubmitForApproval = () => {
 
 export const SearchInvestors = (params: { page?: number; pageSize?: number; keyword?: string }) => {
     return axios.get<IBackendRes<any>>(`/api/investors`, { params });
+}
+
+export const GetInvestorById = (id: number) => {
+    return axios.get<IBackendRes<IInvestorProfile>>(`/api/investors/${id}`);
 }

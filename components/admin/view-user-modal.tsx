@@ -103,7 +103,7 @@ export function ViewUserModal({ isOpen, onClose, userId }: ViewUserModalProps) {
                                         <span className="px-3 py-1 bg-white border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold uppercase tracking-widest shadow-sm">
                                             {user.userType || "N/A"}
                                         </span>
-                                        {user.roles && user.roles.map((role, i) => (
+                                        {user.roles && user.roles.map((role: string, i: number) => (
                                             <span key={i} className="px-2.5 py-1 bg-[#fdf8e6] text-[#b8960f] rounded-full text-[10px] font-black uppercase tracking-wider border border-[#eec54e]/20">
                                                 {role}
                                             </span>

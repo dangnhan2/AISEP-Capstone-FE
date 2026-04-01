@@ -3,11 +3,12 @@ import axios from "../interceptor";
 
 interface IAdvisorProfileRequest {
   fullName : string
-  title : string
-  bio : string
-  profilePhotoURL : File
-  linkedInURL : string
-  mentorshipPhilosophy : string
+  title? : string
+  bio? : string
+  profilePhotoURL? : File
+  profilePhotoFile? : File
+  linkedInURL? : string
+  mentorshipPhilosophy? : string
   advisorIndustryFocus : IAdvisorIndustryFocus[]
 }
 
@@ -24,35 +25,28 @@ interface IAdvisorAvailabilityRequest {
   isAcceptingNewMentees: boolean
 }
 
-export const CreateAdvisorProfile = (data: IAdvisorProfileRequest) => {
+function buildAdvisorFormData(data: IAdvisorProfileRequest): FormData {
   const formData = new FormData();
-  formData.append("fullName", data.fullName); 
-  formData.append("title", data.title);
-  formData.append("bio", data.bio);
-  formData.append("profilePhotoURL", data.profilePhotoURL);
-  formData.append("linkedInURL", data.linkedInURL);
-  formData.append("mentorshipPhilosophy", data.mentorshipPhilosophy);
-  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus)); 
-  return axios.post("/api/advisors", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data"
-    }
+  formData.append("fullName", data.fullName);
+  if (data.title) formData.append("title", data.title);
+  if (data.bio) formData.append("bio", data.bio);
+  if (data.profilePhotoURL) formData.append("profilePhotoURL", data.profilePhotoURL);
+  if (data.profilePhotoFile) formData.append("profilePhotoURL", data.profilePhotoFile);
+  if (data.linkedInURL) formData.append("linkedInURL", data.linkedInURL);
+  if (data.mentorshipPhilosophy) formData.append("mentorshipPhilosophy", data.mentorshipPhilosophy);
+  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus));
+  return formData;
+}
+
+export const CreateAdvisorProfile = (data: IAdvisorProfileRequest) => {
+  return axios.post("/api/advisors", buildAdvisorFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" }
   });
 };
 
 export const UpdateAdvisorProfile = (data: IAdvisorProfileRequest) => {
-  const formData = new FormData();
-  formData.append("fullName", data.fullName); 
-  formData.append("title", data.title);
-  formData.append("bio", data.bio);
-  formData.append("profilePhotoURL", data.profilePhotoURL);
-  formData.append("linkedInURL", data.linkedInURL);
-  formData.append("mentorshipPhilosophy", data.mentorshipPhilosophy);
-  formData.append("advisorIndustryFocus", JSON.stringify(data.advisorIndustryFocus)); 
-  return axios.put("/api/advisors/me", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data"
-    }
+  return axios.put("/api/advisors/me", buildAdvisorFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" }
   });
 };
 

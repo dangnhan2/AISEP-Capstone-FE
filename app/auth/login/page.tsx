@@ -188,7 +188,7 @@ export default function LoginPage() {
         const targetUserType = infoObj?.userType;
         const targetRoles = infoObj?.roles || [];
 
-        setUser({ userID: userId, email: targetUserEmail, userType: targetUserType, roles: targetRoles });
+        setUser({ userId, email: targetUserEmail, userType: targetUserType, roles: targetRoles } as IUser);
         setAccessToken(token);
         setIsAuthen(true);
 

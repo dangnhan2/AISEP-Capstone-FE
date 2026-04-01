@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { GetStartupById } from "@/services/advisor/advisor.api";
+import axios from "@/services/interceptor";
 import { 
   startupFinNext, 
   startupMedScanAI, 
@@ -68,7 +68,7 @@ export default function AdvisorStartupDetailPage() {
     setError(null);
     try {
       // For now, using mock or handling 404 gracefully if backend not ready
-      const res = await GetStartupById(startupId);
+      const res = await axios.get(`/api/startups/${startupId}`);
       if (res.data && (res as any).success) {
         setStartup(res.data);
       } else {
