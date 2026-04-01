@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { GetPendingStartups, IPendingStartupDto, IPendingStartupResponse } from "@/services/staff/registration.api";
 import {
   Search,
   Filter,
@@ -92,7 +93,38 @@ export default function KYCPendingListPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
 
-  const filteredData = DUMMY_KYC.filter(item => {
+  const [realData, setRealData] = useState<IPendingStartupDto[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Tạm thời chỉ fetch luồng Startup dựa theo API có sẵn
+    GetPendingStartups(1, 20)
+      .then(res => {
+        const data = res as unknown as IBackendRes<IPendingStartupResponse>;
+        if (data.success || data.isSuccess) {
+          setRealData(data.data?.items || []);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Map real data to UI format
+  const mappedRealData: KYCSubmission[] = realData.map(item => ({
+    id: `STARTUP-${item.startupID}`,
+    applicantName: item.companyName || "Chưa cập nhật",
+    entityName: item.industryName || "Startup",
+    role: "STARTUP",
+    subtype: "STARTUP_ENTITY",
+    submittedAt: item.updatedAt || new Date().toISOString(),
+    status: item.profileStatus === "Pending" ? "PENDING" : item.profileStatus === "Approved" ? "APPROVED" : item.profileStatus === "UnderReview" ? "IN_REVIEW" : item.profileStatus === "Rejected" ? "REJECTED" : "PENDING",
+    priority: "MEDIUM",
+    slaDays: Math.floor((new Date().getTime() - new Date(item.updatedAt || new Date()).getTime()) / (1000 * 3600 * 24))
+  }));
+
+  const combinedData = [...mappedRealData, ...DUMMY_KYC.filter(d => activeTab === 'ALL' ? d.role !== 'STARTUP' : true)];
+
+  const filteredData = combinedData.filter(item => {
     const matchesTab = activeTab === "ALL" || item.role === activeTab;
     const matchesSearch = item.applicantName.toLowerCase().includes(search.toLowerCase()) || 
                           item.entityName.toLowerCase().includes(search.toLowerCase()) ||

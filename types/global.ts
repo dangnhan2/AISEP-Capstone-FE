@@ -60,6 +60,44 @@ declare global {
         roles: string[]
     }
 
+    interface IStartupProfile {
+        startupID: number
+        userID: number
+        companyName: string
+        oneLiner: string
+        description: string
+        industryID: number
+        industryName: string
+        /** Giai đoạn: số 0–6 hoặc chuỗi (API .NET). */
+        stage: string | number
+        foundedDate: string
+        website: string
+        logoURL: string
+        fundingAmountSought: number
+        currentFundingRaised: number
+        valuation: number
+        fullNameOfApplicant: string
+        roleOfApplicant: string
+        contactEmail: string
+        contactPhone: string
+        businessCode: string
+        marketScope: string
+        problemStatement: string
+        solutionSummary: string
+        isVisible: boolean
+        /** Một số API trả thêm trạng thái hiển thị dạng chuỗi; ưu tiên khi có. */
+        visibilityStatus?: string
+        teamSize: number
+        fileCertificateBusiness: string
+        linkedInURL: string
+        profileStatus: string
+        approvedAt: string
+        /** Tuỳ API (có thể không có). */
+        approvedBy?: string | number
+        createdAt: string
+        updatedAt: string
+    }
+
     interface IAdvisorProfile {
         advisorID: number
         userId: number
@@ -105,47 +143,36 @@ declare global {
         industry: IAdvisorIndustryFocus[]
     }
 
-    interface IStartupProfile {
-        startupID: number
+    interface IInvestorProfile {
+        investorID: number
         userID: number
-        companyName: string
-        oneLiner: string
-        description: string
-        industryID: number
-        industryName: string
-        subIndustry?: string
-        stage: string
-        foundedDate: string
+        fullName: string
+        title: string
+        bio: string
+        profilePhotoURL: string
+        firmName: string
+        organization: string
+        investorType: string
+        investmentThesis: string
+        connectionGuidance: string
+        supportOffered: string[]
+        preferredStages: string[]
+        preferredIndustries: string[]
+        preferredGeographies: string[]
+        preferredMarketScopes: string[]
+        preferredProductMaturity: string[]
+        preferredValidationLevel: string[]
+        preferredStrengths: string[]
+        preferredAIScoreRange: string
+        aiScoreImportance: string
+        acceptingConnections: boolean
         website: string
-        logoURL: string
-        targetFunding?: number
-        raisedAmount?: number
-        valuation?: number
+        linkedInURL: string
+        country: string
+        location: string
         profileStatus: string
-        visibilityStatus?: string
-        isVisible?: boolean
-        profileCompleteness?: number
-        validationStatus?: string
-        kycVerified?: boolean
-        approvedAt?: string
-        approvedBy?: string
         createdAt: string
         updatedAt: string
-        teamMembers: ITeamMember[]
-        // Business
-        problemStatement?: string
-        solutionSummary?: string
-        currentNeeds?: string[]
-        marketScope?: string
-        productStatus?: string
-        metricSummary?: string
-        // Contact
-        contactEmail?: string
-        contactPhone?: string
-        linkedInURL?: string
-        location?: string
-        country?: string
-        teamSize?: number
     }
 
     interface ITeamMember {
@@ -163,33 +190,229 @@ declare global {
 
 
     interface IDocument {
-        documentID : number
-        startupID : number
-        documentType : string
-        version : string
-        fileUrl : string
-        isArchived : boolean
-        isAnalyzed : boolean
-        analysisStatus : string
-        uploadedAt : string
-        proofStatus : string
+        documentID: number
+        startupID: number
+        documentType: string
+        version: string
+        fileUrl: string
+        isArchived: boolean
+        isAnalyzed: boolean
+        analysisStatus: string
+        uploadedAt: string
+        proofStatus: string
         fileHash: string
-        transactionHash : string
+        transactionHash: string
     }
 
-    interface IBlockchainVerification{
-        documentID : number
-        computedHash : string
-        onChainVerified : boolean
-        status : string
+    interface IBlockchainVerification {
+        documentID: number
+        computedHash: string
+        onChainVerified: boolean
+        status: string
     }
 
-    interface IBlockchainChecking{
-        documentID : number
-        transactionHash : string
-        status : string
-        blockNumber : string
-        confirmedAt : string
+    interface IBlockchainChecking {
+        documentID: number
+        transactionHash: string
+        status: string
+        blockNumber: string
+        confirmedAt: string
+    }
+
+    interface IPaginatedRes<T> {
+        items: T[]
+        paging: {
+            page: number
+            pageSize: number
+            totalPages: number
+            totalItems: number
+        }
+    }
+
+    interface IConnectionItem {
+        connectionID: number
+        startupID: number
+        startupName: string
+        investorID: number
+        investorName: string
+        connectionStatus: string
+        personalizedMessage: string | null
+        matchScore: number | null
+        requestedAt: string
+        respondedAt: string | null
+    }
+
+    interface IConnectionDetail extends IConnectionItem {}
+
+    interface ICreateConnection {
+        investorId: number
+        message: string
+    }
+
+    interface ICreateInfoRequest {
+        title: string
+        description: string
+    }
+
+    interface IInfoRequest {
+        requestId: number
+        connectionId: number
+        title: string
+        description: string
+        status: string
+        createdAt: string
+        fulfilledAt: string | null
+    }
+
+    interface IFulfillInfoRequest {
+        response: string
+    }
+
+    interface IConversation {
+        conversationId: number
+        connectionId: number
+        participantRole: string
+        participantName?: string
+        participantAvatarUrl?: string
+        title?: string
+        status?: string
+        unreadCount?: number
+        lastMessageAt?: string
+        lastMessagePreview?: string
+        createdAt: string
+    }
+
+    interface ICreateConversationBody {
+        connectionId: number
+    }
+
+    interface IConversationDetail extends IConversation {}
+
+    interface IMessage {
+        messageId?: number | string
+        conversationId?: number
+        content: string
+        sentAt: string
+        isMine: boolean
+        senderUserId?: number
+        senderDisplayName?: string
+        attachmentUrls?: string | null
+        isRead?: boolean
+        readAt?: string | null
+        _failed?: boolean
+    }
+
+    interface IIncomingMessage {
+        messageId: number | string
+        conversationId: number
+        content: string
+        sentAt: string
+        createdAt?: string
+        senderId: number
+        attachmentUrl?: string
+    }
+
+    interface ISendMessageBody {
+        conversationId: number
+        content: string
+        attachmentUrl?: string | null
+    }
+
+    interface INotificationItem {
+        notificationId: number
+        title: string
+        createdAt: string
+        isRead: boolean
+        notificationType?: string
+        messagePreview?: string
+        actionUrl?: string
+    }
+
+    interface INotificationDetail {
+        title: string
+        content?: string
+        message?: string
+        createdAt: string
+        readAt?: string | null
+        actionUrl?: string
+    }
+
+    interface IInvestorSearchItem {
+        investorID: number
+        fullName: string
+        title: string
+        firmName?: string
+        profilePhotoURL?: string
+        investorType: string
+        acceptingConnections: boolean
+        preferredIndustries: string[]
+        portfolioCount?: number | null
+        ticketSizeMin?: number | null
+        ticketSizeMax?: number | null
+        matchScore?: number | null
+    }
+
+    interface ICreateInvestor {
+        fullName: string
+        title?: string
+        bio?: string
+        investorType?: string
+        linkedInURL?: string
+    }
+
+    interface IWatchlistItem {
+        watchlistId: number
+        startupID: number
+        startupName: string
+        addedAt: string
+    }
+
+    interface ICreateWatchlistItem {
+        startupId: number
+    }
+
+    interface IStartupSearchItem {
+        startupID: number
+        companyName: string
+        oneLiner: string
+        industryName: string
+        stage: string | number
+        logoURL: string | null
+        profileStatus: string
+    }
+
+    interface IKYCStatus {
+        status: string
+        submittedAt: string | null
+        reviewedAt: string | null
+        reason: string | null
+    }
+
+    interface IRole {
+        roleId: number
+        roleName: string
+        description?: string
+    }
+
+    interface IPermission {
+        permissionId: number
+        permissionName: string
+        category?: string
+    }
+
+    interface IAdminUser {
+        userId: number
+        email: string
+        userType: string
+        isActive: boolean
+        emailVerified: boolean
+        roles: string[]
+        createdAt: string
+        lastLoginAt: string
+        reactivationRequest?: {
+            activeFlags: string[]
+            reason?: string
+        }
     }
 
     interface IConnectionItem {

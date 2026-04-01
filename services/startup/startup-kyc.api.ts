@@ -70,7 +70,7 @@ export const GetStartupKYCStatus = () => {
 };
 
 export const SubmitStartupKYC = (formData: FormData) => {
-    return axios.post<IBackendRes<null>>(`/api/startups/me/kyc/submit`, formData, {
+    return axios.post<IBackendRes<null>>(`/api/startups/me/submit-for-approval`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
     });
 };

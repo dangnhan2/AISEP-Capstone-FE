@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import {
   Rocket,
   MailCheck,
@@ -17,7 +17,7 @@ import {
 import { ResendVerificationEmail, VerifyEmail } from "@/services/auth/auth.api";
 import { useAuth } from "@/context/context";
 
-export default function VerifyEmailClient() {
+function VerifyEmailClientInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser, setAccessToken, setIsAuthen } = useAuth();
@@ -402,5 +402,13 @@ export default function VerifyEmailClient() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function VerifyEmailClient() {
+  return (
+    <Suspense>
+      <VerifyEmailClientInner />
+    </Suspense>
   );
 }

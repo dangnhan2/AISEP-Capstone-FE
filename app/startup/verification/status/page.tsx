@@ -19,31 +19,24 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { GetStartupKYCStatus, StartupKycCase } from "@/services/startup/startup-kyc.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
 
 const STATUS_CFG: any = {
-  UNDER_REVIEW: {
+  Pending: {
     icon: Clock,
     color: "blue",
     title: "Đang chờ phê duyệt",
     subtitle: "Hồ sơ của bạn đang được đội ngũ AISEP thẩm định. Quá trình này thường mất từ 24-48 giờ làm việc.",
     badge: "Under Review"
   },
-  APPROVED: {
+  Approved: {
     icon: CheckCircle2,
     color: "emerald",
     title: "Xác minh thành công",
     subtitle: "Chúc mừng! Startup của bạn đã được xác minh chính thức trên nền tảng AISEP.",
     badge: "Approved"
   },
-  PENDING_MORE_INFO: {
-    icon: AlertCircle,
-    color: "amber",
-    title: "Cần bổ sung thông tin",
-    subtitle: "AISEP đã xem xét và cần bạn cung cấp thêm một số tài liệu minh chứng để hoàn tất quy trình.",
-    badge: "Pending Info"
-  },
-  FAILED: {
+  Rejected: {
     icon: AlertCircle,
     color: "red",
     title: "Xác minh không đạt",
@@ -63,13 +56,13 @@ const getAvatarColor = (color: string) => {
 };
 
 function KycStatusPageInner() {
-  const [kycCase, setKycCase] = useState<StartupKycCase | null>(null);
+  const [kycCase, setKycCase] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    GetStartupKYCStatus()
+    GetStartupProfile()
       .then(res => {
-        const data = res as unknown as IBackendRes<StartupKycCase>;
+        const data = res as unknown as IBackendRes<any>;
         if ((data.success || data.isSuccess) && data.data) {
           setKycCase(data.data);
         }
@@ -89,7 +82,7 @@ function KycStatusPageInner() {
   }
 
   if (!kycCase) return null;
-  const cfg = STATUS_CFG[kycCase.workflowStatus] || STATUS_CFG.UNDER_REVIEW;
+  const cfg = STATUS_CFG[kycCase.profileStatus] || STATUS_CFG.Pending;
 
   return (
     <StartupShell>
@@ -138,13 +131,13 @@ function KycStatusPageInner() {
                        <p className="text-[15px] text-slate-500 leading-relaxed max-w-lg">{cfg.subtitle}</p>
                     </div>
 
-                    {kycCase.workflowStatus === "PENDING_MORE_INFO" && (
+                    {kycCase.profileStatus === "Rejected" && (
                        <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-5 space-y-4">
                           <div className="flex items-center gap-2 text-amber-700">
                              <MessageSquare className="w-5 h-5" />
                              <span className="text-[14px] font-bold">Phản hồi từ AISEP Staff:</span>
                           </div>
-                          <p className="text-[13px] text-slate-600 leading-relaxed">"{kycCase.explanation}"</p>
+                          <p className="text-[13px] text-slate-600 leading-relaxed">"Hồ sơ của bạn hiện đang thiếu thông tin giấy phép minh chứng hợp lệ."</p>
                           <Link 
                            href="/startup/verification/resubmit"
                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-all"
@@ -167,31 +160,27 @@ function KycStatusPageInner() {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
                     <div className="space-y-1">
                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tên đơn vị</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.submissionSummary?.legalFullName || kycCase.submissionSummary?.projectName || "N/A"}</p>
-                    </div>
-                    <div className="space-y-1">
-                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Loại hình</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.startupVerificationType === "WITH_LEGAL_ENTITY" ? "Có pháp nhân" : "Chưa có pháp nhân"}</p>
+                       <p className="text-[14px] font-medium text-slate-700">{kycCase.companyName}</p>
                     </div>
                     <div className="space-y-1">
                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Email liên hệ</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.submissionSummary?.workEmail || "N/A"}</p>
+                       <p className="text-[14px] font-medium text-slate-700">{kycCase.contactEmail || "N/A"}</p>
                     </div>
                     <div className="space-y-1">
                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Người đại diện</p>
-                       <p className="text-[14px] font-medium text-slate-700">{kycCase.submissionSummary?.representativeFullName || "N/A"}</p>
+                       <p className="text-[14px] font-medium text-slate-700">{kycCase.fullNameOfApplicant || "N/A"}</p>
                     </div>
                  </div>
 
                  <div className="pt-4 border-t border-slate-50">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Tài liệu đã đính kèm</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Thông tin hồ sơ</p>
                     <div className="flex flex-wrap gap-2">
-                       {kycCase.submissionSummary?.evidenceFiles.map(file => (
-                         <div key={file.id} className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg group hover:border-slate-300 transition-colors cursor-pointer">
+                       {kycCase.fileCertificateBusiness ? (
+                         <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg group hover:border-slate-300 transition-colors cursor-pointer">
                             <FileText className="w-4 h-4 text-slate-400" />
-                            <span className="text-[12px] text-slate-600 font-medium">{file.fileName}</span>
+                            <span className="text-[12px] text-slate-600 font-medium">Tài liệu đã đính kèm</span>
                          </div>
-                       )) || <p className="text-[12px] text-slate-400 italic">Hiện đang giả lập dữ liệu trống...</p>}
+                       ) : <p className="text-[12px] text-slate-400 italic">Thao tác tải lên tài liệu đã được ghi nhận.</p>}
                     </div>
                  </div>
               </div>

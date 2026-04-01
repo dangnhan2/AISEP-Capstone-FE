@@ -331,15 +331,15 @@ export function MessagingContent() {
                         content:           incoming.content,
                         attachmentUrls:    incoming.attachmentUrl,
                         isRead:            false,
-                        sentAt:            incoming.createdAt,
+                        sentAt:            incoming.createdAt ?? incoming.sentAt,
                         readAt:            null,
-                    },
+                    } as IMessage,
                 ]);
             } else {
                 setConversations(prev =>
                     prev.map(c =>
                         c.conversationId === incoming.conversationId
-                            ? { ...c, unreadCount: c.unreadCount + 1, lastMessagePreview: incoming.content, lastMessageAt: incoming.createdAt }
+                            ? { ...c, unreadCount: (c.unreadCount ?? 0) + 1, lastMessagePreview: incoming.content, lastMessageAt: incoming.createdAt ?? incoming.sentAt }
                             : c
                     )
                 );
@@ -397,7 +397,7 @@ export function MessagingContent() {
     const filtered = conversations
         .filter(c => {
             if (filter === "unread" && !c.unreadCount) return false;
-            if (search && !c.participantName.toLowerCase().includes(search.toLowerCase())) return false;
+            if (search && !c.participantName?.toLowerCase().includes(search.toLowerCase())) return false;
             return true;
         })
         .sort((a, b) => {
@@ -491,7 +491,7 @@ export function MessagingContent() {
                                             />
                                         ) : (
                                             <div className={`size-12 rounded-full ${avatarBg[conv.participantRole]} flex items-center justify-center font-bold text-sm`}>
-                                                {getInitials(conv.participantName) || <Icon className="w-6 h-6" />}
+                                                {getInitials(conv.participantName ?? "") || <Icon className="w-6 h-6" />}
                                             </div>
                                         )}
                                     </div>
@@ -499,9 +499,9 @@ export function MessagingContent() {
                                     {/* Info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-start mb-0.5">
-                                            <h4 className="font-bold text-sm text-slate-900 truncate">{conv.participantName}</h4>
+                                            <h4 className="font-bold text-sm text-slate-900 truncate">{conv.participantName ?? ""}</h4>
                                             <span className={`text-[10px] whitespace-nowrap ml-2 font-bold ${isActive ? "text-[#e6cc4c]" : "text-slate-400"}`}>
-                                                {formatRelative(conv.lastMessageAt)}
+                                                {formatRelative(conv.lastMessageAt ?? "")}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5 mb-1">
@@ -518,7 +518,7 @@ export function MessagingContent() {
                                     </div>
 
                                     {/* Unread badge */}
-                                    {conv.unreadCount > 0 && (
+                                    {(conv.unreadCount ?? 0) > 0 && (
                                         <div className="shrink-0 flex flex-col items-end justify-between">
                                             <span className="size-5 bg-[#e6cc4c] flex items-center justify-center text-[10px] font-bold text-slate-900 rounded-full">
                                                 {conv.unreadCount}
@@ -540,13 +540,13 @@ export function MessagingContent() {
                         <div className="flex items-center gap-3">
                             {selected.participantAvatarUrl ? (
                                 <img
-                                    alt={selected.participantName}
+                                    alt={selected.participantName ?? ""}
                                     className="size-10 rounded-full object-cover border-2 border-white shadow-sm"
                                     src={selected.participantAvatarUrl}
                                 />
                             ) : (
                                 <div className={`size-10 rounded-full ${avatarBg[selected.participantRole]} flex items-center justify-center text-sm font-bold`}>
-                                    {getInitials(selected.participantName)}
+                                    {getInitials(selected.participantName ?? "")}
                                 </div>
                             )}
                             <div>

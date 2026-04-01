@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { ApproveStartupRegistration, RejectStartupRegistration } from "@/services/staff/registration.api";
+import axios from "@/services/interceptor";
+import { useAuth } from "@/context/context";
 import {
   ArrowLeft,
   ShieldCheck,
@@ -82,12 +86,37 @@ const STATUS_CFG: Record<KYCStatus | "FAILED", { label: string, badge: string, d
 };
 
 export default function KYCDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { user } = useAuth();
   const { id } = React.use(params);
+  const realId = id.replace("STARTUP-", "");
+  
   const [activeTab, setActiveTab] = useState<"INFO" | "HISTORY">("INFO");
   const subtype = useMemo(() => getSubtypeById(id), [id]);
   const config = KYC_SUBTYPE_CONFIGS[subtype];
   const SubtypeIcon = config.icon;
-  const entityName = DUMMY_ENTITY_NAMES[subtype];
+  
+  // Real data state
+  const [entityName, setEntityName] = useState("Đang tải dữ liệu...");
+  const [realData, setRealData] = useState<any>(null);
+
+  useEffect(() => {
+    if(!id.includes("STARTUP")) {
+        setEntityName("Đối tượng Mock: " + id);
+        return;
+    }
+    axios.get(`/api/startups/${realId}`).then(res => {
+      console.log("FETCHED STARTUP:", res);
+      // Handle different wrapper scenarios
+      let actualData = res;
+      if (res && (res as any).data && ((res as any).success || typeof (res as any).isSuccess !== 'undefined')) {
+        actualData = (res as any).data;
+      }
+      
+      setRealData(actualData);
+      setEntityName((actualData as any)?.companyName || "Chưa cập nhật tên");
+    }).catch(console.error);
+  }, [id, realId]);
+
   const avatarGradient = useMemo(() => getAvatarGradient(entityName), [entityName]);
 
   // Initialize assessments
@@ -226,14 +255,31 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {config.fields.map((field) => (
+                    {config.fields.map((field) => {
+                      let realValue: React.ReactNode = field.value || "—";
+                      
+                      if (realData) {
+                        // Cập nhật lại các ID trường tương ứng với cấu hình thật từ staff-kyc.ts
+                        if (field.id === "legalName" || field.id === "projectName") realValue = realData.companyName || realData.fullName || "—";
+                        if (field.id === "taxId") realValue = realData.bussinessCode || realData.businessCode || "—";
+                        if (field.id === "submitterName" || field.id === "repName" || field.id === "fullName") realValue = realData.fullNameOfApplicant || realData.submitterName || realData.fullName || "Hệ thống chưa lưu";
+                        if (field.id === "submitterRole" || field.id === "repRole") realValue = realData.roleOfApplicant || "Người nộp thay";
+                        if (field.id === "workEmail") realValue = realData.contactEmail || realData.email || "—";
+                        if (field.id === "officialLink" || field.id === "website") realValue = realData.website || realData.socialLink || "—";
+                        
+                        if (field.id.includes("license") || field.id.includes("File") || field.id.includes("doc_") || field.id === "licenseFile") {
+                          realValue = realData.fileCertificateBusiness ? "Tài liệu đính kèm" : "Tài liệu chưa được lưu trong API này";
+                        }
+                      }
+
+                      return (
                       <tr key={field.id} className="group hover:bg-slate-50/30 transition-colors">
                         <td className="px-6 py-5 align-top">
                           <p className="text-[13px] font-semibold text-slate-700">{field.label}</p>
                         </td>
                         <td className="px-6 py-5 align-top">
                            {field.type === "text" && (
-                            <p className="text-[13px] text-slate-600 leading-relaxed font-normal">{field.value || "—"}</p>
+                            <p className="text-[13px] text-slate-600 leading-relaxed font-normal">{realValue}</p>
                            )}
                            {field.type === "link" && (
                             <a href="#" className="inline-flex items-center gap-1.5 text-[13px] text-blue-600 font-medium hover:underline">
@@ -247,7 +293,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                                 <FileText className="w-4 h-4 text-red-500" />
                               </div>
                               <div className="min-w-0">
-                                <p className="font-semibold text-slate-700 text-[12px] truncate">Document_Proof.pdf</p>
+                                <p className="font-semibold text-slate-700 text-[12px] truncate">Tài liệu định kèm (Minh họa)</p>
                                 <button className="text-blue-600 hover:text-blue-800 font-medium text-[11px] uppercase tracking-tight">Xem tài liệu</button>
                               </div>
                             </div>
@@ -286,7 +332,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -468,14 +514,26 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                </button>
                <button 
                   className={cn("px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white transition-all shadow-sm active:scale-95",
-                    result.suggestedDecision === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#0f172a] hover:bg-[#1e293b]"
+                    result.suggestedDecision === "APPROVE" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
                   )}
-                  onClick={() => {
-                    setIsSuccess(true);
-                    setShowConfirm(false);
+                  onClick={async () => {
+                    try {
+                        const staffId = user?.userId || 1;
+                        if (result.suggestedDecision === "APPROVE") {
+                            await ApproveStartupRegistration(staffId, Number(realId), result.totalScore);
+                            toast.success("Đã duyệt hồ sơ thành công");
+                        } else {
+                            await RejectStartupRegistration(staffId, Number(realId), internalNote || "Hồ sơ chưa đạt yêu cầu");
+                            toast.success("Đã từ chối hồ sơ");
+                        }
+                        setIsSuccess(true);
+                        setShowConfirm(false);
+                    } catch (err: any) {
+                        toast.error("Lỗi khi xử lý hồ sơ: " + err.message);
+                    }
                   }}
                >
-                 Phê duyệt hồ sơ
+                 {result.suggestedDecision === "APPROVE" ? "Phê duyệt" : "Từ chối"} hồ sơ
                </button>
              </div>
           </div>
