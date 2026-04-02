@@ -9,43 +9,51 @@ import { IAdvisorKYCStatus, IAdvisorKYCSubmission } from "@/types/advisor-kyc";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 export default function AdvisorKYCPage() {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<"HUB" | "WIZARD" | "RESUBMIT">("HUB");
-  const [status, setStatus] = useState<IAdvisorKYCStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchStatus = async () => {
-    setIsLoading(true);
-    try {
+  const { data: status, isLoading: queryLoading } = useQuery({
+    queryKey: ["advisor-kyc-status"],
+    queryFn: async () => {
       const res = await GetKYCStatus();
-      if (res.isSuccess && res.data) {
-        setStatus(res.data);
-      }
-    } catch {
-      toast.error("Không thể tải trạng thái KYC. Vui lòng thử lại.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      if (res.isSuccess && res.data) return res.data;
+      throw new Error("Failed to fetch status");
+    },
+    staleTime: 0,
+    refetchInterval: 10000
+  });
 
-  useEffect(() => { fetchStatus(); }, []);
+  const submitMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      if (view === "RESUBMIT") return ResubmitKYC(formData);
+      return SubmitKYC(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advisor-kyc-status"] });
+      setView("HUB");
+      toast.success("Hồ sơ đã được gửi thành công!");
+    },
+    onError: () => {
+      toast.error("Gửi hồ sơ thất bại. Vui lòng thử lại.");
+    }
+  });
+
+  const draftMutation = useMutation({
+    mutationFn: (data: Partial<IAdvisorKYCSubmission>) => SaveKYCDraft(data)
+  });
 
   const handleSubmit = async (formData: FormData) => {
-    if (view === "RESUBMIT") {
-      await ResubmitKYC(formData);
-    } else {
-      await SubmitKYC(formData);
-    }
-    await fetchStatus();
-    setView("HUB");
-    toast.success("Hồ sơ đã được gửi thành công!");
+    submitMutation.mutate(formData);
   };
 
   const handleSaveDraft = async (data: Partial<IAdvisorKYCSubmission>) => {
-    try { await SaveKYCDraft(data); } catch { /* silent */ }
+    draftMutation.mutate(data);
   };
 
-  if (isLoading) {
+  if (queryLoading) {
     return (
       <AdvisorShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
