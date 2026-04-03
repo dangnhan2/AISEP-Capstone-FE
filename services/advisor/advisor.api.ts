@@ -55,10 +55,18 @@ export const UpdateAdvisorAvailability = (data : IAdvisorAvailabilityRequest) =>
 }
 
 export const GetAdvisorProfile = () => {
-  return axios.get<IBackendRes<IAdvisorProfile>>("/api/advisors/me");
+  return axios.get<IBackendRes<any>>("/api/advisors/me");
 }
 
-// export const SearchAdvisors = (query: string) => {
-//   return axios.get<IBackendRes<IPagingData<IAdvisorSearchResult>>>(`/api/advisors/${query}`);
-// };
+export const GetAdvisorKYCStatus = () => {
+  return axios.get<IBackendRes<any>>("/api/advisors/me/kyc/status");
+}
+
+export const SubmitAdvisorKYC = (data: any) => {
+  return axios.post("/api/advisors/me/kyc/submit", data);
+}
+
+export const SaveAdvisorKYCDraft = (data: any) => {
+  return axios.patch("/api/advisors/me/kyc/draft", data);
+}
 
