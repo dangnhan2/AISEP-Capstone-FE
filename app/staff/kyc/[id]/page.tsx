@@ -300,11 +300,12 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         else if (field.id === "submitterName") realValue = realData.fullNameOfApplicant || realData.fullName || "—";
                         else if (field.id === "repName" || field.id === "investorName" || field.id === "advisorName") realValue = realData.fullName || "—";
                         
-                        else if (field.id === "submitterRole") realValue = realData.roleOfApplicant || "—";
-                        else if (field.id === "repRole") realValue = realData.roleOfApplicant || "—";
-                        
                         else if (field.id === "workEmail" || field.id === "contactEmail" || field.id === "email") {
                           realValue = realData.contactEmail || realData.email || "—";
+                        }
+                        
+                        else if (field.id === "submitterRole" || field.id === "repRole") {
+                          realValue = realData.submitterRole || realData.roleOfApplicant || "—";
                         }
                         
                         else if (field.id === "officialLink" || field.id === "website" || field.id === "publicLink") {
@@ -320,7 +321,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         }
                         
                         else if (field.id === "orgLegalName" || field.id === "firmName" || field.id === "org") {
-                          realValue = realData.firmName || "—";
+                          realValue = realData.currentOrganization || realData.firmName || "—";
                         }
 
                         else if (field.id === "title") {
@@ -338,7 +339,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         }
                         
                         if (field.type === "file") {
-                           const hasFile = realData.fileCertificateBusiness || realData.proofFile || realData.orgProofFile;
+                           const hasFile = realData.fileCertificateBusiness || realData.proofFile || realData.orgProofFile || 
+                                           realData.idProofFileURL || realData.investmentProofFileURL;
                            realValue = hasFile ? "Tài liệu đính kèm" : "Chưa tải lên";
                         }
                       }
@@ -369,7 +371,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                                 </p>
                                 <button 
                                   onClick={() => {
-                                    const fileUrl = realData?.proofFile || realData?.fileCertificateBusiness;
+                                    const fileUrl = realData?.idProofFileURL || realData?.investmentProofFileURL || 
+                                                   realData?.proofFile || realData?.fileCertificateBusiness;
                                     if (fileUrl) window.open(fileUrl, "_blank");
                                     else toast.error("Không tìm thấy file tệp đính kèm");
                                   }}
