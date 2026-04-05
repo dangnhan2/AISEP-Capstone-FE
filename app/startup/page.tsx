@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { GetStartupProfile } from "@/services/startup/startup.api";
 import Link from "next/link";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
@@ -31,25 +29,10 @@ import {
 } from "lucide-react";
 
 export default function StartupDashboardPage() {
-  const router = useRouter();
   const [showProfile, setShowProfile] = useState(false);
 
-  useEffect(() => {
     // User explicitly chose to skip onboarding — respect that choice
 
-    GetStartupProfile()
-      .then(res => {
-        const data = res as unknown as IBackendRes<any>;
-        if (!(data.success || data.isSuccess) || !data.data) {
-          router.replace("/startup/onboard");
-        }
-      })
-      .catch(err => {
-        if (err?.response?.status === 404) {
-          router.replace("/startup/onboard");
-        }
-      });
-  }, []);
 
   const profileProgress = useCountUp(65, 1200, 0);
   const aiScore = useCountUp(84, 1200, 150);
@@ -419,4 +402,3 @@ export default function StartupDashboardPage() {
     </StartupShell>
   );
 }
-
