@@ -55,7 +55,7 @@ export default function AdminAuditLogsPage() {
     setLoading(true);
     try {
       const res = await GetAuditLogs({
-        search: search || undefined,
+        key: search || undefined,
         actionType: actionType || undefined,
         page,
         pageSize: PAGE_SIZE,
@@ -171,7 +171,7 @@ export default function AdminAuditLogsPage() {
                   logs.map((log) => (
                     <tr key={log.logId}>
                       <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{formatTime(log.createdAt)}</td>
-                      <td className="px-4 py-3">{log.actorEmail}</td>
+                      <td className="px-4 py-3">{log.userEmail ?? "system"}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                           {log.actionType}

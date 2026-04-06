@@ -349,12 +349,12 @@ declare global {
 
     interface IAuditLog {
         logId: number
-        actorEmail: string
+        userId: number | null
+        userEmail: string | null
         actionType: string
         entityType: string
         entityId: number | null
         actionDetails: string | null
-        ipAddress: string
         createdAt: string
     }
 

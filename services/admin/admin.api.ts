@@ -32,8 +32,9 @@ export const RemoveUserRole = (userId: number, roleId: number) => {
 };
 
 export const GetAuditLogs = (params: {
-    search?: string;
+    key?: string;
     actionType?: string;
+    entityType?: string;
     page?: number;
     pageSize?: number;
 }) => {
