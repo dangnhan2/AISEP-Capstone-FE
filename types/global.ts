@@ -200,6 +200,7 @@ declare global {
         documentID: number
         startupID: number
         documentType: string
+        title: string
         version: string
         fileUrl: string
         isArchived: boolean
@@ -216,6 +217,8 @@ declare global {
         computedHash: string
         onChainVerified: boolean
         status: string
+        anchoredAt: string | null
+        etherscanUrl: string | null
     }
 
     interface IBlockchainChecking {
@@ -224,6 +227,7 @@ declare global {
         status: string
         blockNumber: string
         confirmedAt: string
+        etherscanUrl: string | null
     }
 
     interface IConnectionItem {
