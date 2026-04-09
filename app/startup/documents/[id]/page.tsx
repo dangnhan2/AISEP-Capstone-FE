@@ -18,6 +18,8 @@ import {
     SubmitDocumentToBlockchain,
     CheckOnchainStatus,
     VerifyDocumentOnchain,
+    GetVersionHistory,
+    UploadNewVersion,
 } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
@@ -37,6 +39,7 @@ interface DocData {
 interface VersionRow {
     version: string; isCurrent?: boolean; uploader: string;
     date: string; blockchainStatus: BlockchainStatus; size: string; hashShort: string;
+    documentID?: number;
 }
 
 /* ─── Initial (no mock content) ────────────────────────────── */
@@ -125,6 +128,11 @@ function mapBackendDocToUi(doc: IDocument): DocData {
         recordedAt: anyDoc.anchoredAt ?? "",
         network: anyDoc.network ?? "Ethereum Sepolia",
     };
+}
+
+function formatVersion(v: string): string {
+    if (!v) return "v1";
+    return v.toLowerCase().startsWith("v") ? v : `v${v}`;
 }
 
 function shortHash(hash: string): string {
@@ -433,6 +441,9 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     const [showMoreMenu, setShowMoreMenu]  = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
+    const [showUploadVersion, setShowUploadVersion] = useState(false);
+    const [uploadingVersion, setUploadingVersion] = useState(false);
+    const [uploadVersionError, setUploadVersionError] = useState<string | null>(null);
 
     const showToast = useCallback((msg: string, type: "info"|"success"|"error" = "info") => {
         setToast({ msg, type });
@@ -490,8 +501,35 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 const mapped = mapBackendDocToUi(item);
                 setDoc(mapped);
                 setLocalBcStatus(mapped.blockchainStatus);
-                setVersions([
-                    {
+
+                // Fetch real version history
+                try {
+                    const vRes = await GetVersionHistory(backendDocId);
+                    const vItems = vRes?.data ?? [];
+                    if (vItems.length > 0) {
+                        setVersions(vItems.map((v: IDocumentVersionHistory) => ({
+                            version: v.version,
+                            isCurrent: v.isCurrent,
+                            uploader: "—",
+                            date: formatUploadedAt(v.uploadedAt),
+                            blockchainStatus: mapBlockchainStatus({ proofStatus: v.proofStatus } as IDocument),
+                            size: "—",
+                            hashShort: shortHash(v.fileHash ?? ""),
+                            documentID: v.documentID,
+                        })));
+                    } else {
+                        setVersions([{
+                            version: mapped.currentVersion,
+                            isCurrent: true,
+                            uploader: mapped.uploader,
+                            date: mapped.createdAt,
+                            blockchainStatus: mapped.blockchainStatus,
+                            size: mapped.size,
+                            hashShort: shortHash(mapped.hash),
+                        }]);
+                    }
+                } catch {
+                    setVersions([{
                         version: mapped.currentVersion,
                         isCurrent: true,
                         uploader: mapped.uploader,
@@ -499,8 +537,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         blockchainStatus: mapped.blockchainStatus,
                         size: mapped.size,
                         hashShort: shortHash(mapped.hash),
-                    },
-                ]);
+                    }]);
+                }
                 // Auto-poll if status is pending on page load
                 if (mapped.blockchainStatus === "pending") {
                     pollTxStatus(backendDocId);
@@ -626,6 +664,27 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 showToast(e?.message ?? "Xóa tài liệu thất bại", "error");
             }
         })();
+    };
+
+    const handleUploadNewVersion = async (file: File) => {
+        const backendDocId = Number(id);
+        setUploadingVersion(true);
+        setUploadVersionError(null);
+        try {
+            const res = await UploadNewVersion(backendDocId, file) as any;
+            if (res?.isSuccess === false || res?.success === false) {
+                setUploadVersionError(res?.message ?? "Upload phiên bản mới thất bại");
+                return;
+            }
+            showToast("Đã upload phiên bản mới!", "success");
+            setShowUploadVersion(false);
+            setUploadVersionError(null);
+            setReloadToken(t => t + 1);
+        } catch (e: any) {
+            setUploadVersionError(e?.response?.data?.message ?? e?.message ?? "Upload phiên bản mới thất bại");
+        } finally {
+            setUploadingVersion(false);
+        }
     };
 
     if (loading) {
@@ -787,15 +846,23 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         {/* Version history */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                                <span className="text-[13px] font-semibold text-slate-700">Lịch sử phiên bản</span>
-                                <span className="text-[12px] text-slate-400">{versions.length} phiên bản</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[13px] font-semibold text-slate-700">Lịch sử phiên bản</span>
+                                    <span className="text-[11px] text-slate-400">({versions.length})</span>
+                                </div>
+                                <button
+                                    onClick={() => { setShowUploadVersion(true); setUploadVersionError(null); }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-[12px] font-medium hover:bg-slate-800 transition-all"
+                                >
+                                    <Upload className="w-3.5 h-3.5" /> Phiên bản mới
+                                </button>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead>
                                         <tr className="border-b border-slate-100">
-                                            {["Phiên bản","Blockchain"].map((h, i) => (
-                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 1 ? "text-right" : "text-left")}>{h}</th>
+                                            {["Phiên bản","Ngày upload","Hash","Blockchain",""].map((h, i) => (
+                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 3 ? "text-right" : "text-left")}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -803,17 +870,57 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                         {versions.map(v => {
                                             const vbc = BC[v.blockchainStatus];
                                             return (
-                                                <tr key={v.version} className={cn("transition-colors", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}>
+                                                <tr
+                                                    key={v.version}
+                                                    className={cn("transition-colors cursor-pointer", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}
+                                                    onClick={() => { if (v.documentID && v.documentID !== Number(id)) router.push(`/startup/documents/${v.documentID}`); }}
+                                                >
                                                     <td className="px-5 py-3.5">
                                                         <div className="flex items-center gap-2">
-                                                            <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{v.version}</span>
+                                                            <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{formatVersion(v.version)}</span>
                                                             {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
                                                         </div>
+                                                    </td>
+                                                    <td className="px-5 py-3.5">
+                                                        <span className="text-[12px] text-slate-500">{v.date}</span>
+                                                    </td>
+                                                    <td className="px-5 py-3.5">
+                                                        <code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code>
                                                     </td>
                                                     <td className="px-4 py-3.5 text-right">
                                                         <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
                                                             <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-4 py-3.5 text-right">
+                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                            {v.documentID && (
+                                                                <button
+                                                                    onClick={() => router.push(`/startup/documents/${v.documentID}`)}
+                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                                                                    title="Xem chi tiết"
+                                                                >
+                                                                    <Eye className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                            {!v.isCurrent && v.documentID && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await DeleteDocument(String(v.documentID));
+                                                                            showToast("Đã xóa phiên bản", "success");
+                                                                            setReloadToken(t => t + 1);
+                                                                        } catch {
+                                                                            showToast("Xóa phiên bản thất bại", "error");
+                                                                        }
+                                                                    }}
+                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                                                                    title="Xóa phiên bản"
+                                                                >
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -822,6 +929,53 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                 </table>
                             </div>
                         </div>
+
+                        {/* Upload New Version Modal */}
+                        {showUploadVersion && (
+                            <div className="fixed inset-0 z-[60] flex items-center justify-center">
+                                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setShowUploadVersion(false)} />
+                                <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 overflow-hidden">
+                                    <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Upload className="w-4 h-4 text-slate-600" /></div>
+                                            <h2 className="text-[15px] font-semibold text-[#0f172a]">Upload phiên bản mới</h2>
+                                        </div>
+                                        <button onClick={() => setShowUploadVersion(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"><X className="w-4 h-4" /></button>
+                                    </div>
+                                    <div className="px-6 py-5">
+                                        <p className="text-[12px] text-slate-500 mb-4">Chọn file mới để thay thế phiên bản hiện tại. Version sẽ được tự động tăng.</p>
+                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all">
+                                            <Upload className="w-6 h-6 text-slate-400 mb-2" />
+                                            <span className="text-[13px] text-slate-500 font-medium">Chọn file (PDF, DOCX, PPTX)</span>
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept=".pdf,.doc,.docx,.ppt,.pptx"
+                                                disabled={uploadingVersion}
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleUploadNewVersion(file);
+                                                }}
+                                            />
+                                        </label>
+                                        {uploadingVersion && (
+                                            <div className="flex items-center gap-2 mt-3">
+                                                <RefreshCcw className="w-3.5 h-3.5 text-slate-400 animate-spin" />
+                                                <span className="text-[12px] text-slate-500">Đang upload...</span>
+                                            </div>
+                                        )}
+                                        {uploadVersionError && (
+                                            <div className="flex items-start gap-3 p-3.5 mt-3 bg-red-50 border border-red-200 rounded-xl">
+                                                <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <X className="w-3 h-3 text-red-500" />
+                                                </div>
+                                                <p className="text-[12px] text-red-700 leading-relaxed">{uploadVersionError}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
