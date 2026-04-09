@@ -176,6 +176,9 @@ declare global {
     preferredAIScoreRange: string;
     aiScoreImportance: string;
     acceptingConnections: boolean;
+    discoverableForStartups?: boolean;
+    canRequestConnection?: boolean;
+    profileAvailabilityReason?: "OPEN" | "INVESTOR_PAUSED_DISCOVERY";
     website: string;
     linkedInURL: string;
     country: string;

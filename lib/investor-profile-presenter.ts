@@ -27,6 +27,17 @@ type InvestorKycLike = Partial<
     Pick<IInvestorSearchItem, "profileStatus" | "workflowStatus" | "verificationLabel" | "kycVerified">
 >;
 
+export type InvestorKycUiState = {
+  workflowStatus: string | null;
+  verificationLabel: string | null;
+  hasKnownStatus: boolean;
+  isVerified: boolean;
+  isPendingReview: boolean;
+  needsResubmission: boolean;
+  isFailed: boolean;
+  shouldShowVerificationPrompt: boolean;
+};
+
 export function isInvestorKycVerified(
   source?: InvestorKycLike | null,
   kycStatus?: Pick<IInvestorKYCStatus, "workflowStatus" | "verificationLabel"> | null,
@@ -47,6 +58,35 @@ export function isInvestorKycVerified(
 
   const profileStatus = source?.profileStatus?.toUpperCase();
   return Boolean(profileStatus && profileStatus.includes("VERIFIED"));
+}
+
+export function getInvestorKycUiState(
+  source?: InvestorKycLike | null,
+  kycStatus?: Pick<IInvestorKYCStatus, "workflowStatus" | "verificationLabel"> | null,
+): InvestorKycUiState {
+  const workflowStatus = kycStatus?.workflowStatus ?? source?.workflowStatus ?? null;
+  const verificationLabel = kycStatus?.verificationLabel ?? source?.verificationLabel ?? null;
+  const profileStatus = source?.profileStatus?.toUpperCase() ?? null;
+  const hasVerifiedProfileSignal = Boolean(profileStatus && profileStatus.includes("VERIFIED"));
+  const hasKnownStatus = Boolean(source?.kycVerified || workflowStatus || verificationLabel || hasVerifiedProfileSignal);
+  const isVerified = isInvestorKycVerified(source, kycStatus);
+  const isPendingReview = workflowStatus === "PENDING_REVIEW";
+  const needsResubmission =
+    workflowStatus === "PENDING_MORE_INFO" || verificationLabel === "PENDING_MORE_INFO";
+  const isFailed =
+    workflowStatus === "VERIFICATION_FAILED" || verificationLabel === "VERIFICATION_FAILED";
+
+  return {
+    workflowStatus,
+    verificationLabel,
+    hasKnownStatus,
+    isVerified,
+    isPendingReview,
+    needsResubmission,
+    isFailed,
+    shouldShowVerificationPrompt:
+      hasKnownStatus && !isVerified && !isPendingReview && !needsResubmission && !isFailed,
+  };
 }
 
 export function resolveInvestorCategory(
