@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { GetSentConnections, WithdrawConnection } from "@/services/connection/connection.api";
+import { GetSentConnections, GetReceivedConnections, WithdrawConnection, AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
 import { toast } from "sonner";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,17 +46,19 @@ function StartupAvatar({ name, size = "size-10" }: { name: string; size?: string
   );
 }
 
-type Tab = "pending" | "accepted" | "rejected";
+type Tab = "pending" | "received" | "accepted" | "rejected";
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ConnectionsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("pending");
   const [pending, setPending] = useState<IConnectionItem[]>([]);
+  const [received, setReceived] = useState<IConnectionItem[]>([]);
   const [accepted, setAccepted] = useState<IConnectionItem[]>([]);
   const [rejected, setRejected] = useState<IConnectionItem[]>([]);
   const [loadingTab, setLoadingTab] = useState<Tab | null>(null);
   const [withdrawingId, setWithdrawingId] = useState<number | null>(null);
+  const [respondingId, setRespondingId] = useState<number | null>(null);
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -65,17 +67,24 @@ export default function ConnectionsPage() {
   const fetchTab = useCallback(async (tab: Tab, p = 1) => {
     setLoadingTab(tab);
     try {
-      const statusMap: Record<Tab, string> = {
+      const statusMap: Record<Tab, string | undefined> = {
         pending: "Requested",
+        received: undefined,
         accepted: "Accepted",
         rejected: "Rejected",
       };
-      const res = await GetSentConnections(p, PAGE_SIZE, statusMap[tab]);
-      if (res?.isSuccess) {
-        const items: IConnectionItem[] = res.data?.items ?? [];
-        const total = res.data?.paging?.totalItems ?? items.length;
+      let res: any;
+      if (tab === "received") {
+        res = await GetReceivedConnections(p, PAGE_SIZE) as any;
+      } else {
+        res = await GetSentConnections(p, PAGE_SIZE, statusMap[tab]) as any;
+      }
+      if (res?.isSuccess || res?.success) {
+        const items: IConnectionItem[] = (res.data?.data || res.data?.items || []);
+        const total: number = res.data?.total ?? res.data?.paging?.totalItems ?? items.length;
         setTotalPages(Math.max(1, Math.ceil(total / PAGE_SIZE)));
         if (tab === "pending") setPending(items);
+        else if (tab === "received") setReceived(items);
         else if (tab === "accepted") setAccepted(items);
         else setRejected(items);
       }
@@ -88,6 +97,7 @@ export default function ConnectionsPage() {
 
   useEffect(() => {
     fetchTab("pending", 1);
+    fetchTab("received", 1);
     fetchTab("accepted", 1);
     fetchTab("rejected", 1);
   }, [fetchTab]);
@@ -109,18 +119,54 @@ export default function ConnectionsPage() {
     }
   };
 
+  const handleAccept = async (id: number) => {
+    setRespondingId(id);
+    try {
+      const res = await AcceptConnection(id) as any;
+      if (res?.isSuccess || res?.success) {
+        toast.success("Đã chấp nhận kết nối");
+        fetchTab("received", page);
+        fetchTab("accepted", 1);
+      } else {
+        toast.error("Không thể chấp nhận yêu cầu");
+      }
+    } catch {
+      toast.error("Lỗi khi chấp nhận yêu cầu");
+    } finally {
+      setRespondingId(null);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    setRespondingId(id);
+    try {
+      const res = await RejectConnection(id, { reason: "Không phù hợp" }) as any;
+      if (res?.isSuccess || res?.success) {
+        toast.success("Đã từ chối yêu cầu kết nối");
+        fetchTab("received", page);
+      } else {
+        toast.error("Không thể từ chối yêu cầu");
+      }
+    } catch {
+      toast.error("Lỗi khi từ chối yêu cầu");
+    } finally {
+      setRespondingId(null);
+    }
+  };
+
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     fetchTab(activeTab, newPage);
   };
 
   const tabItems: { id: Tab; label: string; icon: React.ElementType; count: number }[] = [
-    { id: "pending", label: "Đang chờ phản hồi", icon: Clock, count: pending.length },
+    { id: "pending", label: "Đã gửi (chờ phản hồi)", icon: Clock, count: pending.length },
+    { id: "received", label: "Nhận từ Startup", icon: UserPlus, count: received.length },
     { id: "accepted", label: "Đã kết nối", icon: UserPlus, count: accepted.length },
     { id: "rejected", label: "Bị từ chối", icon: XCircle, count: rejected.length },
   ];
 
-  const currentList = activeTab === "pending" ? pending : activeTab === "accepted" ? accepted : rejected;
+  const currentList = activeTab === "pending" ? pending : activeTab === "received" ? received : activeTab === "accepted" ? accepted : rejected;
   const isLoading = loadingTab === activeTab;
 
   const EmptyRow = ({ message }: { message: string }) => (
@@ -141,7 +187,7 @@ export default function ConnectionsPage() {
       <div className="space-y-1.5">
         <h1 className="text-[32px] font-black text-[#171611] tracking-tight leading-none">Kết nối Startup</h1>
         <p className="text-slate-400 text-[15px] font-medium leading-relaxed max-w-[600px]">
-          Quản lý các yêu cầu kết nối bạn đã gửi đến Startup và theo dõi tiến trình.
+          Quản lý các yêu cầu kết nối với Startup và theo dõi tiến trình.
         </p>
       </div>
 
@@ -196,7 +242,9 @@ export default function ConnectionsPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-200">
-              <th className="px-8 py-5 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Startup</th>
+              <th className="px-8 py-5 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                {activeTab === "received" ? "Startup" : "Startup"}
+              </th>
               <th className="px-8 py-5 text-left text-[11px] font-bold text-slate-500 uppercase tracking-widest">Tin nhắn</th>
               <th className="px-8 py-5 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Thời gian</th>
               <th className="px-8 py-5 text-right text-[11px] font-bold text-slate-500 uppercase tracking-widest">Hành động</th>
@@ -215,6 +263,7 @@ export default function ConnectionsPage() {
               <EmptyRow
                 message={
                   activeTab === "pending" ? "Không có yêu cầu nào đang chờ phản hồi" :
+                  activeTab === "received" ? "Chưa có startup nào gửi lời mời kết nối" :
                   activeTab === "accepted" ? "Chưa có kết nối nào được thiết lập" :
                   "Không có yêu cầu nào bị từ chối"
                 }
@@ -224,7 +273,7 @@ export default function ConnectionsPage() {
                 <tr key={item.connectionID} className="hover:bg-slate-50/30 transition-colors group">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
-                      <StartupAvatar name={item.startupName} />
+                      <StartupAvatar name={activeTab === "received" ? item.startupName : item.startupName} />
                       <div>
                         <p className="text-[15px] font-semibold text-slate-900 group-hover:text-[#C8A000] transition-colors">
                           {item.startupName}
@@ -272,8 +321,26 @@ export default function ConnectionsPage() {
                           Thu hồi
                         </button>
                       )}
+                      {activeTab === "received" && (
+                        <>
+                          <button
+                            onClick={() => handleAccept(item.connectionID)}
+                            disabled={respondingId === item.connectionID}
+                            className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px] flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {respondingId === item.connectionID ? <Loader2 className="size-4 animate-spin" /> : "Chấp nhận"}
+                          </button>
+                          <button
+                            onClick={() => handleReject(item.connectionID)}
+                            disabled={respondingId === item.connectionID}
+                            className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {respondingId === item.connectionID ? <Loader2 className="size-4 animate-spin" /> : "Từ chối"}
+                          </button>
+                        </>
+                      )}
                       {activeTab === "accepted" && (
-                        <Link href="/investor/messaging">
+                        <Link href={`/investor/messaging?connectionId=${item.connectionID}`}>
                           <button className="h-10 px-4 rounded-xl bg-slate-50 text-slate-600 hover:bg-[#e6cc4c] hover:text-[#171611] transition-all font-bold text-[13px] flex items-center gap-2">
                             <MessageCircle className="size-4" />
                             Nhắn tin

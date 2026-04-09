@@ -22,12 +22,11 @@ import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/in
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
+import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { SearchInvestors } from "@/services/startup/startup.api";
-import { GetReceivedConnections } from "@/services/connection/connection.api";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,6 +99,12 @@ export default function InvestorsPage() {
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
 
+  // ── Tab: Nhận từ Investor ──
+  const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
+  const [isLoadingReceived, setIsLoadingReceived] = useState(false);
+  const [receivedPage, setReceivedPage] = useState(1);
+  const [receivedTotalPages, setReceivedTotalPages] = useState(1);
+
   // ── Tab: Đã kết nối ──
   const [connected, setConnected] = useState<IConnectionItem[]>([]);
   const [isLoadingConnected, setIsLoadingConnected] = useState(false);
@@ -109,7 +114,7 @@ export default function InvestorsPage() {
   const handleAcceptConnection = async (id: number) => {
     try {
       const res = await AcceptConnection(id) as any;
-      if (res.success) { toast.success("Đã chấp nhận kết nối"); fetchSent(sentPage); fetchConnected(connectedPage); }
+      if (res.success || res.isSuccess) { toast.success("Đã chấp nhận kết nối"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
@@ -117,7 +122,15 @@ export default function InvestorsPage() {
   const handleRejectConnection = async (id: number) => {
     try {
       const res = await RejectConnection(id, { reason: "Không phù hợp" }) as any;
-      if (res.success) { toast.success("Đã từ chối kết nối"); fetchSent(sentPage); }
+      if (res.success || res.isSuccess) { toast.success("Đã từ chối kết nối"); fetchReceived(receivedPage); }
+      else { toast.error("Có lỗi xảy ra"); }
+    } catch { toast.error("Có lỗi xảy ra"); }
+  };
+
+  const handleWithdrawConnection = async (id: number) => {
+    try {
+      const res = await WithdrawConnection(id) as any;
+      if (res.success || res.isSuccess) { toast.success("Đã thu hồi yêu cầu"); fetchSent(sentPage); fetchConnectionMap(); }
       else { toast.error("Có lỗi xảy ra"); }
     } catch { toast.error("Có lỗi xảy ra"); }
   };
@@ -158,29 +171,49 @@ export default function InvestorsPage() {
   }, []);
 
   // ── Fetch: sent connections (all, for status map) ──
-  // Note: 403 = BE chưa cho phép role Startup → silent fail, connectionMap rỗng
-  const fetchAllSent = useCallback(async () => {
+  const fetchConnectionMap = useCallback(async () => {
     try {
-      const res = await GetReceivedConnections(1, 100) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        const map: Record<number, IConnectionItem> = {};
-        ((res.data as any).data || (res.data as any).items || []).forEach((c: any) => { map[c.investorID] = c; });
-        setConnectionMap(map);
-      }
-    } catch { /* 403 hoặc lỗi khác → bỏ qua, nút hành động sẽ mặc định "Gửi lời mời" */ }
+      const [resSent, resReceived] = await Promise.all([
+        GetSentConnections(1, 100) as any,
+        GetReceivedConnections(1, 100) as any,
+      ]);
+      const map: Record<number, IConnectionItem> = {};
+      [
+        ...((resSent?.data?.data || resSent?.data?.items || []) as any[]),
+        ...((resReceived?.data?.data || resReceived?.data?.items || []) as any[]),
+      ].forEach((c: any) => { if (c?.investorID) map[c.investorID] = c; });
+      setConnectionMap(map);
+    } catch { /* silent */ }
   }, []);
+
+  // alias for BroadcastChannel compatibility
+  const fetchAllSent = fetchConnectionMap;
 
   // ── Fetch: sent tab ──
   const fetchSent = useCallback(async (page: number) => {
     setIsLoadingSent(true);
     try {
-      const res = await GetReceivedConnections(page, 10) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        setSentConnections((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setSentTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
+      const res = await GetSentConnections(page, 10) as any;
+      if (res.success || res.isSuccess) {
+        setSentConnections((res.data as any)?.data || (res.data as any)?.items || []);
+        setSentTotalPages(Math.ceil(((res.data as any)?.total ?? (res.data as any)?.paging?.totalItems ?? 0) / 10) || 1);
       }
-    } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
+    } catch { /* silent */ } finally {
       setIsLoadingSent(false);
+    }
+  }, []);
+
+  // ── Fetch: received tab (investor → startup) ──
+  const fetchReceived = useCallback(async (page: number) => {
+    setIsLoadingReceived(true);
+    try {
+      const res = await GetReceivedConnections(page, 10) as any;
+      if (res.success || res.isSuccess) {
+        setReceivedConnections((res.data as any)?.data || (res.data as any)?.items || []);
+        setReceivedTotalPages(Math.ceil(((res.data as any)?.total ?? (res.data as any)?.paging?.totalItems ?? 0) / 10) || 1);
+      }
+    } catch { /* silent */ } finally {
+      setIsLoadingReceived(false);
     }
   }, []);
 
@@ -188,12 +221,17 @@ export default function InvestorsPage() {
   const fetchConnected = useCallback(async (page: number) => {
     setIsLoadingConnected(true);
     try {
-      const res = await GetReceivedConnections(page, 10, "Accepted") as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        setConnected((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setConnectedTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
-      }
-    } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
+      const [resSent, resReceived] = await Promise.all([
+        GetSentConnections(1, 100, "Accepted") as any,
+        GetReceivedConnections(1, 100, "Accepted") as any,
+      ]);
+      const all: IConnectionItem[] = [
+        ...((resSent?.data?.data || resSent?.data?.items || []) as IConnectionItem[]),
+        ...((resReceived?.data?.data || resReceived?.data?.items || []) as IConnectionItem[]),
+      ];
+      setConnected(all);
+      setConnectedTotalPages(1);
+    } catch { /* silent */ } finally {
       setIsLoadingConnected(false);
     }
   }, []);
@@ -201,8 +239,8 @@ export default function InvestorsPage() {
   // Initial load
   useEffect(() => {
     fetchInvestors(1, "");
-    fetchAllSent();
-  }, [fetchInvestors, fetchAllSent]);
+    fetchConnectionMap();
+  }, [fetchInvestors, fetchConnectionMap]);
 
   // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
   useEffect(() => {
@@ -210,8 +248,9 @@ export default function InvestorsPage() {
     const onMessage = (ev: MessageEvent) => {
       try {
         if (ev?.data?.type === "refresh") {
-          fetchAllSent();
+          fetchConnectionMap();
           if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
+          if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
           if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
         }
       } catch (e) { /* ignore */ }
@@ -219,8 +258,9 @@ export default function InvestorsPage() {
 
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "connections-refresh") {
-        fetchAllSent();
+        fetchConnectionMap();
         if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
+        if (activeTab === "Nhận từ Investor") fetchReceived(receivedPage);
         if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
       }
     };
@@ -242,13 +282,14 @@ export default function InvestorsPage() {
         else window.removeEventListener("storage", onStorage as any);
       } catch (e) {}
     };
-  }, [fetchAllSent, fetchSent, fetchConnected, activeTab, sentPage, connectedPage]);
+  }, [fetchConnectionMap, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
 
   // Reload when tab changes
   useEffect(() => {
     if (activeTab === "Yêu cầu đã gửi") fetchSent(1);
+    if (activeTab === "Nhận từ Investor") fetchReceived(1);
     if (activeTab === "Đã kết nối") fetchConnected(1);
-  }, [activeTab, fetchSent, fetchConnected]);
+  }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
 
   // Search with debounce
   useEffect(() => {
@@ -276,8 +317,7 @@ export default function InvestorsPage() {
   };
 
   const handleConnectionSuccess = (connectionId: number) => {
-    // Refresh connection map after sending
-    fetchAllSent();
+    fetchConnectionMap();
   };
 
   // ── Pagination component ──
@@ -554,21 +594,12 @@ export default function InvestorsPage() {
                         </td>
                         <td className="px-8 py-6 text-right">
                             {item.connectionStatus === "Requested" ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                                    <MoreVertical className="size-5" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleAcceptConnection(item.connectionID)}>
-                                    Chấp nhận
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleRejectConnection(item.connectionID)} className="text-red-600 focus:text-red-600">
-                                    Từ chối
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <button
+                                onClick={() => handleWithdrawConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
+                              >
+                                Thu hồi
+                              </button>
                             ) : item.connectionStatus === "Accepted" ? (
                               <Button
                                 onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
@@ -598,7 +629,83 @@ export default function InvestorsPage() {
             </div>
           </div>
         );
-
+      // ── Nhận từ Investor ──────────────────────────────────────────────────
+      case "Nhận từ Investor":
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {isLoadingReceived ? (
+              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
+            ) : (
+              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Lời nhắn</th>
+                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
+                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {receivedConnections.length === 0 && (
+                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có nhà đầu tư nào gửi lời mời kết nối.</td></tr>
+                    )}
+                    {receivedConnections.map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-4">
+                            <InvestorAvatar name={item.investorName} size="size-10" />
+                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 max-w-[300px]">
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                        </td>
+                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                          {formatDate(item.requestedAt)}
+                        </td>
+                        <td className="px-8 py-6 text-right">
+                          {item.connectionStatus === "Requested" ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAcceptConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px]"
+                              >
+                                Chấp nhận
+                              </button>
+                              <button
+                                onClick={() => handleRejectConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px]"
+                              >
+                                Từ chối
+                              </button>
+                            </div>
+                          ) : item.connectionStatus === "Accepted" ? (
+                            <Button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                            >
+                              <MessageCircle className="size-4" />
+                              <span>Nhắn tin</span>
+                            </Button>
+                          ) : (
+                            <span className="text-[13px] font-bold text-slate-500">Đã xử lý</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="pt-6 flex items-center justify-between">
+              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
+                Trang {receivedPage} / {receivedTotalPages}
+              </p>
+              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p); }} />
+            </div>
+          </div>
+        );
       // ── Đã kết nối ──────────────────────────────────────────────────────
       case "Đã kết nối":
         return (
@@ -702,7 +809,7 @@ export default function InvestorsPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
-          {["Khám phá", "Yêu cầu đã gửi", "Đã kết nối"].map((tab) => (
+          {["Khám phá", "Yêu cầu đã gửi", "Nhận từ Investor", "Đã kết nối"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

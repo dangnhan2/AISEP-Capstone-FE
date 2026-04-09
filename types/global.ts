@@ -499,8 +499,9 @@ declare global {
   interface IConnectionDetail extends IConnectionItem {}
 
   interface ICreateConnection {
-    startupId: number;
-    message: string;
+    startupId?: number;
+    investorId?: number;
+    message?: string;
   }
 
   interface IPaymentInfo {
