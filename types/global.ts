@@ -181,6 +181,9 @@ declare global {
     country: string;
     location: string;
     profileStatus: string;
+    workflowStatus?: string;
+    verificationLabel?: string;
+    kycVerified?: boolean;
     createdAt: string;
     updatedAt: string;
   }
@@ -282,6 +285,10 @@ declare global {
     ticketSizeMin?: number;
     ticketSizeMax?: number;
     matchScore?: number;
+    profileStatus?: string;
+    workflowStatus?: string;
+    verificationLabel?: string;
+    kycVerified?: boolean;
   }
 
   interface INotificationItem {
@@ -429,9 +436,22 @@ declare global {
     investmentThesis?: string;
   }
 
-  interface IUpdateInvestorPreferences {
+  interface IInvestorPreferences {
     preferredIndustries: string[];
     preferredStages: string[];
+    preferredMarketScopes: string[];
+    supportOffered: string[];
+    preferredGeographies?: string;
+    ticketMin?: number | null;
+    ticketMax?: number | null;
+    minPotentialScore?: number | null;
+  }
+
+  interface IUpdateInvestorPreferences {
+    preferredIndustries?: string[];
+    preferredStages?: string[];
+    preferredMarketScopes?: string[];
+    supportOffered?: string[];
   }
 
   interface IUpdateInvestorProfile {
