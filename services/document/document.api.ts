@@ -49,6 +49,22 @@ export const AddMetaData = (documentId : number, data: IAddMetaDataRequest      
     return axios.put<IBackendRes<string>>(`/api/documents/${documentId}/metadata`, data);
 }
 
+// -------------------------- Version History --------------------------
+export const GetVersionHistory = (documentId: number) => {
+    return axios.get<IBackendRes<IDocumentVersionHistory[]>>(`/api/documents/${documentId}/versions`);
+}
+
+export const UploadNewVersion = (documentId: number, file: File, title?: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (title) formData.append("title", title);
+    return axios.post<IBackendRes<IDocument>>(`/api/documents/${documentId}/versions`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data"
+        }
+    });
+}
+
 // -------------------------- Blockchain --------------------------
 export const HashDocument = (documentId: number) => {
     return axios.post<IBackendRes<string>>(`/api/documents/${documentId}/hash`);
