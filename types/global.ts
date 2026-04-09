@@ -240,6 +240,19 @@ declare global {
     anchoredAt: string | null;
   }
 
+  interface IDocumentVersionHistory {
+    documentID: number;
+    version: string;
+    title: string;
+    fileUrl: string;
+    uploadedAt: string;
+    reviewStatus: string;
+    proofStatus: string;
+    fileHash: string;
+    isArchived: boolean;
+    isCurrent: boolean;
+  }
+
   interface IBlockchainChecking {
     documentID: number;
     transactionHash: string;
