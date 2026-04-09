@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
   Lock,
@@ -12,8 +12,10 @@ import {
   CheckCircle2,
   Calendar,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   GetMentorshipById,
   GetAdvisorById,
@@ -34,9 +36,39 @@ export default function CheckoutPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = React.use(params);
+
+  return (
+    <Suspense fallback={
+      <StartupShell>
+        <div className="max-w-[960px] mx-auto pt-20 text-center text-slate-400 text-[13px]">
+          Đang tải...
+        </div>
+      </StartupShell>
+    }>
+      <CheckoutContent id={id} />
+    </Suspense>
+  );
+}
+
+function CheckoutContent({ id }: { id: string }) {
   const router = useRouter();
 
+  const searchParams = useSearchParams();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Detect when user returns from PayOS (cancel or error)
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const code = searchParams.get("code");
+    const cancel = searchParams.get("cancel");
+
+    if (cancel === "true" || status === "CANCELLED") {
+      setPaymentError("Bạn đã hủy giao dịch. Bấm thanh toán để thử lại.");
+    } else if (code && code !== "00") {
+      setPaymentError("Giao dịch thất bại từ cổng thanh toán. Vui lòng thử lại.");
+    }
+  }, [searchParams]);
 
   const [requestData, setRequestData] = useState<IMentorshipRequest | null>(
     null,
@@ -116,12 +148,16 @@ export default function CheckoutPage({
       const checkoutUrl = res?.data?.checkoutUrl;
 
       if (checkoutUrl) {
-        window.location.href = checkoutUrl; // 🔥 redirect
+        window.location.href = checkoutUrl;
       } else {
-        console.error("Không có checkoutUrl", res);
+        toast.error("Không thể tạo liên kết thanh toán. Vui lòng thử lại.");
       }
-    } catch (error) {
-      console.error("Payment failed:", error);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Đã xảy ra lỗi khi tạo thanh toán. Vui lòng thử lại sau.";
+      toast.error(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -185,6 +221,16 @@ export default function CheckoutPage({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left: Payment Form */}
           <div className="lg:col-span-7 space-y-5">
+            {/* Payment error banner */}
+            {paymentError && (
+              <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span className="text-[12px] font-semibold text-red-700">
+                  {paymentError}
+                </span>
+              </div>
+            )}
+
             {/* Secure badge */}
             <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
               <Lock className="w-3.5 h-3.5 text-emerald-600" />
