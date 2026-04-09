@@ -257,7 +257,21 @@ export function MessagingContent() {
         GetConversations()
             .then(res => {
                 if (res.success && res.data) {
-                    setConversations((res.data as any).data || res.data.items || []);
+                    const raw: IConversation[] = (res.data as any).data || res.data.items || [];
+                    // Deduplicate by participantId — keep the one with the most recent activity
+                    const seen = new Map<number, IConversation>();
+                    for (const conv of raw) {
+                        const key = conv.participantId ?? conv.conversationId;
+                        const existing = seen.get(key);
+                        if (!existing) {
+                            seen.set(key, conv);
+                        } else {
+                            const existingTime = new Date(existing.lastMessageAt ?? existing.createdAt ?? 0).getTime();
+                            const newTime = new Date(conv.lastMessageAt ?? conv.createdAt ?? 0).getTime();
+                            if (newTime > existingTime) seen.set(key, conv);
+                        }
+                    }
+                    setConversations(Array.from(seen.values()));
                 } else {
                     setConvError(true);
                 }

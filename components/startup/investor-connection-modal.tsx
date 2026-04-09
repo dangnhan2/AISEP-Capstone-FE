@@ -20,9 +20,9 @@ interface InvestorConnectionModalProps {
 }
 
 const CONNECTION_GOALS = [
-  { value: "seed", label: "Gọi vốn Seed / Series A" },
-  { value: "networking", label: "Tìm kiếm đối tác chiến lược" },
-  { value: "advice", label: "Tham khảo ý kiến chuyên gia" },
+  { value: "seed", label: "GÃ¡Â»Âi vÃ¡Â»â€˜n Seed / Series A" },
+  { value: "networking", label: "TÃƒÂ¬m kiÃ¡ÂºÂ¿m Ã„â€˜Ã¡Â»â€˜i tÃƒÂ¡c chiÃ¡ÂºÂ¿n lÃ†Â°Ã¡Â»Â£c" },
+  { value: "advice", label: "Tham khÃ¡ÂºÂ£o ÃƒÂ½ kiÃ¡ÂºÂ¿n chuyÃƒÂªn gia" },
 ];
 
 export function InvestorConnectionModal({
@@ -54,8 +54,8 @@ export function InvestorConnectionModal({
 
     setSubmitted(true);
     const nextErrors: { goal?: string; message?: string } = {};
-    if (!goal) nextErrors.goal = "Vui lòng chọn mục tiêu kết nối";
-    if (!message.trim()) nextErrors.message = "Vui lòng nhập lời nhắn giới thiệu";
+    if (!goal) nextErrors.goal = "Vui lÃƒÂ²ng chÃ¡Â»Ân mÃ¡Â»Â¥c tiÃƒÂªu kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i";
+    if (!message.trim()) nextErrors.message = "Vui lÃƒÂ²ng nhÃ¡ÂºÂ­p lÃ¡Â»Âi nhÃ¡ÂºÂ¯n giÃ¡Â»â€ºi thiÃ¡Â»â€¡u";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -73,7 +73,7 @@ export function InvestorConnectionModal({
         if (res.data?.connectionID) onSuccess?.(res.data.connectionID);
         setTimeout(() => onClose(), 2200);
       } else {
-        toast.error(res.message || "Gửi lời mời thất bại. Vui lòng thử lại.");
+        toast.error(res.message || "GÃ¡Â»Â­i lÃ¡Â»Âi mÃ¡Â»Âi thÃ¡ÂºÂ¥t bÃ¡ÂºÂ¡i. Vui lÃƒÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.");
       }
     } catch (error: unknown) {
       const messageText =
@@ -82,7 +82,7 @@ export function InvestorConnectionModal({
         "response" in error &&
         typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
           ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-          : "Đã xảy ra lỗi khi gửi lời mời. Vui lòng thử lại.";
+          : "Ã„ÂÃƒÂ£ xÃ¡ÂºÂ£y ra lÃ¡Â»â€”i khi gÃ¡Â»Â­i lÃ¡Â»Âi mÃ¡Â»Âi. Vui lÃƒÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.";
       toast.error(messageText);
     } finally {
       setIsSubmitting(false);
@@ -122,7 +122,7 @@ export function InvestorConnectionModal({
 
               <div className="min-w-0">
                 <p className="mb-0.5 text-[10.5px] font-bold uppercase tracking-[0.1em] text-amber-500">
-                  Gửi lời mời đến
+                  GÃ¡Â»Â­i lÃ¡Â»Âi mÃ¡Â»Âi Ã„â€˜Ã¡ÂºÂ¿n
                 </p>
                 <p className="truncate text-[15px] font-bold leading-tight text-slate-900">
                   {investor.name}
@@ -149,23 +149,23 @@ export function InvestorConnectionModal({
               <div className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-emerald-50 ring-4 ring-emerald-50">
                 <CheckCircle2 className="h-9 w-9 text-emerald-500" />
               </div>
-              <h3 className="text-[18px] font-bold text-slate-900">Lời mời đã được gửi</h3>
+              <h3 className="text-[18px] font-bold text-slate-900">LÃ¡Â»Âi mÃ¡Â»Âi Ã„â€˜ÃƒÂ£ Ã„â€˜Ã†Â°Ã¡Â»Â£c gÃ¡Â»Â­i</h3>
               <p className="mt-2 max-w-[260px] text-[13px] leading-relaxed text-slate-500">
-                <span className="font-semibold text-slate-700">{investor.name}</span> sẽ nhận được
-                yêu cầu kết nối của startup bạn trong hệ thống.
+                <span className="font-semibold text-slate-700">{investor.name}</span> sÃ¡ÂºÂ½ nhÃ¡ÂºÂ­n Ã„â€˜Ã†Â°Ã¡Â»Â£c
+                yÃƒÂªu cÃ¡ÂºÂ§u kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i cÃ¡Â»Â§a startup bÃ¡ÂºÂ¡n trong hÃ¡Â»â€¡ thÃ¡Â»â€˜ng.
               </p>
               <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-100/80 bg-amber-50 px-4 py-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-[12px] font-medium text-amber-700">Chờ phản hồi</span>
+                <span className="text-[12px] font-medium text-amber-700">ChÃ¡Â»Â phÃ¡ÂºÂ£n hÃ¡Â»â€œi</span>
               </div>
             </div>
           ) : (
             <div className="space-y-5">
               <Field
-                label="Mục tiêu kết nối"
+                label="MÃ¡Â»Â¥c tiÃƒÂªu kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i"
                 required
                 error={errors.goal}
-                hint={goal ? "Đã chọn mục tiêu kết nối" : undefined}
+                hint={goal ? "Ã„ÂÃƒÂ£ chÃ¡Â»Ân mÃ¡Â»Â¥c tiÃƒÂªu kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i" : undefined}
               >
                 <select
                   value={goal}
@@ -174,13 +174,13 @@ export function InvestorConnectionModal({
                     if (submitted) {
                       setErrors((current) => ({
                         ...current,
-                        goal: e.target.value ? undefined : "Vui lòng chọn mục tiêu kết nối",
+                        goal: e.target.value ? undefined : "Vui lÃƒÂ²ng chÃ¡Â»Ân mÃ¡Â»Â¥c tiÃƒÂªu kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i",
                       }));
                     }
                   }}
                   className={inputCls(Boolean(errors.goal))}
                 >
-                  <option value="">Chọn mục tiêu kết nối</option>
+                  <option value="">ChÃ¡Â»Ân mÃ¡Â»Â¥c tiÃƒÂªu kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i</option>
                   {CONNECTION_GOALS.map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
@@ -190,8 +190,8 @@ export function InvestorConnectionModal({
               </Field>
 
               <Field
-                label="Lời nhắn giới thiệu"
-                sublabel="lý do bạn muốn kết nối"
+                label="LÃ¡Â»Âi nhÃ¡ÂºÂ¯n giÃ¡Â»â€ºi thiÃ¡Â»â€¡u"
+                sublabel="lÃƒÂ½ do bÃ¡ÂºÂ¡n muÃ¡Â»â€˜n kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i"
                 required
                 error={errors.message}
                 hint={`${message.length}/500`}
@@ -200,14 +200,14 @@ export function InvestorConnectionModal({
                   rows={4}
                   maxLength={500}
                   className={inputCls(Boolean(errors.message))}
-                  placeholder="Hãy viết một thông điệp ngắn gọn, nêu rõ startup của bạn đang giải quyết vấn đề gì và vì sao cuộc trao đổi này đáng để nhà đầu tư dành thời gian."
+                  placeholder="HÃƒÂ£y viÃ¡ÂºÂ¿t mÃ¡Â»â„¢t thÃƒÂ´ng Ã„â€˜iÃ¡Â»â€¡p ngÃ¡ÂºÂ¯n gÃ¡Â»Ân, nÃƒÂªu rÃƒÂµ startup cÃ¡Â»Â§a bÃ¡ÂºÂ¡n Ã„â€˜ang giÃ¡ÂºÂ£i quyÃ¡ÂºÂ¿t vÃ¡ÂºÂ¥n Ã„â€˜Ã¡Â»Â gÃƒÂ¬ vÃƒÂ  vÃƒÂ¬ sao cuÃ¡Â»â„¢c trao Ã„â€˜Ã¡Â»â€¢i nÃƒÂ y Ã„â€˜ÃƒÂ¡ng Ã„â€˜Ã¡Â»Æ’ nhÃƒÂ  Ã„â€˜Ã¡ÂºÂ§u tÃ†Â° dÃƒÂ nh thÃ¡Â»Âi gian."
                   value={message}
                   onChange={(e) => {
                     setMessage(e.target.value);
                     if (submitted) {
                       setErrors((current) => ({
                         ...current,
-                        message: e.target.value.trim() ? undefined : "Vui lòng nhập lời nhắn giới thiệu",
+                        message: e.target.value.trim() ? undefined : "Vui lÃƒÂ²ng nhÃ¡ÂºÂ­p lÃ¡Â»Âi nhÃ¡ÂºÂ¯n giÃ¡Â»â€ºi thiÃ¡Â»â€¡u",
                       }));
                     }
                   }}
@@ -218,7 +218,7 @@ export function InvestorConnectionModal({
                 <div className="flex items-center gap-2">
                   <Info className="h-4 w-4 flex-shrink-0 text-amber-500" />
                   <p className="text-[12px] text-amber-700">
-                    Lời mời này sẽ được gửi kèm hồ sơ startup hiện tại của bạn tới nhà đầu tư.
+                    LÃ¡Â»Âi mÃ¡Â»Âi nÃƒÂ y sÃ¡ÂºÂ½ Ã„â€˜Ã†Â°Ã¡Â»Â£c gÃ¡Â»Â­i kÃƒÂ¨m hÃ¡Â»â€œ sÃ†Â¡ startup hiÃ¡Â»â€¡n tÃ¡ÂºÂ¡i cÃ¡Â»Â§a bÃ¡ÂºÂ¡n tÃ¡Â»â€ºi nhÃƒÂ  Ã„â€˜Ã¡ÂºÂ§u tÃ†Â°.
                   </p>
                 </div>
               </div>
@@ -231,14 +231,14 @@ export function InvestorConnectionModal({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-[11.5px] text-slate-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                Nhà đầu tư sẽ thấy hồ sơ startup mới nhất của bạn
+                NhÃƒÂ  Ã„â€˜Ã¡ÂºÂ§u tÃ†Â° sÃ¡ÂºÂ½ thÃ¡ÂºÂ¥y hÃ¡Â»â€œ sÃ†Â¡ startup mÃ¡Â»â€ºi nhÃ¡ÂºÂ¥t cÃ¡Â»Â§a bÃ¡ÂºÂ¡n
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={onClose}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50"
                 >
-                  Hủy
+                  HÃ¡Â»Â§y
                 </button>
                 <button
                   disabled={!goal || !message.trim() || isSubmitting}
@@ -255,7 +255,7 @@ export function InvestorConnectionModal({
                   ) : (
                     <>
                       <Send className="h-3.5 w-3.5" />
-                      Gửi lời mời
+                      GÃ¡Â»Â­i lÃ¡Â»Âi mÃ¡Â»Âi
                     </>
                   )}
                 </button>
@@ -288,8 +288,8 @@ function Field({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
           <span className="text-[12.5px] font-semibold text-slate-700">{label}</span>
-          {sublabel && <span className="text-[12px] text-slate-400">· {sublabel}</span>}
-          {required && <span className="text-[13px] leading-none text-amber-400">•</span>}
+          {sublabel && <span className="text-[12px] text-slate-400">Ã‚Â· {sublabel}</span>}
+          {required && <span className="text-[13px] leading-none text-amber-400">Ã¢â‚¬Â¢</span>}
         </div>
         {hint && <span className="text-[11px] text-slate-400">{hint}</span>}
       </div>

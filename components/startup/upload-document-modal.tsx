@@ -27,6 +27,10 @@ function translateUploadErrorMessage(message?: string | null) {
         return "Dung lượng tệp vượt quá giới hạn cho phép.";
     }
 
+    if (normalized.includes("duplicate") || normalized.includes("trùng nội dung") || normalized.includes("đã tồn tại")) {
+        return "File này đã tồn tại trong hệ thống. Vui lòng upload file có nội dung khác hoặc sử dụng chức năng upload phiên bản mới.";
+    }
+
     return message;
 }
 
@@ -77,15 +81,17 @@ export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocum
             const documentType =
                 formData.category === "Pitch Deck" ? DocumentType.Pitch_Deck : DocumentType.Bussiness_Plan;
 
-            // BE hiện tại yêu cầu field `version`; modal không có input version nên dùng mặc định.
-            const version = "v1";
-
-            await UploadDocument({
+            const res = await UploadDocument({
                 file: selectedFile,
                 documentType,
                 title: formData.name.trim(),
-                version,
-            });
+                version: "",
+            }) as any;
+
+            if (res?.isSuccess === false || res?.success === false) {
+                setSubmitError(translateUploadErrorMessage(res?.message));
+                return;
+            }
 
             onUploaded?.();
             onClose();
@@ -225,7 +231,12 @@ export function UploadDocumentModal({ isOpen, onClose, onUploaded }: UploadDocum
                 </div>
                 {submitError && (
                     <div className="px-6 pb-5">
-                        <p className="text-[12px] text-red-500">{submitError}</p>
+                        <div className="flex items-start gap-3 p-3.5 bg-red-50 border border-red-200 rounded-xl">
+                            <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <X className="w-3 h-3 text-red-500" />
+                            </div>
+                            <p className="text-[12px] text-red-700 leading-relaxed">{submitError}</p>
+                        </div>
                     </div>
                 )}
             </div>

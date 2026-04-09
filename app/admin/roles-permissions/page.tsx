@@ -289,9 +289,29 @@ export default function RolesPermissionsPage() {
                             </div>
                         )}
                     </div>
+                ) : permissions.length === 0 ? (
+                    /* ═══ MATRIX EMPTY STATE ═══ */
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-12 flex flex-col items-center justify-center text-center">
+                        <div className="size-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+                            <ShieldCheck className="w-6 h-6 text-slate-300" />
+                        </div>
+                        <p className="text-[14px] font-semibold text-slate-700 mb-1">Chưa có permission nào</p>
+                        <p className="text-[12px] text-slate-400 max-w-sm">
+                            Hệ thống chưa có dữ liệu permissions. Hãy kiểm tra lại database hoặc chạy lại seed data để tạo permissions mặc định.
+                        </p>
+                    </div>
                 ) : (
                     /* ═══ MATRIX TAB ═══ */
                     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                        {/* Matrix hint */}
+                        {roles.every(r => !r.permissions || r.permissions.length === 0) && (
+                            <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                                <Square className="w-4 h-4 text-amber-500 shrink-0" />
+                                <p className="text-[12px] text-amber-700">
+                                    Chưa có permission nào được gán cho role. Nhấn vào role ở tab <strong>Role Management</strong> để gán permissions.
+                                </p>
+                            </div>
+                        )}
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
@@ -355,10 +375,17 @@ export default function RolesPermissionsPage() {
                                 {drawerMode === "create" ? "Tạo Role mới" : drawerMode === "edit" ? "Chỉnh sửa Role" : selectedRole?.roleName}
                             </h3>
                             <div className="flex items-center gap-2">
-                                {drawerMode === "view" && selectedRole && !selectedRole.isSystem && (
-                                    <button onClick={() => openEdit(selectedRole)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">
-                                        <Pencil className="w-3.5 h-3.5" /> Sửa
-                                    </button>
+                                {drawerMode === "view" && selectedRole && (
+                                    <>
+                                        <button onClick={() => openEdit(selectedRole)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">
+                                            <Pencil className="w-3.5 h-3.5" /> Sửa
+                                        </button>
+                                        {!selectedRole.isSystem && (
+                                            <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-[12px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-50">
+                                                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Xoá
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                                 <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100">
                                     <X className="w-5 h-5 text-slate-400" />
@@ -420,7 +447,8 @@ export default function RolesPermissionsPage() {
                                         <input
                                             value={draftName}
                                             onChange={e => setDraftName(e.target.value)}
-                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:border-slate-400"
+                                            disabled={selectedRole?.isSystem}
+                                            className={cn("w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:border-slate-400", selectedRole?.isSystem && "bg-slate-50 text-slate-400 cursor-not-allowed")}
                                             placeholder="VD: ContentModerator"
                                         />
                                     </div>
@@ -429,8 +457,9 @@ export default function RolesPermissionsPage() {
                                         <textarea
                                             value={draftDesc}
                                             onChange={e => setDraftDesc(e.target.value)}
+                                            disabled={selectedRole?.isSystem}
                                             rows={2}
-                                            className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:border-slate-400 resize-none"
+                                            className={cn("w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] focus:outline-none focus:border-slate-400 resize-none", selectedRole?.isSystem && "bg-slate-50 text-slate-400 cursor-not-allowed")}
                                         />
                                     </div>
                                     <div>

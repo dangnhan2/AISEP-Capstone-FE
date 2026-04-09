@@ -240,6 +240,20 @@ declare global {
     proofStatus: string;
     fileHash: string;
     transactionHash: string;
+    anchoredAt: string | null;
+  }
+
+  interface IDocumentVersionHistory {
+    documentID: number;
+    version: string;
+    title: string;
+    fileUrl: string;
+    uploadedAt: string;
+    reviewStatus: string;
+    proofStatus: string;
+    fileHash: string;
+    isArchived: boolean;
+    isCurrent: boolean;
   }
 
   interface IBlockchainChecking {
@@ -502,8 +516,9 @@ declare global {
   interface IConnectionDetail extends IConnectionItem {}
 
   interface ICreateConnection {
-    startupId: number;
-    message: string;
+    startupId?: number;
+    investorId?: number;
+    message?: string;
   }
 
   interface IPaymentInfo {

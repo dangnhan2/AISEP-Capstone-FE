@@ -9,10 +9,8 @@ import {
   Search,
   ChevronDown,
   SlidersHorizontal,
-  FileText,
   ChevronLeft,
   ChevronRight,
-  MoreVertical,
   Sparkles,
   MessageCircle,
   Loader2,
@@ -21,29 +19,27 @@ import { cn } from "@/lib/utils";
 import { buildInvestorSearchPresentation, isInvestorKycVerified } from "@/lib/investor-profile-presenter";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AcceptConnection, RejectConnection } from "@/services/connection/connection.api";
+import { AcceptConnection, RejectConnection, GetSentConnections, GetReceivedConnections, WithdrawConnection } from "@/services/connection/connection.api";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
 import { SearchInvestors } from "@/services/startup/startup.api";
-import { GetReceivedConnections } from "@/services/connection/connection.api";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Helpers ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
 const formatTicketSize = (min?: number | null, max?: number | null): string => {
-  if (!min && !max) return "—";
+  if (!min && !max) return "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
   const fmt = (n: number) => n >= 1_000_000 ? `$${n / 1_000_000}M` : `$${n / 1_000}k`;
-  if (min && max) return `${fmt(min)}–${fmt(max)}`;
+  if (min && max) return `${fmt(min)}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“${fmt(max)}`;
   if (min) return `${fmt(min)}+`;
   return `${fmt(max!)}`;
 };
 
 const formatDate = (iso: string): string => {
-  if (!iso) return "—";
+  if (!iso) return "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
   try {
     return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch { return "—"; }
+  } catch { return "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"; }
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -62,6 +58,32 @@ const STATUS_LABEL: Record<string, string> = {
   Closed:    "CLOSED",
 };
 
+type PaginatedListData<T> = IPaginatedRes<T> & {
+  data?: T[];
+  items?: T[];
+  total?: number;
+};
+
+const getListItems = <T,>(data?: PaginatedListData<T> | null): T[] => {
+  if (!data) return [];
+  return data.items ?? data.data ?? [];
+};
+
+const getTotalPages = <T,>(data?: PaginatedListData<T> | null, pageSize: number = 10): number => {
+  if (!data) return 1;
+  return data.paging?.totalPages ?? Math.ceil((data.total ?? data.paging?.totalItems ?? 0) / pageSize) || 1;
+};
+
+const isSuccessResponse = <T,>(response: IBackendRes<T> | null | undefined): response is IBackendRes<T> => {
+  return Boolean(response?.success || response?.isSuccess);
+};
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
+  const response = (error as { response?: { status?: number } }).response;
+  return typeof response?.status === "number" ? response.status : undefined;
+};
+
 function InvestorAvatar({ name, url, size = "size-10" }: { name: string; url?: string; size?: string }) {
   if (url) {
     return (
@@ -78,16 +100,13 @@ function InvestorAvatar({ name, url, size = "size-10" }: { name: string; url?: s
   );
 }
 
-const isVerifiedInvestorType = (investorType?: string | null) =>
-  investorType === "INDIVIDUAL_ANGEL" || investorType === "INSTITUTIONAL";
-
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Page ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
 export default function InvestorsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Khám phá");
+  const [activeTab, setActiveTab] = useState("KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡");
 
-  // ── Tab: Khám phá ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tab: KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡ ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const [investors, setInvestors] = useState<IInvestorSearchItem[]>([]);
   const [isLoadingInvestors, setIsLoadingInvestors] = useState(false);
   const [investorsError, setInvestorsError] = useState<string | null>(null);
@@ -96,14 +115,20 @@ export default function InvestorsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  // ── Tab: Yêu cầu đã gửi ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tab: YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const [sentConnections, setSentConnections] = useState<IConnectionItem[]>([]);
   const [isLoadingSent, setIsLoadingSent] = useState(false);
   const [sentPage, setSentPage] = useState(1);
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
 
-  // ── Tab: Đã kết nối ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tab: NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
+  const [isLoadingReceived, setIsLoadingReceived] = useState(false);
+  const [receivedPage, setReceivedPage] = useState(1);
+  const [receivedTotalPages, setReceivedTotalPages] = useState(1);
+
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tab: Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const [connected, setConnected] = useState<IConnectionItem[]>([]);
   const [isLoadingConnected, setIsLoadingConnected] = useState(false);
   const [connectedPage, setConnectedPage] = useState(1);
@@ -111,44 +136,52 @@ export default function InvestorsPage() {
   const [connectedKeyword, setConnectedKeyword] = useState("");
   const handleAcceptConnection = async (id: number) => {
     try {
-      const res = await AcceptConnection(id) as any;
-      if (res.success) { toast.success("Đã chấp nhận kết nối"); fetchSent(sentPage); fetchConnected(connectedPage); }
-      else { toast.error("Có lỗi xảy ra"); }
-    } catch { toast.error("Có lỗi xảy ra"); }
+      const res = await AcceptConnection(id);
+      if (isSuccessResponse(res)) { toast.success("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ chÃƒÂ¡Ã‚ÂºÃ‚Â¥p nhÃƒÂ¡Ã‚ÂºÃ‚Â­n kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi"); fetchReceived(receivedPage); fetchConnected(connectedPage); fetchConnectionMap(); }
+      else { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
+    } catch { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
   };
 
   const handleRejectConnection = async (id: number) => {
     try {
-      const res = await RejectConnection(id, { reason: "Không phù hợp" }) as any;
-      if (res.success) { toast.success("Đã từ chối kết nối"); fetchSent(sentPage); }
-      else { toast.error("Có lỗi xảy ra"); }
-    } catch { toast.error("Có lỗi xảy ra"); }
+      const res = await RejectConnection(id, { reason: "KhÃƒÆ’Ã‚Â´ng phÃƒÆ’Ã‚Â¹ hÃƒÂ¡Ã‚Â»Ã‚Â£p" });
+      if (isSuccessResponse(res)) { toast.success("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ tÃƒÂ¡Ã‚Â»Ã‚Â« chÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi"); fetchReceived(receivedPage); }
+      else { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
+    } catch { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
+  };
+
+  const handleWithdrawConnection = async (id: number) => {
+    try {
+      const res = await WithdrawConnection(id);
+      if (isSuccessResponse(res)) { toast.success("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i yÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u"); fetchSent(sentPage); fetchConnectionMap(); }
+      else { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
+    } catch { toast.error("CÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i xÃƒÂ¡Ã‚ÂºÃ‚Â£y ra"); }
   };
 
 
-  // ── Modal ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Modal ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<{ name: string; logo: string; type: string; investorId: number } | null>(null);
 
-  // ── Connection status map (investorID → IConnectionItem) ──
-  // Used on the Khám phá tab to show button states
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Connection status map (investorID ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ IConnectionItem) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  // Used on the KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡ tab to show button states
   const [connectionMap, setConnectionMap] = useState<Record<number, IConnectionItem>>({});
 
-  // ── Fetch: investors ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Fetch: investors ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const fetchInvestors = useCallback(async (page: number, kw: string) => {
     setIsLoadingInvestors(true);
     setInvestorsError(null);
     try {
-      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as any as IBackendRes<IPaginatedRes<IInvestorSearchItem>>;
+      const res = await SearchInvestors({ page, pageSize: 12, keyword: kw || undefined }) as IBackendRes<PaginatedListData<IInvestorSearchItem>>;
       if (res.success && res.data) {
-        setInvestors((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 12)) || 1);
-        setTotalItems((res.data as any).paging?.totalItems ?? (res.data as any).total ?? 0);
+        setInvestors(getListItems(res.data));
+        setTotalPages(getTotalPages(res.data, 12));
+        setTotalItems(res.data.paging?.totalItems ?? res.data.total ?? 0);
       } else {
         setInvestors([]);
       }
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const status = getErrorStatus(err);
       if (status === 404) {
         setInvestorsError("404");
       } else {
@@ -160,43 +193,67 @@ export default function InvestorsPage() {
     }
   }, []);
 
-  // ── Fetch: sent connections (all, for status map) ──
-  // Note: 403 = BE chưa cho phép role Startup → silent fail, connectionMap rỗng
-  const fetchAllSent = useCallback(async () => {
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Fetch: sent connections (all, for status map) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  const fetchConnectionMap = useCallback(async () => {
     try {
-      const res = await GetReceivedConnections(1, 100) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        const map: Record<number, IConnectionItem> = {};
-        ((res.data as any).data || (res.data as any).items || []).forEach((c: any) => { map[c.investorID] = c; });
-        setConnectionMap(map);
-      }
-    } catch { /* 403 hoặc lỗi khác → bỏ qua, nút hành động sẽ mặc định "Gửi lời mời" */ }
+      const [resSent, resReceived] = await Promise.all([
+        GetSentConnections(1, 100),
+        GetReceivedConnections(1, 100),
+      ]);
+      const map: Record<number, IConnectionItem> = {};
+      [
+        ...getListItems(resSent.data),
+        ...getListItems(resReceived.data),
+      ].forEach((connection) => { if (connection?.investorID) map[connection.investorID] = connection; });
+      setConnectionMap(map);
+    } catch { /* silent */ }
   }, []);
 
-  // ── Fetch: sent tab ──
+  // alias for BroadcastChannel compatibility
+  
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Fetch: sent tab ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const fetchSent = useCallback(async (page: number) => {
     setIsLoadingSent(true);
     try {
-      const res = await GetReceivedConnections(page, 10) as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        setSentConnections((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setSentTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
+      const res = await GetSentConnections(page, 10);
+      if (isSuccessResponse(res)) {
+        setSentConnections(getListItems(res.data));
+        setSentTotalPages(getTotalPages(res.data, 10));
       }
-    } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
+    } catch { /* silent */ } finally {
       setIsLoadingSent(false);
     }
   }, []);
 
-  // ── Fetch: connected tab ──
-  const fetchConnected = useCallback(async (page: number) => {
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Fetch: received tab (investor ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ startup) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  const fetchReceived = useCallback(async (page: number) => {
+    setIsLoadingReceived(true);
+    try {
+      const res = await GetReceivedConnections(page, 10);
+      if (isSuccessResponse(res)) {
+        setReceivedConnections(getListItems(res.data));
+        setReceivedTotalPages(getTotalPages(res.data, 10));
+      }
+    } catch { /* silent */ } finally {
+      setIsLoadingReceived(false);
+    }
+  }, []);
+
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Fetch: connected tab ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  const fetchConnected = useCallback(async () => {
     setIsLoadingConnected(true);
     try {
-      const res = await GetReceivedConnections(page, 10, "Accepted") as any as IBackendRes<IPaginatedRes<IConnectionItem>>;
-      if (res.success && res.data) {
-        setConnected((res.data as any).data || (res.data as any).items || (Array.isArray(res.data) ? res.data : []));
-        setConnectedTotalPages(((res.data as any).paging?.totalPages ?? Math.ceil(((res.data as any).total ?? 0) / 10)) || 1);
-      }
-    } catch { /* 403: BE chưa mở endpoint cho Startup */ } finally {
+      const [resSent, resReceived] = await Promise.all([
+        GetSentConnections(1, 100, "Accepted"),
+        GetReceivedConnections(1, 100, "Accepted"),
+      ]);
+      const all: IConnectionItem[] = [
+        ...getListItems(resSent.data),
+        ...getListItems(resReceived.data),
+      ];
+      setConnected(all);
+      setConnectedTotalPages(1);
+    } catch { /* silent */ } finally {
       setIsLoadingConnected(false);
     }
   }, []);
@@ -204,8 +261,8 @@ export default function InvestorsPage() {
   // Initial load
   useEffect(() => {
     fetchInvestors(1, "");
-    fetchAllSent();
-  }, [fetchInvestors, fetchAllSent]);
+    fetchConnectionMap();
+  }, [fetchInvestors, fetchConnectionMap]);
 
   // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
   useEffect(() => {
@@ -213,45 +270,48 @@ export default function InvestorsPage() {
     const onMessage = (ev: MessageEvent) => {
       try {
         if (ev?.data?.type === "refresh") {
-          fetchAllSent();
-          if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
-          if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
+          fetchConnectionMap();
+          if (activeTab === "YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i") fetchSent(sentPage);
+          if (activeTab === "NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor") fetchReceived(receivedPage);
+          if (activeTab === "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi") fetchConnected(connectedPage);
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
     };
 
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "connections-refresh") {
-        fetchAllSent();
-        if (activeTab === "Yêu cầu đã gửi") fetchSent(sentPage);
-        if (activeTab === "Đã kết nối") fetchConnected(connectedPage);
+        fetchConnectionMap();
+        if (activeTab === "YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i") fetchSent(sentPage);
+        if (activeTab === "NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor") fetchReceived(receivedPage);
+        if (activeTab === "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi") fetchConnected(connectedPage);
       }
     };
 
     if (typeof window !== "undefined") {
       try {
-        if ((window as any).BroadcastChannel) {
+        if ("BroadcastChannel" in window) {
           bc = new BroadcastChannel("connections-updates");
           bc.addEventListener("message", onMessage);
         } else {
           window.addEventListener("storage", onStorage);
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
     }
 
     return () => {
       try {
         if (bc) bc.close();
-        else window.removeEventListener("storage", onStorage as any);
-      } catch (e) {}
+        else window.removeEventListener("storage", onStorage);
+      } catch {}
     };
-  }, [fetchAllSent, fetchSent, fetchConnected, activeTab, sentPage, connectedPage]);
+  }, [fetchConnectionMap, fetchSent, fetchReceived, fetchConnected, activeTab, sentPage, receivedPage, connectedPage]);
 
   // Reload when tab changes
   useEffect(() => {
-    if (activeTab === "Yêu cầu đã gửi") fetchSent(1);
-    if (activeTab === "Đã kết nối") fetchConnected(1);
-  }, [activeTab, fetchSent, fetchConnected]);
+    if (activeTab === "YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i") fetchSent(1);
+    if (activeTab === "NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor") fetchReceived(1);
+    if (activeTab === "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi") fetchConnected(1);
+  }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
 
   // Search with debounce
   useEffect(() => {
@@ -273,29 +333,28 @@ export default function InvestorsPage() {
       investorId: investor.investorID,
       name: presentation.primaryName,
       logo: investor.profilePhotoURL ?? "",
-      type: presentation.categoryLabel || investor.investorType || "Nhà đầu tư",
+      type: presentation.categoryLabel || investor.investorType || "NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°",
     });
     setIsRequestModalOpen(true);
   };
 
-  const handleConnectionSuccess = (connectionId: number) => {
-    // Refresh connection map after sending
-    fetchAllSent();
+  const handleConnectionSuccess = () => {
+    fetchConnectionMap();
   };
 
-  // ── Pagination component ──
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Pagination component ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   const Pagination = ({
     page, total, onChange,
   }: { page: number; total: number; onChange: (p: number) => void }) => {
     if (total <= 1) return null;
-    const pages: (number | "…")[] = [];
+    const pages: (number | "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")[] = [];
     if (total <= 5) {
       for (let i = 1; i <= total; i++) pages.push(i);
     } else {
       pages.push(1);
-      if (page > 3) pages.push("…");
+      if (page > 3) pages.push("ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
       for (let i = Math.max(2, page - 1); i <= Math.min(total - 1, page + 1); i++) pages.push(i);
-      if (page < total - 2) pages.push("…");
+      if (page < total - 2) pages.push("ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
       pages.push(total);
     }
     return (
@@ -307,7 +366,7 @@ export default function InvestorsPage() {
           <button
             key={i}
             onClick={() => typeof p === "number" && onChange(p)}
-            disabled={p === "…"}
+            disabled={p === "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦"}
             className={cn(
               "size-8 rounded-lg text-[12px] font-bold",
               p === page ? "bg-[#eec54e] text-white shadow-lg shadow-yellow-500/20" : "border border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -321,13 +380,13 @@ export default function InvestorsPage() {
     );
   };
 
-  // ── Tab content ──────────────────────────────────────────────────────────
+  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Tab content ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 
   const renderTabContent = () => {
     switch (activeTab) {
 
-      // ── Khám phá ────────────────────────────────────────────────────────
-      case "Khám phá":
+      // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡ ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+      case "KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡":
         return (
           <div className="space-y-6 animate-in fade-in duration-500">
             {/* Search & Filters */}
@@ -338,12 +397,12 @@ export default function InvestorsPage() {
                 <Input
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
-                  placeholder="Tìm theo tên quỹ hoặc nhà đầu tư..."
+                  placeholder="TÃƒÆ’Ã‚Â¬m theo tÃƒÆ’Ã‚Âªn quÃƒÂ¡Ã‚Â»Ã‚Â¹ hoÃƒÂ¡Ã‚ÂºÃ‚Â·c nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°..."
                   className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0"
                 />
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {["Giai đoạn", "Ngành nghề ưu tiên", "Quy mô đầu tư"].map((label) => (
+                {["Giai Ãƒâ€žÃ¢â‚¬ËœoÃƒÂ¡Ã‚ÂºÃ‚Â¡n", "NgÃƒÆ’Ã‚Â nh nghÃƒÂ¡Ã‚Â»Ã‚Â Ãƒâ€ Ã‚Â°u tiÃƒÆ’Ã‚Âªn", "Quy mÃƒÆ’Ã‚Â´ Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°"].map((label) => (
                   <div key={label} className="flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 transition-colors hover:bg-slate-50">
                     <span className="whitespace-nowrap text-[13px] font-medium text-slate-700">{label}</span>
                     <ChevronDown className="size-4 text-slate-400" />
@@ -351,7 +410,7 @@ export default function InvestorsPage() {
                 ))}
                 <Button variant="outline" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100">
                   <SlidersHorizontal className="size-4" />
-                  <span>Lọc nâng cao</span>
+                  <span>LÃƒÂ¡Ã‚Â»Ã‚Âc nÃƒÆ’Ã‚Â¢ng cao</span>
                 </Button>
               </div>
               </div>
@@ -367,22 +426,22 @@ export default function InvestorsPage() {
             {/* Error states */}
             {!isLoadingInvestors && investorsError === "404" && (
               <div className="text-center py-20 space-y-3">
-                <p className="text-slate-500 font-bold text-[16px]">Tính năng đang được phát triển</p>
+                <p className="text-slate-500 font-bold text-[16px]">TÃƒÆ’Ã‚Â­nh nÃƒâ€žÃ†â€™ng Ãƒâ€žÃ¢â‚¬Ëœang Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c phÃƒÆ’Ã‚Â¡t triÃƒÂ¡Ã‚Â»Ã†â€™n</p>
                 <p className="text-slate-400 text-[13px] font-medium">
-                  API <code className="bg-slate-100 px-2 py-0.5 rounded text-[12px]">GET /api/startups/investors</code> chưa được triển khai trên server.
+                  API <code className="bg-slate-100 px-2 py-0.5 rounded text-[12px]">GET /api/startups/investors</code> chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c triÃƒÂ¡Ã‚Â»Ã†â€™n khai trÃƒÆ’Ã‚Âªn server.
                 </p>
               </div>
             )}
             {!isLoadingInvestors && investorsError === "error" && (
               <div className="text-center py-20 text-red-400 font-medium">
-                Không thể tải danh sách nhà đầu tư. Vui lòng thử lại.
+                KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ tÃƒÂ¡Ã‚ÂºÃ‚Â£i danh sÃƒÆ’Ã‚Â¡ch nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°. Vui lÃƒÆ’Ã‚Â²ng thÃƒÂ¡Ã‚Â»Ã‚Â­ lÃƒÂ¡Ã‚ÂºÃ‚Â¡i.
               </div>
             )}
 
             {/* Investor Grid */}
             {!isLoadingInvestors && !investorsError && investors.length === 0 && (
               <div className="text-center py-20 text-slate-400 font-medium">
-                Không tìm thấy nhà đầu tư phù hợp.
+                KhÃƒÆ’Ã‚Â´ng tÃƒÆ’Ã‚Â¬m thÃƒÂ¡Ã‚ÂºÃ‚Â¥y nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â° phÃƒÆ’Ã‚Â¹ hÃƒÂ¡Ã‚Â»Ã‚Â£p.
               </div>
             )}
 
@@ -415,7 +474,7 @@ export default function InvestorsPage() {
                                         : "border-emerald-200/80 bg-emerald-50 text-emerald-700"
                                     )}
                                   >
-                                    {presentation.isInstitutional ? "Quỹ / Tổ chức" : "Cá nhân"}
+                                    {presentation.isInstitutional ? "QuÃƒÂ¡Ã‚Â»Ã‚Â¹ / TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ chÃƒÂ¡Ã‚Â»Ã‚Â©c" : "CÃƒÆ’Ã‚Â¡ nhÃƒÆ’Ã‚Â¢n"}
                                   </span>
                                 </div>
                               )}
@@ -424,7 +483,7 @@ export default function InvestorsPage() {
                                 {isKycVerified && <VerifiedRoleMark className="h-4 w-4 shrink-0" />}
                               </div>
                             <p className="mt-1.5 min-h-[36px] line-clamp-2 text-[12px] font-medium text-slate-400">
-                              {presentation.heroIdentityLine || presentation.categoryLabel || investor.title || investor.firmName || "Nhà đầu tư"}
+                              {presentation.heroIdentityLine || presentation.categoryLabel || investor.title || investor.firmName || "NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°"}
                             </p>
                           </div>
 
@@ -434,7 +493,7 @@ export default function InvestorsPage() {
                                 "text-[15px] leading-none",
                                 investor.portfolioCount != null ? "font-semibold text-slate-900" : "font-medium text-slate-300"
                               )}>
-                                {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "—"}
+                                {investor.portfolioCount != null ? `${investor.portfolioCount}+` : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                               </p>
                               <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Portfolio</p>
                             </div>
@@ -452,7 +511,7 @@ export default function InvestorsPage() {
                                 "text-[15px] leading-none",
                                 investor.matchScore != null ? "font-semibold text-emerald-600" : "font-medium text-slate-300"
                               )}>
-                                {investor.matchScore != null ? `${investor.matchScore}%` : "—"}
+                                {investor.matchScore != null ? `${investor.matchScore}%` : "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                               </p>
                               <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Match</p>
                           </div>
@@ -471,7 +530,7 @@ export default function InvestorsPage() {
                           <div className="mt-auto flex gap-3 pt-2">
                           <Link href={`/startup/investors/${investor.investorID}`} className="flex-1">
                             <Button variant="outline" className="h-[44px] w-full rounded-xl border border-slate-200 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50">
-                              Xem hồ sơ
+                              Xem hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ sÃƒâ€ Ã‚Â¡
                             </Button>
                           </Link>
                           {!conn ? (
@@ -480,7 +539,7 @@ export default function InvestorsPage() {
                               disabled={!isAcceptingConnections}
                               className="h-[44px] flex-1 whitespace-nowrap rounded-xl bg-[#f7e7a8] text-[13px] font-semibold text-[#d8a905] shadow-sm transition-colors hover:bg-[#f3de8b] disabled:border-transparent disabled:bg-[#fbf1ce] disabled:text-[#e2b730] disabled:opacity-100"
                             >
-                              {isAcceptingConnections ? "Gửi lời mời" : "Đã đóng"}
+                              {isAcceptingConnections ? "GÃƒÂ¡Ã‚Â»Ã‚Â­i lÃƒÂ¡Ã‚Â»Ã‚Âi mÃƒÂ¡Ã‚Â»Ã‚Âi" : "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â³ng"}
                             </Button>
                           ) : conn.connectionStatus === "Accepted" ? (
                             <Button
@@ -488,7 +547,7 @@ export default function InvestorsPage() {
                               className="h-[44px] flex-1 gap-1.5 rounded-xl bg-emerald-600 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                             >
                               <MessageCircle className="size-4" />
-                              Nhắn tin
+                              NhÃƒÂ¡Ã‚ÂºÃ‚Â¯n tin
                             </Button>
                           ) : (
                             <Button variant="outline" disabled className="h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 text-[13px] font-medium text-slate-500 opacity-100 transition-colors">
@@ -507,7 +566,7 @@ export default function InvestorsPage() {
             {!isLoadingInvestors && !investorsError && totalPages > 0 && (
               <div className="flex flex-col items-center gap-5 pt-6">
                 <p className="text-[12px] font-medium text-slate-400">
-                  Hiển thị {(currentPage - 1) * 12 + 1}–{Math.min(currentPage * 12, totalItems)} trong tổng số {totalItems} nhà đầu tư
+                  HiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ {(currentPage - 1) * 12 + 1}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“{Math.min(currentPage * 12, totalItems)} trong tÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng sÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœ {totalItems} nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°
                 </p>
                 <Pagination page={currentPage} total={totalPages} onChange={handlePageChange} />
               </div>
@@ -515,19 +574,19 @@ export default function InvestorsPage() {
           </div>
         );
 
-      // ── Yêu cầu đã gửi ──────────────────────────────────────────────────
-      case "Yêu cầu đã gửi":
+      // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+      case "YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ gÃƒÂ¡Ã‚Â»Ã‚Â­i":
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative w-full lg:w-[400px]">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={sentKeyword} onChange={e => setSentKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+                <Input value={sentKeyword} onChange={e => setSentKeyword(e.target.value)} placeholder="TÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Trạng thái:</span>
+                <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">TrÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i:</span>
                 <div className="h-11 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-10 cursor-pointer min-w-[140px] justify-between">
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">Tất cả</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">TÃƒÂ¡Ã‚ÂºÃ‚Â¥t cÃƒÂ¡Ã‚ÂºÃ‚Â£</span>
                   <ChevronDown className="size-4 text-slate-400" />
                 </div>
               </div>
@@ -540,16 +599,16 @@ export default function InvestorsPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Trạng thái</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">ThÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡p</th>
+                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NgÃƒÆ’Ã‚Â y gÃƒÂ¡Ã‚Â»Ã‚Â­i</th>
+                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">TrÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i</th>
+                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tÃƒÆ’Ã‚Â¡c</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {sentConnections.length === 0 && (
-                      <tr><td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có lời mời nào được gửi.</td></tr>
+                      <tr><td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã‚Âi mÃƒÂ¡Ã‚Â»Ã‚Âi nÃƒÆ’Ã‚Â o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c gÃƒÂ¡Ã‚Â»Ã‚Â­i.</td></tr>
                     )}
                     {sentConnections.map((item) => (
                       <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
@@ -560,44 +619,35 @@ export default function InvestorsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
                           {formatDate(item.requestedAt)}
                         </td>
                         <td className="px-8 py-6 text-center">
                           <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[item.connectionStatus] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
-                            • {STATUS_LABEL[item.connectionStatus] ?? item.connectionStatus}
+                            ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {STATUS_LABEL[item.connectionStatus] ?? item.connectionStatus}
                           </span>
                         </td>
                         <td className="px-8 py-6 text-right">
                             {item.connectionStatus === "Requested" ? (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
-                                    <MoreVertical className="size-5" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => handleAcceptConnection(item.connectionID)}>
-                                    Chấp nhận
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleRejectConnection(item.connectionID)} className="text-red-600 focus:text-red-600">
-                                    Từ chối
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <button
+                                onClick={() => handleWithdrawConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
+                              >
+                                Thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i
+                              </button>
                             ) : item.connectionStatus === "Accepted" ? (
                               <Button
                                 onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
                                 className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
                               >
                                 <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                                <span>Nhắn tin</span>
+                                <span>NhÃƒÂ¡Ã‚ÂºÃ‚Â¯n tin</span>
                               </Button>
                             ) : (
                               <span className="text-[13px] font-bold text-slate-500">
-                                Đã xử lý
+                                Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ xÃƒÂ¡Ã‚Â»Ã‚Â­ lÃƒÆ’Ã‚Â½
                               </span>
                             )}
                           </td>
@@ -616,15 +666,91 @@ export default function InvestorsPage() {
             </div>
           </div>
         );
-
-      // ── Đã kết nối ──────────────────────────────────────────────────────
-      case "Đã kết nối":
+      // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+      case "NhÃƒÂ¡Ã‚ÂºÃ‚Â­n tÃƒÂ¡Ã‚Â»Ã‚Â« Investor":
+        return (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {isLoadingReceived ? (
+              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
+            ) : (
+              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">LÃƒÂ¡Ã‚Â»Ã‚Âi nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n</th>
+                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NgÃƒÆ’Ã‚Â y gÃƒÂ¡Ã‚Â»Ã‚Â­i</th>
+                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tÃƒÆ’Ã‚Â¡c</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {receivedConnections.length === 0 && (
+                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â° nÃƒÆ’Ã‚Â o gÃƒÂ¡Ã‚Â»Ã‚Â­i lÃƒÂ¡Ã‚Â»Ã‚Âi mÃƒÂ¡Ã‚Â»Ã‚Âi kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi.</td></tr>
+                    )}
+                    {receivedConnections.map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-4">
+                            <InvestorAvatar name={item.investorName} size="size-10" />
+                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 max-w-[300px]">
+                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}</p>
+                        </td>
+                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                          {formatDate(item.requestedAt)}
+                        </td>
+                        <td className="px-8 py-6 text-right">
+                          {item.connectionStatus === "Requested" ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAcceptConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px]"
+                              >
+                                ChÃƒÂ¡Ã‚ÂºÃ‚Â¥p nhÃƒÂ¡Ã‚ÂºÃ‚Â­n
+                              </button>
+                              <button
+                                onClick={() => handleRejectConnection(item.connectionID)}
+                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px]"
+                              >
+                                TÃƒÂ¡Ã‚Â»Ã‚Â« chÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi
+                              </button>
+                            </div>
+                          ) : item.connectionStatus === "Accepted" ? (
+                            <Button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                            >
+                              <MessageCircle className="size-4" />
+                              <span>NhÃƒÂ¡Ã‚ÂºÃ‚Â¯n tin</span>
+                            </Button>
+                          ) : (
+                            <span className="text-[13px] font-bold text-slate-500">Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ xÃƒÂ¡Ã‚Â»Ã‚Â­ lÃƒÆ’Ã‚Â½</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="pt-6 flex items-center justify-between">
+              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
+                Trang {receivedPage} / {receivedTotalPages}
+              </p>
+              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p); }} />
+            </div>
+          </div>
+        );
+      // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+      case "Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi":
         return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
               <div className="relative w-full lg:w-[400px]">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={connectedKeyword} onChange={e => setConnectedKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+                <Input value={connectedKeyword} onChange={e => setConnectedKeyword(e.target.value)} placeholder="TÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m nhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
               </div>
             </div>
 
@@ -635,15 +761,15 @@ export default function InvestorsPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày kết nối</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°</th>
+                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">ThÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡p</th>
+                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">NgÃƒÆ’Ã‚Â y kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi</th>
+                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tÃƒÆ’Ã‚Â¡c</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {connected.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có kết nối nào được chấp nhận.</td></tr>
+                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi nÃƒÆ’Ã‚Â o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c chÃƒÂ¡Ã‚ÂºÃ‚Â¥p nhÃƒÂ¡Ã‚ÂºÃ‚Â­n.</td></tr>
                     )}
                     {connected.map((item) => (
                       <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
@@ -655,7 +781,7 @@ export default function InvestorsPage() {
                         </td>
                         <td className="px-8 py-6 max-w-[350px]">
                           <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium italic border-l-2 border-slate-100 dark:border-slate-800 pl-4 truncate">
-                            {item.personalizedMessage || "—"}
+                            {item.personalizedMessage || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â"}
                           </p>
                         </td>
                         <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
@@ -668,11 +794,11 @@ export default function InvestorsPage() {
                               className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
                             >
                               <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                              <span>Nhắn tin</span>
+                              <span>NhÃƒÂ¡Ã‚ÂºÃ‚Â¯n tin</span>
                             </Button>
                             <Link href={`/startup/investors/${item.investorID}`}>
                               <button className="px-3 py-2 text-[12px] font-black text-slate-400 hover:text-slate-900 border border-slate-100 rounded-xl transition-all">
-                                Xem hồ sơ
+                                Xem hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ sÃƒâ€ Ã‚Â¡
                               </button>
                             </Link>
                           </div>
@@ -705,22 +831,22 @@ export default function InvestorsPage() {
         {/* Header */}
         <div className="flex items-end justify-between">
           <div className="space-y-2">
-            <h1 className="text-[28px] font-black tracking-tight text-slate-900">Kết nối Nhà đầu tư & Quỹ đầu tư</h1>
+            <h1 className="text-[28px] font-black tracking-tight text-slate-900">KÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi NhÃƒÆ’Ã‚Â  Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â° & QuÃƒÂ¡Ã‚Â»Ã‚Â¹ Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u tÃƒâ€ Ã‚Â°</h1>
             <p className="max-w-[620px] text-[14px] font-medium leading-relaxed text-slate-500">
-              Khám phá và kết nối với các đối tác tài chính chiến lược tiềm năng để đưa startup của bạn lên tầm cao mới.
+              KhÃƒÆ’Ã‚Â¡m phÃƒÆ’Ã‚Â¡ vÃƒÆ’Ã‚Â  kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi vÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi cÃƒÆ’Ã‚Â¡c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi tÃƒÆ’Ã‚Â¡c tÃƒÆ’Ã‚Â i chÃƒÆ’Ã‚Â­nh chiÃƒÂ¡Ã‚ÂºÃ‚Â¿n lÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tiÃƒÂ¡Ã‚Â»Ã‚Âm nÃƒâ€žÃ†â€™ng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°a startup cÃƒÂ¡Ã‚Â»Ã‚Â§a bÃƒÂ¡Ã‚ÂºÃ‚Â¡n lÃƒÆ’Ã‚Âªn tÃƒÂ¡Ã‚ÂºÃ‚Â§m cao mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-xl border border-[#eec54e]/30 bg-[#fdf8e6] px-4 py-2.5">
               <Sparkles className="size-3 text-[#d4ae3d]" />
-              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#a58419]">Gợi ý AI</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#a58419]">GÃƒÂ¡Ã‚Â»Ã‚Â£i ÃƒÆ’Ã‚Â½ AI</span>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
         <div className="flex gap-8 overflow-x-auto border-b border-slate-200">
-          {["Khám phá", "Yêu cầu đã gửi", "Đã kết nối"].map((tab) => (
+          {["Khám phá", "Yêu cầu đã gửi", "Nhận từ Investor", "Đã kết nối"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -744,11 +870,11 @@ export default function InvestorsPage() {
 
         {/* Footer */}
         <div className="hidden border-t border-slate-100 pt-8 text-center">
-          <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">© 2026 AISEP STARTUP WORKSPACE • HỆ THỐNG KẾT NỐI NHÀ ĐẦU TƯ & QUỸ ĐẦU TƯ</p>
+          <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">Ãƒâ€šÃ‚Â© 2026 AISEP STARTUP WORKSPACE ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ HÃƒÂ¡Ã‚Â»Ã¢â‚¬Â  THÃƒÂ¡Ã‚Â»Ã‚ÂNG KÃƒÂ¡Ã‚ÂºÃ‚Â¾T NÃƒÂ¡Ã‚Â»Ã‚ÂI NHÃƒÆ’Ã¢â€šÂ¬ Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚ÂºÃ‚Â¦U TÃƒâ€ Ã‚Â¯ & QUÃƒÂ¡Ã‚Â»Ã‚Â¸ Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚ÂºÃ‚Â¦U TÃƒâ€ Ã‚Â¯</p>
           <div className="flex justify-center gap-6 mt-4">
-            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Điều khoản</Link>
-            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Bảo mật</Link>
-            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Liên hệ</Link>
+            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">Ãƒâ€žÃ‚ÂiÃƒÂ¡Ã‚Â»Ã‚Âu khoÃƒÂ¡Ã‚ÂºÃ‚Â£n</Link>
+            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">BÃƒÂ¡Ã‚ÂºÃ‚Â£o mÃƒÂ¡Ã‚ÂºÃ‚Â­t</Link>
+            <Link href="#" className="text-[11px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest">LiÃƒÆ’Ã‚Âªn hÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡</Link>
           </div>
         </div>
 
@@ -763,3 +889,7 @@ export default function InvestorsPage() {
     </StartupShell>
   );
 }
+
+
+
+
