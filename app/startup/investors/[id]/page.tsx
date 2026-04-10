@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, use, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, notFound } from "next/navigation";
+import { toast } from "sonner";
 import { StartupShell } from "@/components/startup/startup-shell";
 import {
     ArrowLeft,
@@ -29,7 +30,12 @@ import { buildInvestorProfilePresentation, isInvestorKycVerified } from "@/lib/i
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { InvestorConnectionModal } from "@/components/startup/investor-connection-modal";
-import { GetConnectionByInvestorId } from "@/services/connection/connection.api";
+import {
+    AcceptConnection,
+    GetConnectionByInvestorId,
+    GetPendingConnectionInviteByInvestorId,
+    RejectConnection,
+} from "@/services/connection/connection.api";
 import { GetInvestorById } from "@/services/startup/startup.api";
 import { CreateConversation } from "@/services/messaging/messaging.api";
 import { VerifiedRoleMark } from "@/components/shared/verified-role-mark";
@@ -67,6 +73,13 @@ function AvatarOrLogo({ name, url, className }: { name: string; url?: string; cl
     );
 }
 
+const isPendingStatus = (status?: string) => {
+    const normalized = (status ?? "").toLowerCase();
+    return normalized === "pending" || normalized === "requested";
+};
+
+const isAcceptedStatus = (status?: string) => (status ?? "").toLowerCase() === "accepted";
+
 // -- Page ---------------------------------------------------------------------
 
 export default function InvestorDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -83,6 +96,29 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
     const [connection, setConnection] = useState<IConnectionItem | null>(null);
     const [connectionLoading, setConnectionLoading] = useState(true);
     const [chatLoading, setChatLoading] = useState(false);
+    const [respondingAction, setRespondingAction] = useState<"accept" | "reject" | null>(null);
+    const [hasPendingIncomingInvite, setHasPendingIncomingInvite] = useState(false);
+
+    const loadConnection = useCallback(async () => {
+        setConnectionLoading(true);
+        try {
+            const pendingIncoming = await GetPendingConnectionInviteByInvestorId(investorId);
+            if (pendingIncoming) {
+                setConnection(pendingIncoming);
+                setHasPendingIncomingInvite(true);
+                return;
+            }
+
+            const latestConnection = await GetConnectionByInvestorId(investorId);
+            setConnection(latestConnection);
+            setHasPendingIncomingInvite(false);
+        } catch {
+            setHasPendingIncomingInvite(false);
+            setConnection(null);
+        } finally {
+            setConnectionLoading(false);
+        }
+    }, [investorId]);
 
     // Fetch investor profile + connection status in parallel
     useEffect(() => {
@@ -114,32 +150,66 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
             }
         };
 
-        const loadConnection = async () => {
-            try {
-                const conn = await GetConnectionByInvestorId(investorId);
-                setConnection(conn);
-            } catch { /* silent */ } finally {
-                setConnectionLoading(false);
-            }
-        };
-
         loadInvestor();
         loadConnection();
-    }, [investorId]);
+    }, [investorId, loadConnection]);
 
     const handleConnectionSuccess = (connectionId: number) => {
-        setConnection({
-            connectionID: connectionId,
-            startupID: 0,
-            startupName: "",
+        setHasPendingIncomingInvite(false);
+        setConnection((prev) => ({
+            connectionID: connectionId || prev?.connectionID || 0,
+            startupID: prev?.startupID ?? 0,
+            startupName: prev?.startupName ?? "",
             investorID: investorId,
-            investorName: investor?.fullName ?? "",
-            connectionStatus: "Pending",
-            personalizedMessage: "",
-            matchScore: 0,
+            investorName: investor?.fullName ?? prev?.investorName ?? "",
+            connectionStatus: "Requested",
+            personalizedMessage: prev?.personalizedMessage ?? "",
+            matchScore: prev?.matchScore ?? 0,
             requestedAt: new Date().toISOString(),
             respondedAt: "",
-        });
+            initiatedByRole: "STARTUP",
+        }));
+        void loadConnection();
+    };
+
+    const handleAcceptInvite = async () => {
+        if (!connection || respondingAction) return;
+        setRespondingAction("accept");
+        try {
+            const res = await AcceptConnection(connection.connectionID);
+            if (res?.success || res?.isSuccess) {
+                toast.success("Da chap nhan ket noi.");
+                await loadConnection();
+            } else {
+                toast.error(res?.message || "Khong the chap nhan ket noi.");
+            }
+        } catch {
+            toast.error("Co loi khi chap nhan ket noi.");
+        } finally {
+            setRespondingAction(null);
+        }
+    };
+
+    const handleRejectInvite = async () => {
+        if (!connection || respondingAction) return;
+        setRespondingAction("reject");
+        try {
+            const res = await RejectConnection(connection.connectionID, {
+                reason: "Khong phu hop o thoi diem hien tai",
+            });
+            if (res?.success || res?.isSuccess) {
+                toast.success("Da tu choi loi moi ket noi.");
+                setConnection(null);
+                setHasPendingIncomingInvite(false);
+                await loadConnection();
+            } else {
+                toast.error(res?.message || "Khong the tu choi ket noi.");
+            }
+        } catch {
+            toast.error("Co loi khi tu choi ket noi.");
+        } finally {
+            setRespondingAction(null);
+        }
     };
 
     const handleStartChat = async () => {
@@ -194,6 +264,10 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
     const profileAvailabilityReason = investor.profileAvailabilityReason ?? "OPEN";
     const isReadOnlyProfile = profileAvailabilityReason === "INVESTOR_PAUSED_DISCOVERY";
     const canRequestConnection = investor.canRequestConnection ?? (!isReadOnlyProfile && investor.acceptingConnections);
+    const isConnectionAccepted = isAcceptedStatus(connection?.connectionStatus);
+    const isConnectionPending = isPendingStatus(connection?.connectionStatus);
+    const isIncomingPendingInvite =
+        hasPendingIncomingInvite || (isConnectionPending && connection?.initiatedByRole === "INVESTOR");
     const badges = deriveBadges(investor, presentation.isInstitutional, canRequestConnection);
     const badgeColors = {
         yellow: "bg-yellow-50/50 border-yellow-200/50 text-yellow-600",
@@ -213,6 +287,45 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         { label: "Giai đoạn quan tâm", value: preferredStages.slice(0, 2).join(" | ") || "Chưa cập nhật" },
         { label: "Lĩnh vực ưu tiên", value: (investor.preferredIndustries ?? []).slice(0, 2).join(" | ") || "Chưa cập nhật" },
     ];
+    const connectionBadgeLabel = connectionLoading
+        ? "Đang tải trạng thái"
+        : isConnectionAccepted
+            ? "Đã kết nối"
+            : isIncomingPendingInvite
+                ? "Có lời mời kết nối chờ xử lý"
+                : isConnectionPending
+                    ? "Đang chờ phản hồi"
+                    : isReadOnlyProfile
+                        ? "Hồ sơ chỉ xem"
+                        : canRequestConnection
+                            ? "Sẵn sàng kết nối"
+                            : "Không nhận kết nối";
+    const connectionHeading = connectionLoading
+        ? "Đang kiểm tra"
+        : isConnectionAccepted
+            ? "Có thể trò chuyện ngay"
+            : isIncomingPendingInvite
+                ? "Có lời mời kết nối từ investor"
+                : isConnectionPending
+                    ? "Lời mời đang mở"
+                    : isReadOnlyProfile
+                        ? "Hồ sơ không mở kết nối mới"
+                        : canRequestConnection
+                            ? "Có thể gửi lời mời"
+                            : "Tạm đóng tiếp nhận";
+    const connectionDescription = connectionLoading
+        ? "AISEP đang đối chiếu trạng thái kết nối gần nhất với nhà đầu tư này."
+        : isConnectionAccepted
+            ? "Kết nối đã được chấp nhận. Bạn có thể bắt đầu trao đổi trực tiếp để đi sâu vào cơ hội hợp tác."
+            : isIncomingPendingInvite
+                ? "Investor đã chủ động gửi lời mời cho startup của bạn. Bạn có thể chấp nhận hoặc từ chối ngay tại màn hình này."
+                : isConnectionPending
+                    ? "Nhà đầu tư đã nhận được lời mời của bạn. Hãy giữ hồ sơ startup đầy đủ để tăng khả năng phản hồi."
+                    : isReadOnlyProfile
+                        ? "Nhà đầu tư này đang tạm ẩn khỏi danh sách khám phá. Bạn vẫn có thể xem hồ sơ ở chế độ chỉ đọc."
+                        : canRequestConnection
+                            ? "Hồ sơ này hiện đang mở kết nối. Bạn có thể gửi lời mời kèm thông điệp cá nhân ngay từ màn hình này."
+                            : "Nhà đầu tư hiện chưa tiếp nhận lời mời mới. Bạn vẫn có thể xem tiêu chí để chuẩn bị cho lần tiếp cận sau.";
 
     return (
         <StartupShell>
@@ -233,18 +346,25 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                             </Link>
 
                             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                                <span className={cn("size-2 rounded-full", isReadOnlyProfile ? "bg-slate-300" : connection?.connectionStatus === "Accepted" ? "bg-emerald-400" : connection?.connectionStatus === "Pending" ? "bg-amber-400" : canRequestConnection ? "bg-sky-400" : "bg-slate-300")} />
-                                {isReadOnlyProfile
-                                    ? "Hồ sơ chỉ xem"
-                                    : connectionLoading
-                                    ? "Đang tải trạng thái"
-                                    : connection?.connectionStatus === "Accepted"
-                                        ? "Đã kết nối"
-                                        : connection?.connectionStatus === "Pending"
-                                            ? "Đang chờ phản hồi"
-                                            : canRequestConnection
-                                                ? "Sẵn sàng kết nối"
-                                                : "Không nhận kết nối"}
+                                <span
+                                    className={cn(
+                                        "size-2 rounded-full",
+                                        connectionLoading
+                                            ? "bg-slate-300"
+                                            : isConnectionAccepted
+                                                ? "bg-emerald-400"
+                                                : isIncomingPendingInvite
+                                                    ? "bg-sky-400"
+                                                    : isConnectionPending
+                                                        ? "bg-amber-400"
+                                                        : isReadOnlyProfile
+                                                            ? "bg-slate-300"
+                                                            : canRequestConnection
+                                                                ? "bg-sky-400"
+                                                                : "bg-slate-300",
+                                    )}
+                                />
+                                {connectionBadgeLabel}
                             </div>
                         </div>
 
@@ -324,52 +444,54 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
                                     <div>
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Trạng thái kết nối</p>
                                         <h2 className="mt-3 text-[20px] font-black tracking-tight text-slate-900">
-                                            {isReadOnlyProfile
-                                                ? "Hồ sơ không mở kết nối mới"
-                                                : connectionLoading
-                                                ? "Đang kiểm tra"
-                                                : connection?.connectionStatus === "Accepted"
-                                                    ? "Có thể trò chuyện ngay"
-                                                    : connection?.connectionStatus === "Pending"
-                                                        ? "Lời mời đang mở"
-                                                        : canRequestConnection
-                                                            ? "Có thể gửi lời mời"
-                                                            : "Tạm đóng tiếp nhận"}
+                                            {connectionHeading}
                                         </h2>
                                         <p className="mt-3 text-[13px] leading-relaxed text-slate-500">
-                                            {isReadOnlyProfile
-                                                ? "Nhà đầu tư này đang tạm ẩn khỏi danh sách khám phá. Bạn vẫn có thể xem hồ sơ ở chế độ chỉ đọc."
-                                                : connectionLoading
-                                                ? "AISEP đang đối chiếu trạng thái kết nối gần nhất với nhà đầu tư này."
-                                                : connection?.connectionStatus === "Accepted"
-                                                    ? "Kết nối đã được chấp nhận. Bạn có thể bắt đầu trao đổi trực tiếp để đi sâu vào cơ hội hợp tác."
-                                                    : connection?.connectionStatus === "Pending"
-                                                        ? "Nhà đầu tư đã nhận được lời mời của bạn. Hãy giữ hồ sơ startup đầy đủ để tăng khả năng phản hồi."
-                                                        : canRequestConnection
-                                                            ? "Hồ sơ này hiện đang mở kết nối. Bạn có thể gửi lời mời kèm thông điệp cá nhân ngay từ màn hình này."
-                                                            : "Nhà đầu tư hiện chưa tiếp nhận lời mời mới. Bạn vẫn có thể xem tiêu chí để chuẩn bị cho lần tiếp cận sau."}
+                                            {connectionDescription}
                                         </p>
                                     </div>
 
-                                    {isReadOnlyProfile ? (
-                                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-medium text-slate-500">
-                                            Hồ sơ này đang ở chế độ chỉ xem.
-                                        </div>
-                                    ) : connectionLoading ? (
+                                    {connectionLoading ? (
                                         <Button disabled className="h-11 w-full rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-500 gap-2.5">
                                             <Loader2 className="size-4 animate-spin" />
                                             <span>Đang tải</span>
                                         </Button>
-                                    ) : connection?.connectionStatus === "Accepted" ? (
+                                    ) : isConnectionAccepted ? (
                                         <Button onClick={handleStartChat} disabled={chatLoading} className="h-11 w-full rounded-xl bg-[#0f172a] hover:bg-slate-800 text-white font-semibold text-[13px] shadow-sm gap-2.5">
                                             {chatLoading ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-5" />}
                                             <span>Bắt đầu chat</span>
                                         </Button>
-                                    ) : connection?.connectionStatus === "Pending" ? (
+                                    ) : isIncomingPendingInvite ? (
+                                        <div className="space-y-3">
+                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-medium text-amber-800">
+                                                Lời mời kết nối đang chờ startup xử lý.
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button
+                                                    onClick={handleAcceptInvite}
+                                                    disabled={respondingAction !== null}
+                                                    className="h-11 rounded-xl bg-emerald-600 text-[13px] font-semibold text-white hover:bg-emerald-700"
+                                                >
+                                                    {respondingAction === "accept" ? <Loader2 className="size-4 animate-spin" /> : "Chấp nhận"}
+                                                </Button>
+                                                <Button
+                                                    onClick={handleRejectInvite}
+                                                    disabled={respondingAction !== null}
+                                                    className="h-11 rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    {respondingAction === "reject" ? <Loader2 className="size-4 animate-spin" /> : "Từ chối"}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : isConnectionPending ? (
                                         <Button disabled className="h-11 w-full rounded-xl border border-slate-200 bg-white text-[13px] font-semibold text-slate-400 gap-2.5 cursor-not-allowed">
                                             <Clock className="size-5" />
                                             <span>Đang chờ phản hồi</span>
                                         </Button>
+                                    ) : isReadOnlyProfile ? (
+                                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] font-medium text-slate-500">
+                                            Hồ sơ này đang ở chế độ chỉ xem.
+                                        </div>
                                     ) : canRequestConnection ? (
                                         <Button onClick={() => setIsRequestModalOpen(true)} className="h-11 w-full rounded-xl bg-[#fdf8e6] text-slate-900 border border-amber-200 hover:bg-[#faefbe] transition-all font-semibold text-[13px] shadow-sm gap-2.5">
                                             <UserPlus className="size-5" />
@@ -666,4 +788,3 @@ export default function InvestorDetailsPage({ params }: { params: Promise<{ id: 
         </StartupShell>
     );
 }
-

@@ -278,6 +278,7 @@ declare global {
     responseMessage?: string;
     closedAt?: string;
     closedReason?: string;
+    initiatedByRole?: "INVESTOR" | "STARTUP";
   }
 
   interface IInvestorSearchItem {
@@ -306,6 +307,9 @@ declare global {
     workflowStatus?: string;
     verificationLabel?: string;
     kycVerified?: boolean;
+    discoverableForStartups?: boolean;
+    canRequestConnection?: boolean;
+    profileAvailabilityReason?: "OPEN" | "INVESTOR_PAUSED_DISCOVERY";
   }
 
   interface INotificationItem {
@@ -518,6 +522,11 @@ declare global {
   interface ICreateConnection {
     startupId?: number;
     investorId?: number;
+    message?: string;
+  }
+
+  interface ICreateStartupInvestorInvite {
+    investorId: number;
     message?: string;
   }
 
