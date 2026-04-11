@@ -10,17 +10,19 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SupportModal } from "@/components/investor/support-modal";
 import { GetInvestorProfile, UpdateInvestorAcceptingConnections } from "@/services/investor/investor.api";
+import { ChangePassword } from "@/services/auth/auth.api";
 
 /* ─── Sub-components ─────────────────────────────────────────── */
 
-function SectionCard({ title, icon: Icon, description, children }: {
+function SectionCard({ title, icon: Icon, description, children, id }: {
   title: string; 
   icon: React.ElementType; 
   description?: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div id={id} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden scroll-mt-24">
       <div className="px-6 py-5 border-b border-slate-100">
         <div className="flex items-center gap-2.5 mb-1">
           <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100">
@@ -219,6 +221,135 @@ export default function InvestorSettingsPage() {
         }, 1200);
     };
 
+    const handlePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwError("");
+
+        if (!pwForm.current.trim()) {
+            setPwError("Vui lòng nhập mật khẩu hiện tại.");
+            return;
+        }
+        if (pwForm.next !== pwForm.confirm) {
+            setPwError("Mật khẩu xác nhận không khớp.");
+            return;
+        }
+        if (pwForm.next.length < 8) {
+            setPwError("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            return;
+        }
+        if (pwForm.current === pwForm.next) {
+            setPwError("Mật khẩu mới phải khác mật khẩu hiện tại.");
+            return;
+        }
+
+        setIsChangingPw(true);
+        try {
+            const res = await ChangePassword(pwForm.current, pwForm.next, pwForm.confirm) as unknown as IBackendRes<null>;
+
+            if (!(res.success || res.isSuccess)) {
+                const fallbackMessage = res?.message || "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+                setPwError(fallbackMessage);
+                toast.error(fallbackMessage);
+                return;
+            }
+
+            toast.success("Đổi mật khẩu thành công");
+            setPwForm({ current: "", next: "", confirm: "" });
+        } catch (error) {
+            const status = getHttpStatusCode(error);
+            let message = "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+
+            if (status === 400) {
+                message = "Mật khẩu hiện tại không đúng hoặc dữ liệu không hợp lệ.";
+            } else if (status === 401) {
+                message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+            } else if (status === 403) {
+                message = "Bạn không có quyền thực hiện thao tác này.";
+            }
+
+            setPwError(message);
+            toast.error(message);
+        } finally {
+            setIsChangingPw(false);
+        }
+    };
+
+    const handlePasswordSubmitV2 = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwError("");
+
+        if (!pwForm.current.trim()) {
+            setPwError("Vui lòng nhập mật khẩu hiện tại.");
+            return;
+        }
+        if (pwForm.next !== pwForm.confirm) {
+            setPwError("Mật khẩu xác nhận không khớp.");
+            return;
+        }
+        if (pwForm.next.length < 8) {
+            setPwError("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            return;
+        }
+        if (pwForm.current === pwForm.next) {
+            setPwError("Mật khẩu mới phải khác mật khẩu hiện tại.");
+            return;
+        }
+
+        setIsChangingPw(true);
+        try {
+            const res = await ChangePassword(pwForm.current, pwForm.next, pwForm.confirm);
+
+            if (!(res.success || res.isSuccess)) {
+                const backendMessage =
+                    res.message ||
+                    res.error?.message ||
+                    res.error?.details?.[0]?.message ||
+                    "";
+
+                let message = backendMessage || "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+
+                if (res.statusCode === 400) {
+                    if (backendMessage === "Current password is incorrect") {
+                        message = "Mật khẩu hiện tại không đúng.";
+                    } else if (backendMessage === "Passwords do not match") {
+                        message = "Mật khẩu xác nhận không khớp.";
+                    } else if (backendMessage === "New password must be different from current password") {
+                        message = "Mật khẩu mới phải khác mật khẩu hiện tại.";
+                    }
+                } else if (res.statusCode === 401) {
+                    message = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+                }
+
+                setPwError(message);
+                toast.error(message);
+
+                if (res.statusCode === 401 && typeof window !== "undefined") {
+                    localStorage.removeItem("accessToken");
+                    localStorage.removeItem("user");
+                    window.location.href = "/auth/login";
+                }
+                return;
+            }
+
+            toast.success("Đổi mật khẩu thành công. Vui lòng đăng nhập lại.");
+            setPwForm({ current: "", next: "", confirm: "" });
+
+            if (typeof window !== "undefined") {
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("user");
+                window.setTimeout(() => {
+                    window.location.href = "/auth/login";
+                }, 1200);
+            }
+        } catch {
+            const message = "Không cập nhật được mật khẩu. Vui lòng thử lại.";
+            setPwError(message);
+            toast.error(message);
+        } finally {
+            setIsChangingPw(false);
+        }
+    };
+
     const handleToggleAcceptingConnections = async (nextValue: boolean) => {
         if (!isApprovedProfile || isTogglingConnections || isLoadingConnectionSetting) {
             return;
@@ -332,6 +463,7 @@ export default function InvestorSettingsPage() {
             </SectionCard>
 
             <SectionCard
+                id="connection-availability"
                 title={"Nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i"}
                 icon={Users}
                 description={"B\u1eadt ho\u1eb7c t\u1eaft nh\u1eadn y\u00eau c\u1ea7u k\u1ebft n\u1ed1i m\u1edbi t\u1eeb startup."}
@@ -396,7 +528,7 @@ export default function InvestorSettingsPage() {
                 icon={Shield} 
                 description="Cập nhật mật khẩu định kỳ để đảm bảo an toàn cho tài khoản của bạn."
             >
-                <form onSubmit={handlePwChange} className="space-y-5 max-w-md">
+                <form onSubmit={handlePasswordSubmitV2} className="space-y-5 max-w-md">
                     {[
                         { label: "Mật khẩu hiện tại", key: "current" as const, placeholder: "Nhập mật khẩu đang dùng" },
                         { label: "Mật khẩu mới", key: "next" as const, placeholder: "Tối thiểu 8 ký tự" },
