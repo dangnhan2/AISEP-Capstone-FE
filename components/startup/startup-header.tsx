@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, Brain, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, ArrowRight, Inbox } from "lucide-react";
+import { BadgeCheck, Bell, Brain, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, CheckCheck, Settings, FileText, BrainCircuit, Users, Handshake, Wallet, ShieldAlert, ShieldCheck, ArrowRight, Inbox } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -347,12 +347,12 @@ export function StartupHeader({
                 <div className="absolute right-0 top-full pt-2 z-[60] animate-in fade-in slide-in-from-top-1 duration-150">
                   <div className="w-52 bg-white rounded-xl shadow-lg shadow-black/8 border border-neutral-surface/60 py-1.5">
                     {[
-                      { icon: FileUp, label: "Tài liệu & IP", href: "/startup/documents" },
-                      { icon: Brain, label: "Đánh giá AI", href: "/startup/ai-evaluation" },
-                      { icon: ShieldCheck, label: "Xác thực Startup", href: "/startup/verification" },
+                      { icon: FileText, label: "Tài liệu & SHTT", href: "/startup/documents" },
+                      { icon: BrainCircuit, label: "Đánh giá tiềm năng", href: "/startup/ai-evaluation" },
+                      { icon: BadgeCheck, label: "Xác minh startup", href: "/startup/verification" },
                       { icon: Users, label: "Tìm cố vấn", href: "/startup/experts" },
-                      { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
-                      { icon: CreditCard, label: "Thanh toán", href: "/startup/payments" },
+                      { icon: Handshake, label: "Kết nối đầu tư", href: "/startup/investors" },
+                      { icon: Wallet, label: "Thanh toán & gói", href: "/startup/payments" },
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -495,4 +495,3 @@ export function StartupHeader({
     </header>
   );
 }
-
