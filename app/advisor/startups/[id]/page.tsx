@@ -282,7 +282,7 @@ function TabOverview({ p, displayStage, displayIndustry, foundedDateDisplay, tea
           <div className="space-y-3">
             {[
               { icon: Layers,        label: "Giai đoạn",  val: displayStage || "-" },
-              { icon: Building2,     label: "Ngành",      val: `${displayIndustry || "-"}${p.subIndustry ? ` / ${p.subIndustry}` : ""}` },
+              { icon: Building2,     label: "Ngành",      val: displayIndustry || "-" },
               { icon: Globe,         label: "Thị trường", val: p.marketScope || "-" },
               { icon: CheckCircle2,  label: "Sản phẩm",   val: p.productStatus || "-" },
               { icon: Calendar,      label: "Thành lập",  val: foundedDateDisplay || (p.foundedYear ? `${p.foundedYear}` : "-") },
@@ -473,37 +473,44 @@ function TabTeam({ p, teamSizeValue }: any) {
                   className="flex gap-4 py-5 first:pt-0 last:pb-0"
                 >
                   <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
-                    {m.photoURL ? (
+                    {(m.photoURL || m.PhotoURL) ? (
                       <Image
-                        src={m.photoURL}
-                        alt={m.fullName ?? m.name ?? "Member"}
+                        src={m.photoURL ?? m.PhotoURL}
+                        alt={m.fullName ?? m.FullName ?? m.name ?? "Member"}
                         width={48}
                         height={48}
                         className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-500 text-[13px] font-bold">
-                        {(m.fullName ?? m.name ?? "?")[0]?.toUpperCase()}
+                        {(m.fullName ?? m.FullName ?? m.name ?? "?")[0]?.toUpperCase()}
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className="text-[14px] font-semibold text-slate-800">
-                        {m.fullName ?? m.name ?? "Thành viên"}
-                      </p>
-                      {m.isFounder && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-bold border border-amber-200/50">
-                          FOUNDER
-                        </span>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[14px] font-semibold text-slate-800">
+                          {m.fullName ?? m.FullName ?? m.name ?? "Thành viên"}
+                        </p>
+                        {(m.isFounder || m.IsFounder) && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-bold border border-amber-200/50">
+                            FOUNDER
+                          </span>
+                        )}
+                      </div>
+                      {(m.linkedInURL || m.LinkedInURL) && (
+                        <a href={m.linkedInURL ?? m.LinkedInURL} target="_blank" rel="noreferrer" className="hover:bg-blue-50 p-1.5 rounded-lg transition-colors flex-shrink-0">
+                          <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} />
+                        </a>
                       )}
                     </div>
                     <p className="text-[12px] text-slate-500 font-medium">
-                      {[m.title, m.role].filter(Boolean).join(" · ")}
-                      {m.yearsOfExperience > 0 ? ` · ${m.yearsOfExperience} năm kinh nghiệm` : ""}
+                      {[m.title ?? m.Title, m.role ?? m.Role].filter(Boolean).join(" · ")}
+                      {Number(m.yearsOfExperience) > 0 ? ` · ${m.yearsOfExperience} năm kinh nghiệm` : ""}
                     </p>
-                    {m.bio && (
-                      <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">{m.bio}</p>
+                    {(m.bio || m.Bio) && (
+                      <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">{m.bio ?? m.Bio}</p>
                     )}
                   </div>
                 </div>
@@ -526,28 +533,6 @@ function TabTeam({ p, teamSizeValue }: any) {
       </div>
 
       <div className="col-span-12 lg:col-span-4 space-y-4">
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
-          <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Xác thực đội ngũ</h3>
-          <div className="flex items-center gap-2.5">
-            <div
-              className={cn(
-                "w-2 h-2 rounded-full",
-                p.validationStatus?.toLowerCase().includes("validat")
-                  ? "bg-emerald-500"
-                  : p.validationStatus
-                    ? "bg-amber-400"
-                    : "bg-slate-300",
-              )}
-            />
-            <span className="text-[13px] font-medium text-slate-700">
-              {p.validationStatus || "Chưa xác thực"}
-            </span>
-          </div>
-          {teamSizeValue && (
-            <InfoPair label="Quy mô team" value={`${teamSizeValue} người`} />
-          )}
-        </div>
-
         {p.enterpriseCode && (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
             <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Pháp lý</h3>
@@ -676,7 +661,9 @@ export default function AdvisorStartupDetailPage() {
   const palette = getMonogramPalette(Number(startup.startupID ?? startupId));
   const companyName = startup.companyName ?? "Startup";
   const displayStage = STAGE_LABELS[startup.stage?.toString()] || STAGE_LABELS[startup.fundingStage?.toString()] || startup.fundingStage || startup.stage;
-  const displayIndustry = startup.industryName || startup.industry;
+  const displayIndustry = startup.parentIndustryName
+    ? `${startup.parentIndustryName} / ${startup.industryName || startup.industry || ""}`
+    : (startup.industryName || startup.industry);
   const teamSizeValue = startup.teamSize ?? startup.TeamSize;
 
   const foundedDateDisplay = startup.foundedDate
@@ -748,7 +735,6 @@ export default function AdvisorStartupDetailPage() {
               <Tag>
                 <Building2 className="w-3 h-3 text-slate-400" />
                 {displayIndustry || "Chưa có ngành"}
-                {startup.subIndustry ? ` / ${startup.subIndustry}` : ""}
               </Tag>
               {startup.marketScope && <Tag variant="blue">{startup.marketScope}</Tag>}
               <span className="text-slate-200 text-[14px] mx-0.5">·</span>
@@ -772,18 +758,12 @@ export default function AdvisorStartupDetailPage() {
             {/* Quick stats row */}
             <div className="flex flex-wrap items-center gap-5 pt-4 border-t border-slate-100">
               {[
-                {
-                  icon: Clock,
-                  label: "Cập nhật",
-                  value: startup.updatedAt
-                    ? new Date(startup.updatedAt).toLocaleDateString("vi-VN")
-                    : "Gần đây",
-                },
-                {
-                  icon: Hash,
-                  label: "ID Startup",
-                  value: `#${startup.startupID ?? startupId}`,
-                },
+                ...(foundedDateDisplay
+                  ? [{ icon: Clock, label: "Thành lập", value: foundedDateDisplay }]
+                  : []),
+                ...(Number(startup.fundingAmountSought) > 0
+                  ? [{ icon: DollarSign, label: "Vốn gọi", value: `$${Number(startup.fundingAmountSought).toLocaleString()}` }]
+                  : []),
                 ...(teamSizeValue
                   ? [{ icon: Users, label: "Quy mô", value: `${teamSizeValue} người` }]
                   : []),

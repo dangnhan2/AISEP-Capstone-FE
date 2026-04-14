@@ -60,13 +60,13 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  Requested: "REQUESTED",
-  Pending:   "SENT",
-  Accepted:  "ACCEPTED",
-  Rejected:  "REJECTED",
-  Withdrawn: "WITHDRAWN",
-  Closed:    "CLOSED",
-  WaitingResponse: "Äang chá» pháº£n há»“i",
+  Requested: "Đang chờ",
+  Pending:   "Đang chờ",
+  Accepted:  "Đã chấp nhận",
+  Rejected:  "Đã từ chối",
+  Withdrawn: "Đã thu hồi",
+  Closed:    "Đã đóng",
+  WaitingResponse: "Đang chờ phản hồi",
 };
 
 const DISCOVERY_CONNECTION_STATUS = {
@@ -194,7 +194,7 @@ export default function InvestorsPage() {
 
   // ── Tab: Khám phá ──
   const [investors, setInvestors] = useState<IInvestorSearchItem[]>([]);
-  const [isLoadingInvestors, setIsLoadingInvestors] = useState(false);
+  const [isLoadingInvestors, setIsLoadingInvestors] = useState(true);
   const [investorsError, setInvestorsError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
   const [discoveryFilters, setDiscoveryFilters] = useState<DiscoveryFilterState>(DEFAULT_DISCOVERY_FILTERS);
@@ -209,12 +209,14 @@ export default function InvestorsPage() {
   const [sentPage, setSentPage] = useState(1);
   const [sentTotalPages, setSentTotalPages] = useState(1);
   const [sentKeyword, setSentKeyword] = useState("");
+  const [sentStatusFilter, setSentStatusFilter] = useState("");
 
   // Tab: Nhận từ Investor
   const [receivedConnections, setReceivedConnections] = useState<IConnectionItem[]>([]);
   const [isLoadingReceived, setIsLoadingReceived] = useState(false);
   const [receivedPage, setReceivedPage] = useState(1);
   const [receivedTotalPages, setReceivedTotalPages] = useState(1);
+  const [receivedKeyword, setReceivedKeyword] = useState("");
 
   // ── Tab: Đã kết nối ──
   const [connected, setConnected] = useState<IConnectionItem[]>([]);
@@ -248,6 +250,8 @@ export default function InvestorsPage() {
 
 
   // â”€â”€ Modal â”€â”€
+  const isFirstInvestorFetch = React.useRef(true);
+
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<{ name: string; logo: string; type: string; investorId: number } | null>(null);
 
@@ -319,10 +323,10 @@ export default function InvestorsPage() {
   // alias for BroadcastChannel compatibility
   
   // â”€â”€ Fetch: sent tab â”€â”€
-  const fetchSent = useCallback(async (page: number) => {
+  const fetchSent = useCallback(async (page: number, kw?: string, status?: string) => {
     setIsLoadingSent(true);
     try {
-      const res = await GetSentConnections(page, 10);
+      const res = await GetSentConnections(page, 10, status || undefined, undefined, kw || undefined);
       if (isSuccessResponse(res)) {
         setSentConnections(
           getListItems(res.data).map((item) => ({
@@ -338,10 +342,10 @@ export default function InvestorsPage() {
   }, []);
 
   // â”€â”€ Fetch: received tab (investor â†’ startup) â”€â”€
-  const fetchReceived = useCallback(async (page: number) => {
+  const fetchReceived = useCallback(async (page: number, kw?: string) => {
     setIsLoadingReceived(true);
     try {
-      const res = await GetReceivedConnections(page, 10);
+      const res = await GetReceivedConnections(page, 10, "Requested", undefined, kw || undefined);
       if (isSuccessResponse(res)) {
         setReceivedConnections(
           getListItems(res.data).map((item) => ({
@@ -401,11 +405,6 @@ export default function InvestorsPage() {
     };
   }, []);
 
-  // Initial load
-  useEffect(() => {
-    fetchInvestors(1, "", DEFAULT_DISCOVERY_FILTERS);
-  }, [fetchInvestors]);
-
   // Listen for cross-tab connection updates (so startup UI refreshes when an investor sends a request)
   useEffect(() => {
     let bc: BroadcastChannel | null = null;
@@ -450,19 +449,37 @@ export default function InvestorsPage() {
 
   // Reload when tab changes
   useEffect(() => {
-    if (activeTab === "Yêu cầu đã gửi") fetchSent(1);
-    if (activeTab === "Nhận từ Investor") fetchReceived(1);
+    if (activeTab === "Yêu cầu đã gửi") { setSentKeyword(""); setSentStatusFilter(""); fetchSent(1); }
+    if (activeTab === "Nhận từ Investor") { setReceivedKeyword(""); fetchReceived(1); }
     if (activeTab === "Đã kết nối") fetchConnected(1);
   }, [activeTab, fetchSent, fetchReceived, fetchConnected]);
 
-  // Search with debounce
+  // Search with debounce - Khám phá (fire immediately on first mount, debounce on subsequent changes)
   useEffect(() => {
+    if (isFirstInvestorFetch.current) {
+      isFirstInvestorFetch.current = false;
+      setCurrentPage(1);
+      fetchInvestors(1, keyword, discoveryFilters);
+      return;
+    }
     const t = setTimeout(() => {
       setCurrentPage(1);
       fetchInvestors(1, keyword, discoveryFilters);
     }, 400);
     return () => clearTimeout(t);
   }, [keyword, discoveryFilters, fetchInvestors]);
+
+  // Search with debounce - Yêu cầu đã gửi
+  useEffect(() => {
+    const t = setTimeout(() => { setSentPage(1); fetchSent(1, sentKeyword, sentStatusFilter); }, 400);
+    return () => clearTimeout(t);
+  }, [sentKeyword, sentStatusFilter, fetchSent]);
+
+  // Search with debounce - Nhận từ Investor
+  useEffect(() => {
+    const t = setTimeout(() => { setReceivedPage(1); fetchReceived(1, receivedKeyword); }, 400);
+    return () => clearTimeout(t);
+  }, [receivedKeyword, fetchReceived]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -643,10 +660,45 @@ export default function InvestorsPage() {
               </div>
             </div>
 
-            {/* Loading */}
+            {/* Loading — skeleton cards thay vì spinner để tránh layout shift */}
             {isLoadingInvestors && (
-              <div className="flex justify-center py-20">
-                <Loader2 className="size-8 animate-spin text-[#eec54e]" />
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pulse">
+                    <div className="flex flex-1 flex-col p-6 text-center">
+                      {/* Avatar */}
+                      <div className="mx-auto mb-5 size-[84px] rounded-full bg-slate-200" />
+                      {/* Badge */}
+                      <div className="mx-auto mb-2 h-5 w-20 rounded-full bg-slate-200" />
+                      {/* Name */}
+                      <div className="mx-auto mb-2 h-6 w-36 rounded-lg bg-slate-200" />
+                      {/* Subtitle */}
+                      <div className="mx-auto mb-5 h-4 w-28 rounded-lg bg-slate-100" />
+                      {/* Stats grid */}
+                      <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-100/70 px-2 py-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="h-5 w-8 rounded bg-slate-200" />
+                          <div className="h-3 w-16 rounded bg-slate-200" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1 border-l border-slate-300/70">
+                          <div className="h-5 w-20 rounded bg-slate-200" />
+                          <div className="h-3 w-16 rounded bg-slate-200" />
+                        </div>
+                      </div>
+                      {/* Tags */}
+                      <div className="mb-4 flex min-h-[58px] flex-wrap justify-center gap-1.5">
+                        <div className="h-6 w-24 rounded-lg bg-slate-200" />
+                        <div className="h-6 w-28 rounded-lg bg-slate-200" />
+                        <div className="h-6 w-20 rounded-lg bg-slate-200" />
+                      </div>
+                      {/* Buttons */}
+                      <div className="mt-auto flex gap-3 pt-2">
+                        <div className="h-[44px] flex-1 rounded-xl bg-slate-200" />
+                        <div className="h-[44px] flex-1 rounded-xl bg-slate-200" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -841,17 +893,32 @@ export default function InvestorsPage() {
       // ── Yêu cầu đã gửi ──────────────────────────────────────────────────
       case "Yêu cầu đã gửi":
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-              <div className="relative w-full lg:w-[400px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={sentKeyword} onChange={e => setSentKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={sentKeyword}
+                  onChange={e => setSentKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] font-black text-slate-400 uppercase tracking-widest">Trạng thái:</span>
-                <div className="h-11 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-10 cursor-pointer min-w-[140px] justify-between">
-                  <span className="text-sm font-bold text-slate-900 dark:text-white">Tất cả</span>
-                  <ChevronDown className="size-4 text-slate-400" />
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái:</span>
+                <div className="relative">
+                  <select
+                    value={sentStatusFilter}
+                    onChange={e => { setSentStatusFilter(e.target.value); setSentPage(1); fetchSent(1, sentKeyword, e.target.value); }}
+                    className="h-10 appearance-none rounded-xl border border-slate-200 bg-white px-4 pr-9 text-[13px] font-semibold text-slate-700 outline-none hover:bg-slate-50 transition-colors"
+                  >
+                    <option value="">Tất cả</option>
+                    <option value="Requested">Đang chờ</option>
+                    <option value="Rejected">Đã từ chối</option>
+                    <option value="Withdrawn">Đã thu hồi</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
                 </div>
               </div>
             </div>
@@ -859,138 +926,59 @@ export default function InvestorsPage() {
             {isLoadingSent ? (
               <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Trạng thái</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thông điệp</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày gửi</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Trạng thái</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {sentConnections.length === 0 && (
-                      <tr><td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có lời mời nào được gửi.</td></tr>
+                  <tbody className="divide-y divide-slate-100">
+                    {sentConnections.filter(c => normalizeConnectionStatus(c.connectionStatus) !== "Accepted").length === 0 && (
+                      <tr><td colSpan={5} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có lời mời nào được gửi.</td></tr>
                     )}
-                    {sentConnections.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                    {sentConnections.filter(c => normalizeConnectionStatus(c.connectionStatus) !== "Accepted").map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
                           </div>
                         </td>
-                        <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
+                        <td className="px-6 py-4 max-w-[260px]">
+                          <p className="text-[13px] text-slate-500 font-medium truncate">{item.personalizedMessage || "—"}</p>
                         </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
                           {formatDate(item.requestedAt)}
                         </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={cn("px-3 py-1 rounded-full text-[10px] font-black border tracking-widest", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
-                            {"\u2022"} {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
+                        <td className="px-6 py-4 text-center">
+                          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border", STATUS_STYLES[normalizeConnectionStatus(item.connectionStatus)] ?? "bg-slate-50 text-slate-500 border-slate-100")}>
+                            <span className="size-1.5 rounded-full bg-current opacity-70" />
+                            {STATUS_LABEL[normalizeConnectionStatus(item.connectionStatus)] ?? normalizeConnectionStatus(item.connectionStatus)}
                           </span>
                         </td>
-                        <td className="px-8 py-6 text-right">
-                            {isPendingConnection(item.connectionStatus) ? (
-                              <button
-                                onClick={() => handleWithdrawConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px] flex items-center gap-2"
-                              >
-                                Thu hồi
-                              </button>
-                            ) : isAcceptedConnection(item.connectionStatus) ? (
-                              <Button
-                                onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                                className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
-                              >
-                                <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                                <span>Nhắn tin</span>
-                              </Button>
-                            ) : (
-                              <span className="text-[13px] font-bold text-slate-500">
-                                Đã xử lý
-                              </span>
-                            )}
-                          </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {sentPage} / {sentTotalPages}
-              </p>
-              <Pagination page={sentPage} total={sentTotalPages} onChange={(p) => { setSentPage(p); fetchSent(p); }} />
-            </div>
-          </div>
-        );
-      // Tab: Nhận từ Investor
-      case "Nhận từ Investor":
-        return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            {isLoadingReceived ? (
-              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
-            ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Lời nhắn</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày gửi</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {receivedConnections.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có nhà đầu tư nào gửi lời mời kết nối.</td></tr>
-                    )}
-                    {receivedConnections.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6 max-w-[300px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium truncate">{item.personalizedMessage || "\u2014"}</p>
-                        </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
-                          {formatDate(item.requestedAt)}
-                        </td>
-                        <td className="px-8 py-6 text-right">
+                        <td className="px-6 py-4 text-right">
                           {isPendingConnection(item.connectionStatus) ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => handleAcceptConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all font-bold text-[13px]"
-                              >
-                                Chấp nhận
-                              </button>
-                              <button
-                                onClick={() => handleRejectConnection(item.connectionID)}
-                                className="h-10 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-bold text-[13px]"
-                              >
-                                Từ chối
-                              </button>
-                            </div>
-                          ) : isAcceptedConnection(item.connectionStatus) ? (
-                            <Button
-                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                            <button
+                              onClick={() => handleWithdrawConnection(item.connectionID)}
+                              className="h-9 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-semibold text-[12px]"
                             >
-                              <MessageCircle className="size-4" />
-                              <span>Nhắn tin</span>
-                            </Button>
+                              Thu hồi
+                            </button>
+                          ) : isAcceptedConnection(item.connectionStatus) ? (
+                            <button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
+                            >
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
                           ) : (
-                            <span className="text-[13px] font-bold text-slate-500">Đã xử lý</span>
+                            <span className="text-[12px] font-medium text-slate-400">Đã xử lý</span>
                           )}
                         </td>
                       </tr>
@@ -999,69 +987,166 @@ export default function InvestorsPage() {
                 </table>
               </div>
             )}
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {receivedPage} / {receivedTotalPages}
-              </p>
-              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p); }} />
+
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {sentPage} / {sentTotalPages}</p>
+              <Pagination page={sentPage} total={sentTotalPages} onChange={(p) => { setSentPage(p); fetchSent(p, sentKeyword, sentStatusFilter); }} />
+            </div>
+          </div>
+        );
+      // Tab: Nhận từ Investor
+      case "Nhận từ Investor":
+        return (
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {/* Toolbar */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={receivedKeyword}
+                  onChange={e => setReceivedKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
+              </div>
+            </div>
+
+            {isLoadingReceived ? (
+              <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
+            ) : (
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Lời nhắn</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày gửi</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receivedConnections.length === 0 && (
+                      <tr><td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có nhà đầu tư nào gửi lời mời kết nối.</td></tr>
+                    )}
+                    {receivedConnections.map((item) => (
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <div>
+                              <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
+                              {item.firmName && (
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">{item.firmName}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 max-w-[260px]">
+                          <p className="text-[13px] text-slate-500 font-medium truncate">{item.personalizedMessage || "—"}</p>
+                        </td>
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
+                          {formatDate(item.requestedAt)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {isPendingConnection(item.connectionStatus) ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAcceptConnection(item.connectionID)}
+                                className="h-9 px-4 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all font-semibold text-[12px]"
+                              >
+                                Chấp nhận
+                              </button>
+                              <button
+                                onClick={() => handleRejectConnection(item.connectionID)}
+                                className="h-9 px-4 rounded-xl border border-slate-200 text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all font-semibold text-[12px]"
+                              >
+                                Từ chối
+                              </button>
+                            </div>
+                          ) : isAcceptedConnection(item.connectionStatus) ? (
+                            <button
+                              onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
+                            >
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
+                          ) : (
+                            <span className="text-[12px] font-medium text-slate-400">Đã xử lý</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {receivedPage} / {receivedTotalPages}</p>
+              <Pagination page={receivedPage} total={receivedTotalPages} onChange={(p) => { setReceivedPage(p); fetchReceived(p, receivedKeyword); }} />
             </div>
           </div>
         );
       // ── Đã kết nối ──────────────────────────────────────────────────────
       case "Đã kết nối":
         return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-              <div className="relative w-full lg:w-[400px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
-                <Input value={connectedKeyword} onChange={e => setConnectedKeyword(e.target.value)} placeholder="Tìm kiếm nhà đầu tư..." className="w-full pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 rounded-xl text-sm" />
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="flex items-center gap-3">
+              <div className="relative w-full sm:w-[340px]">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 size-4" />
+                <Input
+                  value={connectedKeyword}
+                  onChange={e => setConnectedKeyword(e.target.value)}
+                  placeholder="Tìm kiếm nhà đầu tư..."
+                  className="w-full pl-10 h-10 bg-white border-slate-200 rounded-xl text-[13px]"
+                />
               </div>
             </div>
 
             {isLoadingConnected ? (
               <div className="flex justify-center py-20"><Loader2 className="size-8 animate-spin text-[#eec54e]" /></div>
             ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Nhà đầu tư</th>
-                      <th className="px-8 py-5 text-left text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thông điệp</th>
-                      <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Ngày kết nối</th>
-                      <th className="px-8 py-5 text-right text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Thao tác</th>
+                    <tr className="border-b border-slate-100 bg-slate-50/60">
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Nhà đầu tư</th>
+                      <th className="px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thông điệp</th>
+                      <th className="px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Ngày kết nối</th>
+                      <th className="px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100">
                     {connected.length === 0 && (
-                      <tr><td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm font-medium">Chưa có kết nối nào được chấp nhận.</td></tr>
+                      <tr><td colSpan={4} className="px-6 py-14 text-center text-slate-400 text-[13px] font-medium">Chưa có kết nối nào được chấp nhận.</td></tr>
                     )}
                     {connected.map((item) => (
-                      <tr key={item.connectionID} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <InvestorAvatar name={item.investorName} size="size-10" />
-                            <p className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#eec54e] transition-colors">{item.investorName}</p>
+                      <tr key={item.connectionID} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <InvestorAvatar name={item.investorName} url={item.investorPhotoURL ?? undefined} size="size-9" />
+                            <p className="text-[13px] font-bold text-slate-800">{item.investorName}</p>
                           </div>
                         </td>
-                        <td className="px-8 py-6 max-w-[350px]">
-                          <p className="text-[13px] text-slate-600 dark:text-slate-400 font-medium italic border-l-2 border-slate-100 dark:border-slate-800 pl-4 truncate">
-                            {item.personalizedMessage || "\u2014"}
+                        <td className="px-6 py-4 max-w-[300px]">
+                          <p className="text-[13px] text-slate-500 font-medium border-l-2 border-slate-100 pl-3 truncate">
+                            {item.personalizedMessage || "—"}
                           </p>
                         </td>
-                        <td className="px-8 py-6 text-center text-[13px] font-black text-slate-500 uppercase tracking-tight opacity-70">
+                        <td className="px-6 py-4 text-center text-[12px] font-medium text-slate-400">
                           {formatDate(item.respondedAt || item.requestedAt)}
                         </td>
-                        <td className="px-8 py-6 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            <Button
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
                               onClick={() => router.push(`/startup/messaging?connectionId=${item.connectionID}`)}
-                              className="h-10 px-4 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 text-slate-900 dark:text-white border-none text-[12px] font-black gap-2 hover:bg-[#eec54e] hover:text-white transition-all group/btn"
+                              className="h-9 px-4 rounded-xl bg-[#eec54e] text-[#171611] font-bold text-[12px] inline-flex items-center gap-1.5 hover:bg-[#d4ae3d] transition-colors"
                             >
-                              <MessageCircle className="size-4 group-hover/btn:scale-110 transition-transform" />
-                              <span>Nhắn tin</span>
-                            </Button>
+                              <MessageCircle className="size-3.5" />
+                              Nhắn tin
+                            </button>
                             <Link href={`/startup/investors/${item.investorID}`}>
-                              <button className="px-3 py-2 text-[12px] font-black text-slate-400 hover:text-slate-900 border border-slate-100 rounded-xl transition-all">
+                              <button className="h-9 px-3 text-[12px] font-semibold text-slate-400 hover:text-slate-700 border border-slate-200 rounded-xl transition-all hover:bg-slate-50">
                                 Xem hồ sơ
                               </button>
                             </Link>
@@ -1074,10 +1159,8 @@ export default function InvestorsPage() {
               </div>
             )}
 
-            <div className="pt-6 flex items-center justify-between">
-              <p className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">
-                Trang {connectedPage} / {connectedTotalPages}
-              </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] font-medium text-slate-400">Trang {connectedPage} / {connectedTotalPages}</p>
               <Pagination page={connectedPage} total={connectedTotalPages} onChange={(p) => { setConnectedPage(p); fetchConnected(p); }} />
             </div>
           </div>

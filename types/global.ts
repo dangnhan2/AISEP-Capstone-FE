@@ -271,8 +271,13 @@ declare global {
     connectionID: number;
     startupID: number;
     startupName: string;
+    startupLogoURL?: string | null;
+    startupStage?: string | null;
+    startupIndustryName?: string | null;
     investorID: number;
     investorName: string;
+    investorPhotoURL?: string | null;
+    firmName?: string | null;
     connectionStatus: string;
     personalizedMessage: string;
     matchScore: number;
@@ -498,9 +503,12 @@ declare global {
 
   interface IWatchlistItem {
     watchlistId: number;
-    investorID: number;
     startupID: number;
     startupName: string;
+    industry?: string | null;
+    stage?: string | null;
+    logoURL?: string | null;
+    priority?: string | null;
     addedAt: string;
   }
 
@@ -512,12 +520,20 @@ declare global {
     startupID: number;
     companyName: string;
     industry?: string;
+    industryID?: number;
+    industryName?: string;
+    parentIndustryName?: string | null;
     stage?: string;
     country?: string;
     aiScore?: number;
     profilePhotoURL?: string;
     tagline?: string;
     matchScore?: number;
+    subIndustry?: string;
+    logoURL?: string;
+    fundingAmountSought?: number | null;
+    currentFundingRaised?: number | null;
+    createdAt?: string;
   }
 
   interface IKYCStatus {
@@ -527,6 +543,14 @@ declare global {
     rejectionReason?: string | null;
   }
   interface IConnectionDetail extends IConnectionItem {}
+
+  interface ICanInviteResult {
+    canInvite: boolean;
+    reasonCodes: string[];
+    retryAfterSeconds?: number | null;
+    minMessageLength?: number | null;
+    messageMaxLength: number;
+  }
 
   interface ICreateConnection {
     startupId?: number;

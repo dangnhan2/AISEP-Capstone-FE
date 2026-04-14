@@ -238,6 +238,7 @@ function StartupInfoPageInner() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
+    const [parentIndustryId, setParentIndustryId] = useState<string>("");
     const fileRef = useRef<HTMLInputElement>(null);
     const searchParams = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
@@ -248,6 +249,18 @@ function StartupInfoPageInner() {
             setIndustries(data.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined));
         }).catch(() => {});
     }, []);
+
+    // Sync parentIndustryId whenever form.industryID or allIndustries becomes available
+    useEffect(() => {
+        if (!form.industryID || allIndustries.length === 0) return;
+        const current = allIndustries.find(i => i.industryID === Number(form.industryID));
+        if (current?.parentIndustryID) {
+            setParentIndustryId(current.parentIndustryID.toString());
+        } else {
+            // form.industryID is itself a parent (leaf or legacy data)
+            setParentIndustryId(form.industryID.toString());
+        }
+    }, [form.industryID, allIndustries]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const f = e.target.files?.[0];
@@ -351,9 +364,12 @@ function StartupInfoPageInner() {
                             <div>
                                 <label className={labelCls}>Lĩnh vực chính (Industry)</label>
                                 <select
-                                    name="industryID"
-                                    value={form.industryID || ""}
-                                    onChange={(e) => updateForm("industryID", e.target.value)}
+                                    value={parentIndustryId}
+                                    onChange={(e) => {
+                                        setParentIndustryId(e.target.value);
+                                        updateForm("industryID", "");
+                                        updateForm("subIndustry", "");
+                                    }}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center]")}
                                 >
                                     <option value="">Chọn lĩnh vực</option>
@@ -365,17 +381,19 @@ function StartupInfoPageInner() {
                             <div>
                                 <label className={labelCls}>Lĩnh vực phụ (Sub-Industry)</label>
                                 <select
-                                    name="subIndustry"
-                                    value={form.subIndustry || ""}
-                                    onChange={(e) => updateForm("subIndustry", e.target.value)}
-                                    disabled={!form.industryID}
+                                    value={form.industryID?.toString() || ""}
+                                    onChange={(e) => {
+                                        updateForm("industryID", e.target.value);
+                                        updateForm("subIndustry", "");
+                                    }}
+                                    disabled={!parentIndustryId}
                                     className={cn(inputCls, "appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%2364748B%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px] bg-no-repeat bg-[position:right_16px_center] disabled:opacity-50 disabled:cursor-not-allowed")}
                                 >
-                                    <option value="">{form.industryID ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
+                                    <option value="">{parentIndustryId ? "Chọn lĩnh vực phụ" : "Chọn lĩnh vực chính trước"}</option>
                                     {allIndustries
-                                        .filter(i => i.parentIndustryID === Number(form.industryID))
+                                        .filter(i => i.parentIndustryID === Number(parentIndustryId))
                                         .map(i => (
-                                            <option key={i.industryID} value={i.industryName}>{i.industryName}</option>
+                                            <option key={i.industryID} value={i.industryID.toString()}>{i.industryName}</option>
                                         ))
                                     }
                                 </select>

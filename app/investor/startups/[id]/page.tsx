@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -13,16 +14,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertCircle,
   AlertTriangle,
   Bookmark,
-  Brain,
   Building2,
-  FileText,
-  FolderOpen,
+  Calendar,
+  CheckCircle2,
+  DollarSign,
+  Globe,
   Handshake,
+  Layers,
+  Lightbulb,
   Loader2,
+  MapPin,
   Sparkles,
+  Target,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import {
   AddToWatchlist,
@@ -31,183 +39,462 @@ import {
   GetStartupById,
   RemoveFromWatchlist,
 } from "@/services/investor/investor.api";
-import { CreateConnection, GetSentConnections } from "@/services/connection/connection.api";
+import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
+import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 
-const TEXT = {
-  unknown: "Kh\u00f4ng x\u00e1c \u0111\u1ecbnh",
-  startup: "Startup",
-  notUpdated: "Ch\u01b0a c\u1eadp nh\u1eadt",
-  noDescription: "Ch\u01b0a c\u00f3 th\u00f4ng tin m\u00f4 t\u1ea3",
-  member: "Th\u00e0nh vi\u00ean",
-  loading: "\u0110ang t\u1ea3i th\u00f4ng tin startup...",
-  notFoundTitle: "Kh\u00f4ng t\u00ecm th\u1ea5y startup",
-  notFoundDesc: "Startup n\u00e0y kh\u00f4ng t\u1ed3n t\u1ea1i ho\u1eb7c hi\u1ec7n kh\u00f4ng kh\u1ea3 d\u1ee5ng.",
-  notFoundShort: "Kh\u00f4ng t\u00ecm th\u1ea5y startup.",
-  loadFailed: "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c th\u00f4ng tin startup.",
-  backToList: "Quay l\u1ea1i danh s\u00e1ch",
-  verified: "\u0110\u00e3 verified",
-  investorOnly:
-    "Ch\u1ec9 Nh\u00e0 \u0111\u1ea7u t\u01b0 m\u1edbi c\u00f3 th\u1ec3 theo d\u00f5i startup. Vui l\u00f2ng chuy\u1ec3n t\u00e0i kho\u1ea3n ho\u1eb7c t\u1ea1o h\u1ed3 s\u01a1 Nh\u00e0 \u0111\u1ea7u t\u01b0.",
-  investorOnlyShort: "Ch\u1ec9 Nh\u00e0 \u0111\u1ea7u t\u01b0",
-  addedWatchlist: "\u0110\u00e3 th\u00eam v\u00e0o danh s\u00e1ch theo d\u00f5i",
-  removedWatchlist: "\u0110\u00e3 g\u1ee1 kh\u1ecfi danh s\u00e1ch theo d\u00f5i",
-  addWatchlistFailed: "Kh\u00f4ng th\u1ec3 th\u00eam theo d\u00f5i",
-  removeWatchlistFailed: "Kh\u00f4ng th\u1ec3 b\u1ecf theo d\u00f5i",
-  watchlistUpdateFailed: "L\u1ed7i khi c\u1eadp nh\u1eadt danh s\u00e1ch theo d\u00f5i",
-  unknownStartupId: "Kh\u00f4ng x\u00e1c \u0111\u1ecbnh \u0111\u01b0\u1ee3c ID startup.",
-  alreadySentConnection: "B\u1ea1n \u0111\u00e3 g\u1eedi \u0111\u1ec1 ngh\u1ecb k\u1ebft n\u1ed1i \u0111\u1ebfn startup n\u00e0y r\u1ed3i.",
-  connectionSent: "\u0110\u00e3 g\u1eedi \u0111\u1ec1 ngh\u1ecb k\u1ebft n\u1ed1i th\u00e0nh c\u00f4ng!",
-  connectionFailed: "G\u1eedi \u0111\u1ec1 ngh\u1ecb th\u1ea5t b\u1ea1i.",
-  startupNotAccepting: "Startup kh\u00f4ng nh\u1eadn k\u1ebft n\u1ed1i m\u1edbi",
-  unfollowTitle: "X\u00e1c nh\u1eadn h\u1ee7y theo d\u00f5i",
-  unfollowDescPrefix: "B\u1ea1n c\u00f3 ch\u1eafc mu\u1ed1n b\u1ecf theo d\u00f5i \"",
-  unfollowDescSuffix: "\" kh\u00f4ng? Thao t\u00e1c n\u00e0y s\u1ebd g\u1ee1 startup kh\u1ecfi danh s\u00e1ch theo d\u00f5i c\u1ee7a b\u1ea1n.",
-  cancel: "H\u1ee7y",
-  unfollow: "B\u1ecf theo d\u00f5i",
-  following: "\u0110\u00e3 theo d\u00f5i",
-  follow: "Theo d\u00f5i",
-  requestConnection: "\u0110\u1ec1 ngh\u1ecb k\u1ebft n\u1ed1i",
-  sentConnection: "\u0110\u00e3 g\u1eedi k\u1ebft n\u1ed1i",
-  about: "V\u1ec1 Startup",
-  noExtraInfo: "Ch\u01b0a c\u00f3 th\u00f4ng tin b\u1ed5 sung.",
-  foundingTeam: "\u0110\u1ed9i ng\u0169 s\u00e1ng l\u1eadp",
-  noTeam: "Ch\u01b0a c\u00f3 th\u00f4ng tin \u0111\u1ed9i ng\u0169.",
-  targetFunding: "M\u1ee5c ti\u00eau g\u1ecdi v\u1ed1n",
-  aiScore: "\u0110i\u1ec3m \u0111\u00e1nh gi\u00e1 AI",
-  highFit: "\u0110\u1ed9 ph\u00f9 h\u1ee3p r\u1ea5t cao",
-  dataRoom: "T\u00e0i li\u1ec7u Data Room",
-  uploadedDocs: "3 t\u00e0i li\u1ec7u t\u1ea3i l\u00ean",
-  pitchDeck: "Pitch Deck",
-  finance: "T\u00e0i ch\u00ednh",
-  legal: "Ph\u00e1p l\u00fd",
-  uploadedAt: "T\u1ea3i l\u00ean",
-  aiAutoReview: "\u0110\u00e1nh gi\u00e1 AI t\u1ef1 \u0111\u1ed9ng",
-  standoutStrengths: "\u0110i\u1ec3m m\u1ea1nh n\u1ed5i b\u1eadt",
-  riskNotes: "\u0110i\u1ec1u ki\u1ec7n c\u1ea7n l\u01b0u \u00fd",
-  strength1: "Th\u00f4ng tin startup \u0111\u00e3 \u0111\u01b0\u1ee3c t\u1ea3i v\u00e0 \u0111\u1ed9i ng\u0169 c\u01a1 b\u1ea3n hi\u1ec3n th\u1ecb \u1ed5n \u0111\u1ecbnh.",
-  strength2: "Trang detail \u0111\u00e3 b\u1ecf fallback mock n\u00ean ch\u1ec9 ph\u1ea3n \u00e1nh d\u1eef li\u1ec7u th\u1eadt t\u1eeb BE.",
-  risk1: "N\u1ebfu startup b\u1ecb hidden v\u00e0 b\u1ea1n kh\u00f4ng \u0111\u1ee7 quy\u1ec1n, endpoint detail s\u1ebd tr\u1ea3 not found.",
-  risk2: "Data room v\u00e0 ph\u00e2n t\u00edch AI hi\u1ec7n v\u1eabn l\u00e0 ph\u1ea7n hi\u1ec3n th\u1ecb m\u00f4 ph\u1ecfng \u1edf FE.",
-} as const;
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const AVATAR_COLORS = [
-  "from-violet-500 to-violet-600",
-  "from-blue-500 to-blue-600",
-  "from-emerald-500 to-emerald-600",
-  "from-rose-500 to-rose-600",
-  "from-amber-500 to-amber-600",
-  "from-cyan-500 to-cyan-600",
-  "from-pink-500 to-pink-600",
-  "from-indigo-500 to-indigo-600",
+const STAGE_LABELS: Record<string, string> = {
+  "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)",
+  "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
+  Idea: "Hạt giống (Idea)", PreSeed: "Tiền ươm mầm (Pre-Seed)", Seed: "Ươm mầm (Seed)",
+  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
+};
+
+const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Liên hệ"] as const;
+type Tab = typeof TABS[number];
+
+const MONOGRAM_PALETTES = [
+  { bg: "bg-violet-500" }, { bg: "bg-blue-500" }, { bg: "bg-emerald-500" },
+  { bg: "bg-rose-500" }, { bg: "bg-amber-500" }, { bg: "bg-cyan-500" },
+  { bg: "bg-pink-500" }, { bg: "bg-indigo-500" },
 ];
 
-type StartupTeamMember = {
-  name: string;
-  role: string;
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type StartupDetailView = {
-  id: number;
-  name: string;
-  industry: string;
-  stage: string;
-  location: string;
-  country?: string;
-  target: string;
-  score: number;
-  desc: string;
-  tags: string[];
-  team: StartupTeamMember[];
-  logo: string;
-  enterpriseCode?: string | null;
-};
-
-function getAvatarColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function hasImageSource(value?: string | null) {
-  return Boolean(value && (/^https?:\/\//i.test(value) || value.startsWith("/")));
+function getMonogramPalette(id: number) {
+  return MONOGRAM_PALETTES[id % MONOGRAM_PALETTES.length];
 }
 
 function getErrorCode(source: any): string | undefined {
-  return (
-    source?.errorCode ??
-    source?.error?.code ??
-    source?.data?.errorCode ??
-    source?.data?.error?.code ??
-    source?.response?.data?.errorCode ??
-    source?.response?.data?.error?.code
-  );
+  return source?.errorCode ?? source?.error?.code ?? source?.data?.errorCode ??
+    source?.response?.data?.errorCode ?? source?.response?.data?.error?.code;
 }
 
 function getErrorMessage(source: any): string | undefined {
+  return source?.message ?? source?.error?.message ?? source?.data?.message ?? source?.response?.data?.message;
+}
+
+// ─── Shared UI components ─────────────────────────────────────────────────────
+
+function Tag({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "green" | "violet" | "amber" | "blue" }) {
+  const cls = {
+    default: "bg-slate-50 text-slate-600 border-slate-100",
+    green:   "bg-emerald-50 text-emerald-700 border-emerald-100/60",
+    violet:  "bg-violet-50 text-violet-600 border-violet-100/60",
+    amber:   "bg-amber-50 text-amber-700 border-amber-100/60",
+    blue:    "bg-sky-50 text-sky-600 border-sky-100/60",
+  }[variant];
+  return <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border", cls)}>{children}</span>;
+}
+
+function InfoPair({ label, value, isLink }: { label: string; value?: string | null; isLink?: boolean }) {
+  if (!value) return null;
   return (
-    source?.message ??
-    source?.error?.message ??
-    source?.data?.message ??
-    source?.response?.data?.message
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{label}</p>
+      {isLink ? (
+        <a href={value} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-blue-600 hover:underline break-all">{value}</a>
+      ) : (
+        <p className="text-[13px] font-medium text-slate-700">{value}</p>
+      )}
+    </div>
   );
 }
 
-function normalizeStartupDetail(raw: any, fallbackId: number): StartupDetailView {
-  const team = Array.isArray(raw?.teamMembers)
-    ? raw.teamMembers
-    : Array.isArray(raw?.team)
-      ? raw.team
-      : [];
-  const tags = Array.isArray(raw?.tags)
-    ? raw.tags
-    : Array.isArray(raw?.currentNeeds)
-      ? raw.currentNeeds
-      : [];
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-  return {
-    id: Number(raw?.startupID ?? raw?.startupId ?? raw?.id ?? fallbackId),
-    name: raw?.companyName ?? raw?.CompanyName ?? raw?.name ?? raw?.startupName ?? TEXT.startup,
-    industry: raw?.industryName ?? raw?.industry ?? raw?.Industry ?? TEXT.notUpdated,
-    stage: raw?.stage ?? raw?.Stage ?? raw?.fundingStage ?? TEXT.notUpdated,
-    location: raw?.location ?? raw?.Location ?? raw?.city ?? raw?.country ?? TEXT.notUpdated,
-    country: raw?.country ?? raw?.Country ?? undefined,
-    target:
-      raw?.target ??
-      raw?.Target ??
-      (raw?.fundingAmountSought ? `$${Number(raw.fundingAmountSought).toLocaleString()}` : "N/A"),
-    score: Number(raw?.score ?? raw?.Score ?? raw?.aiScore ?? 0),
-    desc: raw?.description ?? raw?.desc ?? raw?.Description ?? raw?.oneLiner ?? TEXT.noDescription,
-    tags: tags.filter((tag: unknown): tag is string => typeof tag === "string"),
-    team: team.map((member: any) => ({
-      name: member?.fullName ?? member?.name ?? TEXT.member,
-      role: member?.role ?? member?.title ?? TEXT.notUpdated,
-    })),
-    logo: raw?.logoURL ?? raw?.logo ?? raw?.profilePhotoURL ?? "",
-    enterpriseCode: raw?.enterpriseCode ?? null,
-  };
+function ProfileSkeleton() {
+  return (
+    <div className="max-w-[1100px] mx-auto space-y-5 pb-16">
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden">
+        <div className="h-28 bg-slate-200 animate-pulse" />
+        <div className="px-7 pb-7 space-y-4">
+          <div className="w-20 h-20 -mt-10 rounded-2xl bg-slate-300 animate-pulse border-[3px] border-white" />
+          <div className="h-6 w-48 bg-slate-200 animate-pulse rounded-lg" />
+          <div className="flex gap-2">
+            {[1, 2, 3].map(i => <div key={i} className="h-6 w-24 bg-slate-100 animate-pulse rounded-md" />)}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {TABS.map(t => <div key={t} className="h-9 w-28 bg-slate-100 animate-pulse rounded-xl" />)}
+      </div>
+      <div className="grid grid-cols-12 gap-5">
+        <div className="col-span-8 space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 h-48 animate-pulse" />
+        </div>
+        <div className="col-span-4">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 h-48 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
 }
+
+// ─── Tab: Tổng quan ───────────────────────────────────────────────────────────
+
+function TabOverview({ p, displayStage, displayIndustry, foundedDateDisplay, teamSizeValue }: any) {
+  const currentNeeds: string[] = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
+
+  return (
+    <div className="grid grid-cols-12 gap-5">
+      <div className="col-span-12 lg:col-span-8 space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { icon: AlertTriangle, label: "Vấn đề", text: p.problemStatement || "Chưa cập nhật vấn đề", color: "text-rose-500" },
+            { icon: Lightbulb,     label: "Giải pháp", text: p.solutionSummary || "Chưa cập nhật giải pháp", color: "text-amber-500" },
+          ].map(({ icon: Icon, label, text, color }) => (
+            <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <Icon className={cn("w-4 h-4", color)} />
+                <h3 className="text-[13px] font-semibold text-slate-700">{label}</h3>
+              </div>
+              <p className="text-[13px] text-slate-500 leading-relaxed">{text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+          <h3 className="text-[13px] font-semibold text-slate-700">Mô tả chi tiết</h3>
+          <p className="text-[13px] text-slate-500 leading-relaxed">{p.description || p.oneLiner || "Chưa cập nhật mô tả"}</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-slate-400" />
+            <h3 className="text-[13px] font-semibold text-slate-700">Nhu cầu hiện tại</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {currentNeeds.length > 0
+              ? currentNeeds.map((n: string) => <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>)
+              : <span className="text-[12px] text-slate-400">Chưa có thông tin nhu cầu</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="col-span-12 lg:col-span-4 space-y-4">
+        {/* Quick Info */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
+          <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thông tin nhanh</h3>
+          <div className="space-y-3">
+            {[
+              { icon: Layers,       label: "Giai đoạn", val: displayStage || "-" },
+              { icon: Building2,    label: "Ngành",     val: displayIndustry || "-" },
+              { icon: Globe,        label: "Thị trường", val: p.marketScope || "-" },
+              { icon: CheckCircle2, label: "Sản phẩm",  val: p.productStatus || "-" },
+              { icon: Calendar,     label: "Thành lập", val: foundedDateDisplay || "-" },
+              { icon: Users,        label: "Team size",  val: teamSizeValue ? `${teamSizeValue} người` : "-" },
+              { icon: MapPin,       label: "Địa điểm",  val: [p.location, p.country].filter(Boolean).join(", ") || "-" },
+            ].map(({ icon: Icon, label, val }) => (
+              <div key={label} className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
+                  <p className="text-[12px] font-medium text-slate-700 truncate">{val}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Kinh doanh ──────────────────────────────────────────────────────────
+
+function TabBusiness({ p }: any) {
+  const currentNeeds: string[] = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
+  const hasData = p.problemStatement || p.solutionSummary || p.marketScope || p.productStatus;
+
+  if (!hasData) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
+        <Lightbulb className="w-8 h-8 text-slate-200 mx-auto" />
+        <p className="text-[13px] text-slate-400">Chưa có thông tin kinh doanh.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-12 gap-5">
+      <div className="col-span-12 lg:col-span-8 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-5">
+          <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2"><Lightbulb className="w-4 h-4 text-amber-400" /> Vấn đề & Giải pháp</h3>
+          <div className="space-y-1">
+            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-widest">Vấn đề</p>
+            <p className="text-[13px] text-slate-600 leading-relaxed">{p.problemStatement || "-"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-widest">Giải pháp</p>
+            <p className="text-[13px] text-slate-600 leading-relaxed">{p.solutionSummary || "-"}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+          <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2"><Target className="w-4 h-4 text-slate-400" /> Nhu cầu hiện tại</h3>
+          <div className="flex flex-wrap gap-2">
+            {currentNeeds.length > 0
+              ? currentNeeds.map((n: string) => <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>)
+              : <span className="text-[12px] text-slate-400">Chưa có</span>}
+          </div>
+        </div>
+      </div>
+      <div className="col-span-12 lg:col-span-4 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
+          <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Thị trường</h3>
+          <InfoPair label="Phạm vi thị trường" value={p.marketScope} />
+          <InfoPair label="Trạng thái sản phẩm" value={p.productStatus} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Gọi vốn ─────────────────────────────────────────────────────────────
+
+function TabFunding({ p, displayStage }: any) {
+  const targetFunding = Number(p.fundingAmountSought) || 0;
+  const raisedAmount = Number(p.currentFundingRaised) || 0;
+  const fundingProgress = targetFunding > 0 ? Math.round((raisedAmount / targetFunding) * 100) : 0;
+
+  if (!targetFunding && !raisedAmount) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">
+        <DollarSign className="w-8 h-8 text-slate-200 mx-auto" />
+        <p className="text-[13px] text-slate-400">Chưa có thông tin gọi vốn.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-12 gap-5">
+      {[
+        { label: "Giai đoạn gọi vốn", value: displayStage || "-", icon: TrendingUp, sub: "Vòng hiện tại" },
+        { label: "Số vốn cần", value: targetFunding > 0 ? `$${targetFunding.toLocaleString()}` : "-", icon: DollarSign, sub: "USD" },
+        { label: "Đã huy động", value: raisedAmount > 0 ? `$${raisedAmount.toLocaleString()}` : "-", icon: CheckCircle2, sub: `${fundingProgress}% mục tiêu` },
+      ].map(({ label, value, icon: Icon, sub }) => (
+        <div key={label} className="col-span-12 sm:col-span-4 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+          <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center mb-4">
+            <Icon className="w-4 h-4 text-slate-400" />
+          </div>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mb-1">{label}</p>
+          <p className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">{value}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
+        </div>
+      ))}
+      <div className="col-span-12 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
+        <p className="text-[12px] font-medium text-slate-500 mb-3">Tiến độ huy động vốn</p>
+        <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-[#e6cc4c] rounded-full transition-all" style={{ width: `${fundingProgress}%` }} />
+        </div>
+        <div className="flex justify-between mt-2">
+          <span className="text-[11px] text-slate-400">${raisedAmount.toLocaleString()} đã huy động</span>
+          <span className="text-[11px] text-slate-400">Mục tiêu ${targetFunding.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Đội ngũ & Xác thực ──────────────────────────────────────────────────
+
+function TabTeam({ p }: any) {
+  const members: any[] = Array.isArray(p.teamMembers) ? p.teamMembers : Array.isArray(p.team) ? p.team : [];
+
+  return (
+    <div className="grid grid-cols-12 gap-5">
+      <div className="col-span-12 lg:col-span-8 space-y-5">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-5">
+          <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-500" /> Thành viên cốt cán ({members.length})
+          </h3>
+          <div className="divide-y divide-slate-100">
+            {members.length > 0 ? members.map((m: any, idx: number) => (
+              <div key={m.teamMemberID ?? m.id ?? idx} className="flex gap-4 py-5 first:pt-0 last:pb-0">
+                <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
+                  {(m.photoURL || m.PhotoURL) ? (
+                    <Image src={m.photoURL ?? m.PhotoURL} alt={m.fullName ?? m.name ?? "Member"} width={48} height={48} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-200 text-slate-500 text-[13px] font-bold">
+                      {(m.fullName ?? m.FullName ?? m.name ?? "?")[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-[14px] font-semibold text-slate-800">{m.fullName ?? m.FullName ?? m.name ?? "Thành viên"}</p>
+                      {(m.isFounder || m.IsFounder) && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-bold border border-amber-200/50">FOUNDER</span>
+                      )}
+                    </div>
+                    {(m.linkedInURL || m.LinkedInURL) && (
+                      <a href={m.linkedInURL ?? m.LinkedInURL} target="_blank" rel="noreferrer" className="hover:bg-blue-50 p-1.5 rounded-lg transition-colors flex-shrink-0">
+                        <Image src="/linkedin.svg" alt="LinkedIn" width={16} height={16} />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-slate-500 font-medium">
+                    {[m.title ?? m.Title, m.role ?? m.Role].filter(Boolean).join(" · ")}
+                    {Number(m.yearsOfExperience) > 0 ? ` · ${m.yearsOfExperience} năm kinh nghiệm` : ""}
+                  </p>
+                  {(m.bio || m.Bio) && <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">{m.bio ?? m.Bio}</p>}
+                </div>
+              </div>
+            )) : <p className="text-[13px] text-slate-400 italic">Chưa có thông tin thành viên.</p>}
+          </div>
+        </div>
+
+        {p.metricSummary && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+            <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#e6cc4c]" /> Chỉ số traction
+            </h3>
+            <p className="text-[13px] text-slate-600 leading-relaxed font-mono bg-slate-50 px-4 py-3 rounded-xl border border-slate-100">{p.metricSummary}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="col-span-12 lg:col-span-4 space-y-4">
+        {p.enterpriseCode && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-3">
+            <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Pháp lý</h3>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+              <span className="text-[12px] font-medium text-emerald-700">Đã đăng ký doanh nghiệp</span>
+            </div>
+            <InfoPair label="Mã số doanh nghiệp" value={p.enterpriseCode} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: Liên hệ ─────────────────────────────────────────────────────────────
+
+function TabContact({ p }: any) {
+  return (
+    <div className="grid grid-cols-12 gap-5">
+      <div className="col-span-12 lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
+        <h3 className="text-[13px] font-semibold text-slate-700">Liên hệ trực tiếp</h3>
+        <div className="space-y-3">
+          <InfoPair label="Email" value={p.contactEmail} />
+          <InfoPair label="Điện thoại" value={p.contactPhone} />
+          <InfoPair label="Địa chỉ" value={[p.location, p.country].filter(Boolean).join(", ") || undefined} />
+        </div>
+      </div>
+      <div className="col-span-12 lg:col-span-6 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6 space-y-4">
+        <h3 className="text-[13px] font-semibold text-slate-700">Liên kết</h3>
+        <div className="space-y-3">
+          <InfoPair label="Website" value={p.website} isLink />
+          <InfoPair label="LinkedIn" value={p.linkedInURL} isLink />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StartupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const startupId = Number(id);
 
-  const [startupData, setStartupData] = useState<StartupDetailView | null>(null);
-  const [startupError, setStartupError] = useState<string | null>(null);
-  const [isStartupLoading, setIsStartupLoading] = useState(true);
+  const [startup, setStartup] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
+
   const [isFollowing, setIsFollowing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInvestor, setIsInvestor] = useState<boolean | null>(null);
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectionSent, setConnectionSent] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"none" | "pending" | "accepted">("none");
+  const [connectionId, setConnectionId] = useState<number | null>(null);
 
-  const startup = startupData;
-  const avatarGradient = getAvatarColor(String(startup?.id ?? startupId));
+  const fetchStartup = useCallback(async () => {
+    if (!Number.isFinite(startupId) || startupId <= 0) {
+      setError("Không tìm thấy thông tin startup.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await GetStartupById(startupId) as any;
+      if ((res?.isSuccess || res?.success) && res.data) {
+        setStartup(res.data);
+      } else {
+        const code = getErrorCode(res);
+        setError(code === "STARTUP_NOT_FOUND" || res?.statusCode === 404
+          ? "Không tìm thấy startup."
+          : getErrorMessage(res) || "Không tải được thông tin startup.");
+      }
+    } catch (err: any) {
+      setError(getErrorCode(err) === "STARTUP_NOT_FOUND" || err?.response?.status === 404
+        ? "Không tìm thấy startup."
+        : getErrorMessage(err) || "Không tải được thông tin startup.");
+    } finally {
+      setLoading(false);
+    }
+  }, [startupId]);
+
+  useEffect(() => { void fetchStartup(); }, [fetchStartup]);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      try { setIsInvestor(Boolean((await GetInvestorProfile())?.isSuccess)); }
+      catch { setIsInvestor(false); }
+    };
+
+    const checkConnection = async () => {
+      if (!Number.isFinite(startupId) || startupId <= 0) return;
+      try {
+        const [sentRes, receivedRes] = await Promise.all([
+          GetSentConnections(1, 100) as any,
+          GetReceivedConnections(1, 100) as any,
+        ]);
+        const getItems = (res: any) => {
+          if (!res?.isSuccess && !res?.success) return [];
+          const d = res.data as any;
+          return Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : Array.isArray(d?.items) ? d.items : [];
+        };
+        const allConns = [...getItems(sentRes), ...getItems(receivedRes)];
+        const match = allConns.find((c: any) => Number(c?.startupID ?? c?.startupId ?? c?.StartupID ?? null) === startupId);
+        if (match) {
+          const status = (match.connectionStatus || "").toLowerCase();
+          if (status === "accepted" || status === "indiscussion") {
+            setConnectionStatus("accepted");
+            setConnectionId(match.connectionID);
+          } else if (status === "requested") {
+            setConnectionStatus("pending");
+          }
+        }
+      } catch { /* non-blocking */ }
+    };
+
+    const checkWatchlist = async () => {
+      if (!Number.isFinite(startupId) || startupId <= 0) return;
+      try {
+        const res = await GetInvestorWatchlist(1, 200) as any;
+        if (!res?.isSuccess) return;
+        const data = res.data as any;
+        const items = Array.isArray(res.data) ? res.data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.items) ? data.items : [];
+        if (items.some((r: any) => Number(r?.startupID ?? r?.startupId ?? r?.StartupID ?? null) === startupId)) setIsFollowing(true);
+      } catch { /* non-blocking */ }
+    };
+
+    void checkRole();
+    void checkConnection();
+    void checkWatchlist();
+  }, [startupId]);
 
   const notifyWatchlistUpdated = () => {
-    if (typeof window === "undefined") return;
     try {
       if ((window as any).BroadcastChannel) {
         const bc = new BroadcastChannel("watchlist-updates");
@@ -216,504 +503,263 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
       } else {
         localStorage.setItem("watchlist-refresh", Date.now().toString());
       }
-    } catch {
-      // ignore local sync errors
-    }
+    } catch { /* ignore */ }
   };
-
-  useEffect(() => {
-    const checkRole = async () => {
-      try {
-        const res = await GetInvestorProfile();
-        setIsInvestor(Boolean(res?.isSuccess));
-      } catch {
-        setIsInvestor(false);
-      }
-    };
-
-    const checkExistingConnection = async () => {
-      if (!Number.isFinite(startupId) || startupId <= 0) return;
-      try {
-        const res = await GetSentConnections(1, 100);
-        if (!res?.isSuccess) return;
-
-        const data = res.data as any;
-        const items = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data?.items)
-              ? data.items
-              : [];
-
-        const found = items.some((connection: any) => {
-          const connectedStartupId = Number(
-            connection?.startupID ??
-              connection?.startupId ??
-              connection?.StartupID ??
-              connection?.StartupId ??
-              null,
-          );
-          return connectedStartupId === startupId;
-        });
-
-        if (found) setConnectionSent(true);
-      } catch {
-        // connection state is non-blocking here
-      }
-    };
-
-    void checkRole();
-    void checkExistingConnection();
-  }, [startupId]);
-
-  useEffect(() => {
-    const fetchStartup = async () => {
-      if (!Number.isFinite(startupId) || startupId <= 0) {
-        setStartupData(null);
-        setStartupError(TEXT.notFoundShort);
-        setIsStartupLoading(false);
-        return;
-      }
-
-      setIsStartupLoading(true);
-      setStartupError(null);
-
-      try {
-        const res = await GetStartupById(startupId);
-        if (res?.isSuccess && res.data) {
-          setStartupData(normalizeStartupDetail(res.data, startupId));
-          return;
-        }
-
-        const code = getErrorCode(res);
-        if (code === "STARTUP_NOT_FOUND" || res?.statusCode === 404) {
-          setStartupData(null);
-          setStartupError(TEXT.notFoundShort);
-          return;
-        }
-
-        setStartupData(null);
-        setStartupError(getErrorMessage(res) || TEXT.loadFailed);
-      } catch (error: any) {
-        const code = getErrorCode(error);
-        if (code === "STARTUP_NOT_FOUND" || error?.response?.status === 404) {
-          setStartupData(null);
-          setStartupError(TEXT.notFoundShort);
-        } else {
-          setStartupData(null);
-          setStartupError(getErrorMessage(error) || TEXT.loadFailed);
-        }
-      } finally {
-        setIsStartupLoading(false);
-      }
-    };
-
-    void fetchStartup();
-  }, [startupId]);
-
-  useEffect(() => {
-    const checkFollowing = async () => {
-      if (!Number.isFinite(startupId) || startupId <= 0) return;
-      try {
-        const res = await GetInvestorWatchlist(1, 200);
-        if (!res?.isSuccess) return;
-
-        const data = res.data as any;
-        const rawItems = Array.isArray(res.data)
-          ? (res.data as any[])
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data?.items)
-              ? data.items
-              : Array.isArray((res as any)?.items)
-                ? (res as any).items
-                : [];
-
-        const found = rawItems.some((raw: any) => {
-          const watchedId = Number(raw?.startupID ?? raw?.startupId ?? raw?.StartupID ?? raw?.StartupId ?? null);
-          return watchedId === startupId;
-        });
-
-        setIsFollowing(found);
-      } catch {
-        // watchlist is non-blocking
-      }
-    };
-
-    void checkFollowing();
-  }, [startupId]);
 
   const handleFollowClick = async () => {
-    if (isProcessing || !Number.isFinite(startupId) || startupId <= 0) return;
+    if (isProcessing || !Number.isFinite(startupId)) return;
     setIsProcessing(true);
-
     try {
       if (!isFollowing) {
-        const res = await AddToWatchlist({ startupID: startupId });
-        if (res?.isSuccess) {
-          setIsFollowing(true);
-          notifyWatchlistUpdated();
-          toast.success(TEXT.addedWatchlist);
-        } else {
-          toast.error(getErrorMessage(res) || TEXT.addWatchlistFailed);
-        }
+        const res = await AddToWatchlist({ startupID: startupId }) as any;
+        if (res?.isSuccess) { setIsFollowing(true); notifyWatchlistUpdated(); toast.success("Đã thêm vào danh sách theo dõi"); }
+        else toast.error(getErrorMessage(res) || "Không thể thêm theo dõi");
       } else {
-        const res = await RemoveFromWatchlist(startupId);
-        if (res?.isSuccess) {
-          setIsFollowing(false);
-          notifyWatchlistUpdated();
-          toast.success(TEXT.removedWatchlist);
-        } else {
-          toast.error(getErrorMessage(res) || TEXT.removeWatchlistFailed);
-        }
+        const res = await RemoveFromWatchlist(startupId) as any;
+        if (res?.isSuccess) { setIsFollowing(false); notifyWatchlistUpdated(); toast.success("Đã gỡ khỏi danh sách theo dõi"); }
+        else toast.error(getErrorMessage(res) || "Không thể bỏ theo dõi");
       }
-    } catch (error: any) {
-      toast.error(getErrorMessage(error) || TEXT.watchlistUpdateFailed);
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (e: any) { toast.error(getErrorMessage(e) || "Lỗi khi cập nhật danh sách theo dõi"); }
+    finally { setIsProcessing(false); }
   };
 
-  const handleConnectClick = async () => {
-    if (!Number.isFinite(startupId) || startupId <= 0) {
-      toast.error(TEXT.unknownStartupId);
-      return;
-    }
-    if (connectionSent) {
-      toast.info(TEXT.alreadySentConnection);
-      return;
-    }
 
-    setIsConnecting(true);
-    try {
-      const res = await CreateConnection({ startupId, message: "" });
-      if (res?.isSuccess) {
-        setConnectionSent(true);
-        toast.success(TEXT.connectionSent);
-        return;
-      }
 
-      const code = getErrorCode(res);
-      if (code === "STARTUP_NOT_ACCEPTING_CONNECTIONS") {
-        toast.error(TEXT.startupNotAccepting);
-      } else {
-        toast.error(getErrorMessage(res) || TEXT.connectionFailed);
-      }
-    } catch (error: any) {
-      const code = getErrorCode(error);
-      if (code === "STARTUP_NOT_ACCEPTING_CONNECTIONS") {
-        toast.error(TEXT.startupNotAccepting);
-      } else {
-        toast.error(getErrorMessage(error) || TEXT.connectionFailed);
-      }
-    } finally {
-      setIsConnecting(false);
-    }
-  };
+  if (loading) return <ProfileSkeleton />;
 
-  if (isStartupLoading) {
+  if (error || !startup) {
     return (
-      <div className="mx-auto flex min-h-[420px] max-w-6xl items-center justify-center px-6">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <Loader2 className="h-7 w-7 animate-spin" />
-          <p className="text-[14px] font-medium">{TEXT.loading}</p>
+      <div className="max-w-[1100px] mx-auto flex flex-col items-center justify-center py-32 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
+          <AlertCircle className="w-7 h-7 text-red-400" />
         </div>
-      </div>
-    );
-  }
-
-  if (!startup) {
-    return (
-      <div className="mx-auto flex min-h-[420px] max-w-3xl items-center justify-center px-6">
-        <div className="rounded-3xl border border-slate-200 bg-white px-10 py-12 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
-            <AlertTriangle className="h-6 w-6 text-red-400" />
-          </div>
-          <h1 className="text-[20px] font-bold text-slate-900">{TEXT.notFoundTitle}</h1>
-          <p className="mt-2 text-[13px] text-slate-500">{startupError || TEXT.notFoundDesc}</p>
-          <Link
-            href="/investor/startups"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-slate-800"
-          >
-            <Building2 className="h-4 w-4" />
-            {TEXT.backToList}
+        <p className="text-[16px] font-semibold text-slate-800">{error ?? "Không tìm thấy startup."}</p>
+        <div className="flex gap-3">
+          <button onClick={fetchStartup} className="inline-flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2 text-[13px] font-medium text-white hover:bg-slate-700">Thử lại</button>
+          <Link href="/investor/startups" className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-200">
+            <Building2 className="w-4 h-4" /> Quay lại danh sách
           </Link>
         </div>
       </div>
     );
   }
 
-  const docs = [
-    {
-      name: `Pitch_Deck_${startup.name.replace(/\s+/g, "_")}.pdf`,
-      type: TEXT.pitchDeck,
-      date: "12/05/2024",
-      icon: FileText,
-      color: "text-red-500",
-    },
-    {
-      name: "Financial_Projections_2024.xlsx",
-      type: TEXT.finance,
-      date: "10/05/2024",
-      icon: FileText,
-      color: "text-green-500",
-    },
-    {
-      name: "Legal_Documents.pdf",
-      type: TEXT.legal,
-      date: "05/05/2024",
-      icon: FileText,
-      color: "text-blue-500",
-    },
-  ];
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const palette = getMonogramPalette(Number(startup.startupID ?? startupId));
+  const companyName = startup.companyName ?? "Startup";
+  const initials = companyName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+  const displayStage = STAGE_LABELS[startup.stage?.toString()] || STAGE_LABELS[startup.fundingStage?.toString()] || startup.fundingStage || startup.stage;
+  const displayIndustry = startup.parentIndustryName
+    ? `${startup.parentIndustryName} / ${startup.industryName || startup.industry || ""}`
+    : (startup.industryName || startup.industry);
+  const teamSizeValue = startup.teamSize ?? startup.TeamSize;
+  const targetFunding = Number(startup.fundingAmountSought) || 0;
+  const aiScore = Number(startup.score ?? startup.aiScore ?? 0);
+
+  const foundedDateDisplay = startup.foundedDate
+    ? new Date(startup.foundedDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+
+  const tabProps = { p: startup, displayStage, displayIndustry, foundedDateDisplay, teamSizeValue };
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 animate-in fade-in duration-500">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="h-40 bg-gradient-to-r from-slate-900 to-slate-800" />
-        <div className="relative px-6 pb-6">
-          <div className="relative z-10 -mt-12 mb-8 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
-            <div className="flex flex-col items-start gap-4 md:flex-row md:items-end md:gap-6">
-              <div
-                className={cn(
-                  "flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-gradient-to-br text-[32px] font-black text-white shadow-xl transition-transform duration-300 hover:scale-105 md:h-32 md:w-32 md:text-[40px]",
-                  avatarGradient,
-                )}
-              >
-                {hasImageSource(startup.logo) ? (
-                  <img src={startup.logo} alt={startup.name} className="h-full w-full rounded-2xl object-cover" />
-                ) : (
-                  startup.name.charAt(0).toUpperCase()
+    <div className="max-w-[1100px] mx-auto space-y-5 pb-16">
+      {/* ── Hero Card ── */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="h-28 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 relative rounded-t-2xl">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px] rounded-t-2xl" />
+        </div>
+
+        <div className="px-7 pb-7">
+          {/* Logo */}
+          <div className="-mt-10 mb-4 relative z-10">
+            <div className={cn("w-20 h-20 rounded-2xl border-[3px] border-white shadow-md overflow-hidden flex items-center justify-center flex-shrink-0 text-white font-bold text-[20px] tracking-tight", palette.bg)}>
+              {startup.logoURL
+                ? <img src={startup.logoURL} alt={companyName} className="w-full h-full object-cover" />
+                : initials}
+            </div>
+          </div>
+
+          {/* Name + oneLiner + action buttons */}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-[22px] font-semibold text-[#0f172a] tracking-[-0.02em]">{companyName}</h1>
+                {startup.enterpriseCode && (
+                  <span className="rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-green-700">Đã Verified</span>
                 )}
               </div>
-              <div className="md:pb-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-black leading-tight text-[#171611] md:text-3xl">{startup.name}</h1>
-                  {startup.enterpriseCode && (
-                    <span className="rounded-full border border-green-200 bg-green-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-green-700">
-                      {TEXT.verified}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1.5 text-sm font-bold uppercase tracking-wide text-slate-500 opacity-80 md:text-base">
-                  {startup.industry} • {startup.location}
-                </p>
-              </div>
+              <p className="text-[13px] text-slate-500">{startup.oneLiner || "Chưa có khẩu hiệu"}</p>
             </div>
 
-            <div className="flex w-full items-center gap-3 md:w-auto">
-              {isInvestor === false ? (
-                <button
-                  onClick={() => toast.error(TEXT.investorOnly)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-[#f3f3f3] px-6 py-2.5 font-bold text-neutral-500 md:flex-none"
-                >
-                  <Bookmark className="h-5 w-5" />
-                  {TEXT.investorOnlyShort}
-                </button>
-              ) : (
-                <>
+            {/* Action buttons + AI Score */}
+            <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                {isInvestor === false ? (
+                  <button onClick={() => toast.error("Chỉ Nhà đầu tư mới có thể theo dõi startup.")}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-[13px] font-medium text-slate-400">
+                    <Bookmark className="w-4 h-4" /> Chỉ Nhà đầu tư
+                  </button>
+                ) : (
                   <button
-                    onClick={() => {
-                      if (isFollowing) setShowUnfollowConfirm(true);
-                      else void handleFollowClick();
-                    }}
+                    onClick={() => { if (isFollowing) setShowUnfollowConfirm(true); else void handleFollowClick(); }}
                     disabled={isProcessing}
                     className={cn(
-                      "relative flex flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:opacity-60 md:flex-none",
+                      "flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all disabled:opacity-60",
                       isFollowing
-                        ? "border border-emerald-100 bg-white text-emerald-700"
-                        : "border border-slate-200 bg-[#f8f8f6] text-[#171611]",
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border border-slate-200 bg-[#f8f8f6] text-[#171611] hover:bg-slate-100"
                     )}
                   >
-                    <Bookmark className="h-5 w-5" />
-                    {isProcessing ? <Loader2 className="h-4 w-4 animate-spin text-[#171611]" /> : isFollowing ? TEXT.following : TEXT.follow}
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bookmark className="w-4 h-4" />}
+                    {isFollowing ? "Đã theo dõi" : "Theo dõi"}
                   </button>
-
-                  <Dialog open={showUnfollowConfirm} onOpenChange={setShowUnfollowConfirm}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>{TEXT.unfollowTitle}</DialogTitle>
-                      </DialogHeader>
-                      <DialogDescription>
-                        {TEXT.unfollowDescPrefix}
-                        {startup.name}
-                        {TEXT.unfollowDescSuffix}
-                      </DialogDescription>
-                      <DialogFooter>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => setShowUnfollowConfirm(false)}
-                            disabled={isProcessing}
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-bold text-slate-600 transition-all hover:bg-slate-50"
-                          >
-                            {TEXT.cancel}
-                          </button>
-                          <button
-                            onClick={async () => {
-                              setShowUnfollowConfirm(false);
-                              await handleFollowClick();
-                            }}
-                            disabled={isProcessing}
-                            className="rounded-xl bg-red-600 px-4 py-2 font-bold text-white transition-all hover:bg-red-700"
-                          >
-                            {isProcessing ? <Loader2 className="inline-block h-4 w-4 animate-spin" /> : TEXT.unfollow}
-                          </button>
-                        </div>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </>
-              )}
-
-              <button
-                onClick={() => void handleConnectClick()}
-                disabled={isConnecting || connectionSent}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:opacity-60 md:flex-none",
-                  connectionSent
-                    ? "border border-emerald-200 bg-white text-emerald-700"
-                    : "bg-[#e6cc4c] text-[#171611] hover:shadow-lg",
                 )}
-              >
-                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Handshake className="h-5 w-5" />}
-                {connectionSent ? TEXT.sentConnection : TEXT.requestConnection}
-              </button>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-            <div className="col-span-1 space-y-8 md:col-span-3">
-              <div>
-                <h4 className="mb-3 text-[13px] font-bold text-slate-800">{TEXT.about}</h4>
-                <p className="max-w-3xl text-[14px] leading-relaxed text-slate-600">{startup.desc}</p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {startup.tags.length > 0 ? (
-                    startup.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100"
-                      >
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-[13px] text-slate-400">{TEXT.noExtraInfo}</span>
-                  )}
-                </div>
+                {connectionStatus === "accepted" ? (
+                  <Link
+                    href={`/investor/messaging${connectionId ? `?connectionId=${connectionId}` : ''}`}
+                    className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                  >
+                    <Handshake className="w-4 h-4" />
+                    Đã kết nối · Nhắn tin
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => { if (connectionStatus === "pending") { toast.info("Yêu cầu kết nối đang chờ phản hồi."); return; } setShowConnectModal(true); }}
+                    disabled={connectionStatus === "pending"}
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all disabled:opacity-60",
+                      connectionStatus === "pending"
+                        ? "border border-amber-200 bg-amber-50 text-amber-600"
+                        : "bg-[#e6cc4c] text-[#171611] hover:brightness-95"
+                    )}
+                  >
+                    <Handshake className="w-4 h-4" />
+                    {connectionStatus === "pending" ? "Đang chờ phản hồi" : "Đề nghị kết nối"}
+                  </button>
+                )}
               </div>
 
-              <div>
-                <h4 className="mb-4 text-[13px] font-bold text-slate-800">{TEXT.foundingTeam}</h4>
-                <div className="flex flex-wrap gap-4">
-                  {startup.team.length > 0 ? (
-                    startup.team.map((member, idx) => (
-                      <div
-                        key={`${member.name}-${idx}`}
-                        className="group flex min-w-[240px] items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 px-5 py-4 transition-all hover:border-slate-300"
-                      >
-                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-sm font-black text-slate-500 transition-all group-hover:bg-[#e6cc4c] group-hover:text-white">
-                          {(member.name ?? "?").split(" ").pop()?.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="text-[14px] font-bold text-[#171611]">{member.name}</p>
-                          <p className="text-[11px] font-medium uppercase tracking-tight text-slate-400">{member.role}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-[13px] text-slate-400">{TEXT.noTeam}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 shadow-sm">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">{TEXT.targetFunding}</p>
-                <p className="mb-1 text-[28px] font-black leading-none text-[#171611]">{startup.target}</p>
-                <p className="mt-2 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] font-bold text-emerald-600">
-                  {startup.stage}
-                </p>
-              </div>
-
-              <div className="group flex items-start gap-4 rounded-2xl border border-[#e6cc4c]/20 bg-[#e6cc4c]/5 p-5 shadow-sm transition-colors hover:bg-[#e6cc4c]/10">
-                <Sparkles className="h-7 w-7 shrink-0 text-[#e6cc4c]" />
-                <div>
-                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-widest text-[#C8A000]">{TEXT.aiScore}</p>
-                  <p className="text-[28px] font-black leading-none text-[#171611]">
-                    {startup.score} <span className="text-[14px] font-bold text-slate-400">/100</span>
-                  </p>
-                  <p className="mt-2 inline-block rounded-md bg-white/60 px-2 py-0.5 text-[11px] font-bold text-[#C8A000]">
-                    {TEXT.highFit}
-                  </p>
-                </div>
+              {/* AI Score — compact, dưới buttons */}
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#e6cc4c]/30 bg-[#fdfbe9]">
+                <Sparkles className="w-3.5 h-3.5 text-[#C8A000]" />
+                <span className="text-[11px] font-semibold text-[#C8A000] uppercase tracking-wide">Điểm AI</span>
+                <span className="text-[15px] font-black text-[#171611] leading-none">{aiScore}</span>
+                <span className="text-[11px] text-slate-400 font-medium">/100</span>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="col-span-1 space-y-6 lg:col-span-8">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-[16px] font-bold text-[#171611]">{TEXT.dataRoom}</h3>
-              <span className="text-[12px] font-medium text-slate-400">{TEXT.uploadedDocs}</span>
-            </div>
-            <div className="space-y-3">
-              {docs.map((doc, idx) => (
-                <div
-                  key={`${doc.name}-${idx}`}
-                  className="group flex cursor-pointer items-center justify-between rounded-xl border border-slate-100 p-4 transition-all hover:border-[#e6cc4c]/40 hover:bg-slate-50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-100 bg-white shadow-sm transition-colors group-hover:bg-[#e6cc4c]/10">
-                      <doc.icon className={cn("h-5 w-5", doc.color)} />
-                    </div>
-                    <div>
-                      <p className="text-[14px] font-bold text-slate-700 transition-colors group-hover:text-[#171611]">{doc.name}</p>
-                      <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-                        {doc.type} • {TEXT.uploadedAt}: {doc.date}
-                      </p>
-                    </div>
+          {/* Unfollow dialog */}
+          <Dialog open={showUnfollowConfirm} onOpenChange={setShowUnfollowConfirm}>
+            <DialogContent className="sm:max-w-[400px] p-0 rounded-2xl border-none shadow-2xl overflow-hidden bg-white">
+              {/* Header – red tone */}
+              <div className="bg-red-50 px-6 py-5 border-b border-red-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-28 h-28 bg-red-200/30 rounded-full blur-3xl -mr-10 -mt-10" />
+                <div className="relative z-10 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
                   </div>
-                  <FolderOpen className="h-5 w-5 text-slate-300 transition-colors group-hover:text-[#e6cc4c]" />
+                  <div>
+                    <DialogHeader>
+                      <DialogTitle className="text-[17px] font-bold text-[#171611] leading-snug">
+                        Xác nhận hủy theo dõi
+                      </DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-neutral-500 font-medium mt-1">Hành động này không thể hoàn tác.</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
+              </div>
 
-        <div className="col-span-1 space-y-6 lg:col-span-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex items-center gap-2">
-              <Brain className="h-5 w-5 text-[#e6cc4c]" />
-              <h3 className="text-[16px] font-bold text-[#171611]">{TEXT.aiAutoReview}</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-emerald-100/50 bg-emerald-50/50 p-5">
-                <p className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-tight text-emerald-800">
-                  <TrendingUp className="h-4 w-4" /> {TEXT.standoutStrengths}
-                </p>
-                <ul className="ml-4 list-disc space-y-2 text-[13px] font-medium leading-relaxed text-emerald-700">
-                  <li>{TEXT.strength1}</li>
-                  <li>{TEXT.strength2}</li>
-                </ul>
+              {/* Body */}
+              <div className="px-6 py-5">
+                <DialogDescription className="text-sm text-neutral-600 leading-relaxed">
+                  Bạn có chắc muốn bỏ theo dõi{" "}
+                  <span className="font-semibold text-[#171611]">"{companyName}"</span>{" "}
+                  không? Startup này sẽ bị xóa khỏi danh sách theo dõi của bạn.
+                </DialogDescription>
               </div>
-              <div className="rounded-2xl border border-amber-100/50 bg-amber-50/50 p-5">
-                <p className="mb-3 flex items-center gap-2 text-[12px] font-bold uppercase tracking-tight text-amber-800">
-                  <AlertTriangle className="h-4 w-4" /> {TEXT.riskNotes}
-                </p>
-                <ul className="ml-4 list-disc space-y-2 text-[13px] font-medium leading-relaxed text-amber-700">
-                  <li>{TEXT.risk1}</li>
-                  <li>{TEXT.risk2}</li>
-                </ul>
+
+              {/* Footer */}
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  onClick={() => setShowUnfollowConfirm(false)}
+                  className="flex-1 px-4 py-2.5 border border-neutral-200 text-neutral-600 rounded-xl text-sm font-bold hover:bg-neutral-50 transition-colors"
+                >
+                  Giữ lại
+                </button>
+                <button
+                  onClick={async () => { setShowUnfollowConfirm(false); await handleFollowClick(); }}
+                  disabled={isProcessing}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200 disabled:opacity-60 disabled:shadow-none"
+                >
+                  {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Bỏ theo dõi"}
+                </button>
               </div>
-            </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Connect modal */}
+          <ConnectStartupModal
+            open={showConnectModal}
+            onOpenChange={setShowConnectModal}
+            startup={{ id: startup.startupID ?? startupId, name: companyName, industry: displayIndustry || "—", stage: displayStage || "—" }}
+            onSuccess={() => setConnectionStatus("pending")}
+          />
+
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-5">
+            {displayStage && <Tag variant="green"><TrendingUp className="w-3 h-3" />{displayStage}</Tag>}
+            <Tag><Building2 className="w-3 h-3 text-slate-400" />{displayIndustry || "Chưa có ngành"}</Tag>
+            {startup.marketScope && <Tag variant="blue">{startup.marketScope}</Tag>}
+            <span className="text-slate-200 text-[14px] mx-0.5">·</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400"><MapPin className="w-3 h-3" />{startup.location || "Chưa rõ vị trí"}</span>
+            {startup.productStatus && <span className="inline-flex items-center gap-1 text-[11px] text-slate-400"><span className="text-slate-200">·</span> {startup.productStatus}</span>}
+            {startup.enterpriseCode && <Tag variant="green"><CheckCircle2 className="w-3 h-3" />Đã đăng ký doanh nghiệp</Tag>}
+          </div>
+
+          {/* Quick stats */}
+          <div className="flex flex-wrap items-center gap-5 pt-4 border-t border-slate-100">
+            {[
+              ...(foundedDateDisplay ? [{ icon: Calendar, label: "Thành lập", value: foundedDateDisplay }] : []),
+              ...(targetFunding > 0 ? [{ icon: DollarSign, label: "Vốn gọi", value: `$${targetFunding.toLocaleString()}` }] : []),
+              ...(teamSizeValue ? [{ icon: Users, label: "Quy mô", value: `${teamSizeValue} người` }] : []),
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
+                  <Icon className="w-3.5 h-3.5 text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-[12px] font-semibold text-slate-700 leading-none">{value}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* ── Tab Navigation ── */}
+      <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200/80 p-1 w-fit shadow-[0_1px_3px_rgba(0,0,0,0.03)] overflow-x-auto">
+        {TABS.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={cn(
+              "px-4 py-2 rounded-lg text-[13px] font-medium transition-all whitespace-nowrap",
+              activeTab === tab ? "bg-[#0f172a] text-white shadow-sm" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab Content ── */}
+      {activeTab === "Tổng quan" && <TabOverview {...tabProps} />}
+      {activeTab === "Kinh doanh" && <TabBusiness p={startup} />}
+      {activeTab === "Gọi vốn" && <TabFunding p={startup} displayStage={displayStage} />}
+      {activeTab === "Đội ngũ & Xác thực" && <TabTeam p={startup} />}
+      {activeTab === "Liên hệ" && <TabContact p={startup} />}
     </div>
   );
 }
