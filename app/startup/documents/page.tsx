@@ -341,7 +341,7 @@ export default function StartupDocumentsPage() {
                                         <td className="px-4 py-4">
                                             <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md whitespace-nowrap">{doc.type}</span>
                                         </td>
-                                        <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version}</td>
+                                        <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version?.toString().toLowerCase().startsWith("v") ? doc.version : `v${doc.version}`}</td>
                                         <td className="px-4 py-4 text-[12px] text-slate-500 whitespace-nowrap">{doc.updatedAt}</td>
                                         <td className="px-4 py-4">
                                             <div>
