@@ -21,11 +21,12 @@ import {
     GetVersionHistory,
     UploadNewVersion,
     GetDocumentAccessLogs,
+    AddMetaData,
 } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type Visibility = "private" | "investors" | "advisors" | "both";
+type Visibility = "private" | "investors" | "advisors" | "both" | "public";
 type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
 
 interface DocData {
@@ -113,7 +114,7 @@ function mapBackendDocToUi(doc: IDocument): DocData {
         name: (doc as any).title || fileNameFromUrl(doc.fileUrl),
         fileUrl: doc.fileUrl,
         type: mapBackendTypeToUiType(doc.documentType),
-        visibility: "private",
+        visibility: visibilityFromBE(doc.visibility),
         tags: [],
         description: anyDoc.description ?? "",
         size: "—",
@@ -159,7 +160,31 @@ const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementT
     investors: { label: "Nhà đầu tư",   cls: "bg-blue-50 text-blue-600 border-blue-100",       Icon: Users,     hint: "Các nhà đầu tư đã kết nối có thể xem tài liệu này." },
     advisors:  { label: "Cố vấn",       cls: "bg-violet-50 text-violet-600 border-violet-100", Icon: UserCheck, hint: "Các cố vấn đang mentoring startup có thể xem." },
     both:      { label: "NĐT & Cố vấn", cls: "bg-indigo-50 text-indigo-600 border-indigo-100", Icon: Users,     hint: "Cả nhà đầu tư và cố vấn đã kết nối đều có thể xem." },
+    public:    { label: "Công khai",    cls: "bg-emerald-50 text-emerald-600 border-emerald-100", Icon: Eye,    hint: "Mọi người dùng đã đăng nhập đều có thể xem." },
 };
+
+// DocumentVisibility flags: OwnerOnly=0, Investor=1, Advisor=2, Public=4.
+// We map the subset the UI supports; unknown combinations fall back to "private".
+function visibilityFromBE(n: number | null | undefined): Visibility {
+    if (n == null) return "private";
+    if (n === 4) return "public";
+    const hasInv = (n & 1) !== 0;
+    const hasAdv = (n & 2) !== 0;
+    if (hasInv && hasAdv) return "both";
+    if (hasInv) return "investors";
+    if (hasAdv) return "advisors";
+    return "private";
+}
+
+function visibilityToBE(v: Visibility): number {
+    switch (v) {
+        case "investors": return 1;
+        case "advisors":  return 2;
+        case "both":      return 3;
+        case "public":    return 4;
+        default:          return 0;
+    }
+}
 
 /* ─── Toast ───────────────────────────────────────────────── */
 function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"success"|"error"; onClose: () => void }) {
@@ -178,83 +203,59 @@ function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"su
     );
 }
 
-/* ─── Edit Metadata Modal ─────────────────────────────────── */
-function EditMetadataModal({ doc, onClose, onSave }: {
-    doc: DocData;
+/* ─── Visibility Modal ────────────────────────────────────── */
+function VisibilityModal({ currentVisibility, saving, onClose, onSave }: {
+    currentVisibility: Visibility;
+    saving: boolean;
     onClose: () => void;
-    onSave: (updated: DocData) => void;
+    onSave: (v: Visibility) => void;
 }) {
-    const [form, setForm] = useState({
-        name: doc.name, type: doc.type, visibility: doc.visibility,
-        tags: doc.tags.join(", "), description: doc.description,
-    });
+    const [value, setValue] = useState<Visibility>(currentVisibility);
+    const hint = VIS[value].hint;
+    const dirty = value !== currentVisibility;
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-lg mx-4 overflow-hidden">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={saving ? undefined : onClose} />
+            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 overflow-hidden">
                 <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Pencil className="w-4 h-4 text-slate-600" /></div>
-                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Chỉnh sửa metadata</h2>
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Eye className="w-4 h-4 text-slate-600" /></div>
+                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Cài đặt quyền xem</h2>
                     </div>
-                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"><X className="w-4 h-4" /></button>
+                    <button onClick={onClose} disabled={saving} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-50"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="px-6 py-5 space-y-4">
+                <div className="px-6 py-5 space-y-3">
                     <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Tên tài liệu</label>
-                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all"
-                            value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="block text-[12px] font-medium text-slate-500">Loại tài liệu</label>
-                            <div className="relative">
-                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
-                                    value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as DocType }))}>
-                                    {["Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"].map(t => <option key={t}>{t}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="block text-[12px] font-medium text-slate-500">Hiển thị với</label>
-                            <div className="relative">
-                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
-                                    value={form.visibility} onChange={e => setForm(p => ({ ...p, visibility: e.target.value as Visibility }))}>
-                                    <option value="private">Riêng tư</option>
-                                    <option value="investors">Nhà đầu tư</option>
-                                    <option value="advisors">Cố vấn</option>
-                                    <option value="both">Nhà đầu tư & Cố vấn</option>
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            </div>
+                        <label className="block text-[12px] font-medium text-slate-500">Ai được xem tài liệu này?</label>
+                        <div className="relative">
+                            <select
+                                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
+                                value={value}
+                                disabled={saving}
+                                onChange={e => setValue(e.target.value as Visibility)}
+                            >
+                                <option value="private">Riêng tư (chỉ mình tôi)</option>
+                                <option value="investors">Nhà đầu tư đã kết nối</option>
+                                <option value="advisors">Cố vấn đang mentoring</option>
+                                <option value="both">Nhà đầu tư & Cố vấn</option>
+                                <option value="public">Công khai (mọi người dùng)</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         </div>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Tags <span className="text-slate-400 font-normal">(phân cách bằng dấu phẩy)</span></label>
-                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all"
-                            value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="Ví dụ: 2026, Series A, pitch" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Mô tả</label>
-                        <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all resize-none"
-                            rows={3} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-                    </div>
+                    <p className="text-[12px] text-slate-500 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                        <Info className="inline w-3.5 h-3.5 text-slate-400 mr-1.5 -mt-0.5" />{hint}
+                    </p>
                 </div>
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors">Hủy bỏ</button>
+                    <button onClick={onClose} disabled={saving} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">Hủy</button>
                     <button
-                        onClick={() => onSave({
-                            ...doc,
-                            name: form.name,
-                            type: form.type,
-                            visibility: form.visibility,
-                            tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
-                            description: form.description,
-                        })}
-                        className="px-5 py-2.5 rounded-xl text-[13px] font-medium bg-[#0f172a] text-white hover:bg-slate-800 transition-all shadow-sm"
+                        onClick={() => onSave(value)}
+                        disabled={saving || !dirty}
+                        className="px-5 py-2.5 rounded-xl text-[13px] font-medium bg-[#0f172a] text-white hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                     >
+                        {saving && <RefreshCcw className="w-3.5 h-3.5 animate-spin" />}
                         Lưu thay đổi
                     </button>
                 </div>
@@ -441,6 +442,8 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     const [reloadToken, setReloadToken] = useState(0);
     const [showMoreMenu, setShowMoreMenu]  = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [savingMeta, setSavingMeta] = useState(false);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
     const [showUploadVersion, setShowUploadVersion] = useState(false);
     const [uploadingVersion, setUploadingVersion] = useState(false);
@@ -681,6 +684,31 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         })();
     };
 
+    const handleSaveVisibility = async (v: Visibility) => {
+        const backendDocId = Number(id);
+        if (!Number.isFinite(backendDocId)) {
+            showToast("ID tài liệu không hợp lệ", "error");
+            return;
+        }
+        setSavingMeta(true);
+        try {
+            const res = await AddMetaData(backendDocId, {
+                visibility: visibilityToBE(v),
+            }) as any;
+            if (res?.success === false || res?.isSuccess === false) {
+                showToast(res?.message ?? "Cập nhật thất bại", "error");
+                return;
+            }
+            showToast("Đã cập nhật quyền xem", "success");
+            setEditOpen(false);
+            setReloadToken(t => t + 1);
+        } catch (e: any) {
+            showToast(e?.response?.data?.message ?? e?.message ?? "Cập nhật thất bại", "error");
+        } finally {
+            setSavingMeta(false);
+        }
+    };
+
     const handleUploadNewVersion = async (file: File) => {
         const backendDocId = Number(id);
         setUploadingVersion(true);
@@ -761,6 +789,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                     className="absolute right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1 w-[176px] z-20"
                                     onClick={e => e.stopPropagation()}
                                 >
+                                    <button
+                                        onClick={() => { setShowMoreMenu(false); setEditOpen(true); }}
+                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" /> Cài đặt quyền xem
+                                    </button>
                                     <button
                                         onClick={() => { setShowMoreMenu(false); setDeleteConfirm(true); }}
                                         className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left"
@@ -1110,7 +1144,14 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 </div>
             </div>
 
-            {false && <EditMetadataModal doc={doc} onClose={() => {}} onSave={() => {}} />}
+            {editOpen && (
+                <VisibilityModal
+                    currentVisibility={doc.visibility}
+                    saving={savingMeta}
+                    onClose={() => { if (!savingMeta) setEditOpen(false); }}
+                    onSave={handleSaveVisibility}
+                />
+            )}
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Delete confirmation dialog (independent of dropdown) */}

@@ -253,6 +253,8 @@ declare global {
     fileHash: string;
     transactionHash: string;
     anchoredAt: string | null;
+    visibility?: number;
+    visibilityLabel?: string;
   }
 
   interface IDocumentVersionHistory {

@@ -16,6 +16,8 @@ interface IAddMetaDataRequest {
     title? : string
     documentType? : DocumentType
     isArchived? : boolean
+    // DocumentVisibility flags: 0=OwnerOnly, 1=Investor, 2=Advisor, 4=Public (combine via bitwise OR)
+    visibility? : number
 }
 
 export const UploadDocument = (data: IDocumentRequest) => {
