@@ -108,6 +108,15 @@ declare global {
     updatedAt: string;
   }
 
+  interface IDocumentAccessLog {
+    logID: number;
+    userID: number;
+    userName: string;
+    userType: string;
+    action: string;
+    accessedAt: string;
+  }
+
   interface IAdvisorProfile {
     advisorID: number;
     userId: number;
