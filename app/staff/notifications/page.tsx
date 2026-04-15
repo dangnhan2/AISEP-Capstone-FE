@@ -49,12 +49,12 @@ export default function StaffNotificationsPage() {
         page: pageNum,
         pageSize: 15,
         unreadOnly: activeTab === "unread" ? true : undefined
-      });
+      }) as unknown as IBackendRes<IPaginatedRes<INotificationItem>>;
 
-      if (res.data?.isSuccess && res.data.data) {
-        const items = res.data.data.items || [];
+      if ((res.isSuccess || res.success) && res.data) {
+        const items = res.data.items || [];
         setNotifications(prev => pageNum === 1 ? items : [...prev, ...items]);
-        setHasMore((res.data.data.paging.totalItems || 0) > pageNum * 15);
+        setHasMore((res.data.paging?.totalItems || 0) > pageNum * 15);
       }
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
