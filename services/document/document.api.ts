@@ -16,6 +16,8 @@ interface IAddMetaDataRequest {
     title? : string
     documentType? : DocumentType
     isArchived? : boolean
+    // DocumentVisibility flags: 0=OwnerOnly, 1=Investor, 2=Advisor, 4=Public (combine via bitwise OR)
+    visibility? : number
 }
 
 export const UploadDocument = (data: IDocumentRequest) => {
@@ -63,6 +65,26 @@ export const UploadNewVersion = (documentId: number, file: File, title?: string)
             "Content-Type": "multipart/form-data"
         }
     });
+}
+
+// -------------------------- Cross-role (Investor / Advisor / Public) --------------------------
+export const GetStartupDocuments = (startupId: number) => {
+    return axios.get<IBackendRes<IDocument[]>>(`/api/startups/${startupId}/documents`);
+}
+
+export const ViewDocument = (documentId: number) => {
+    return axios.get<IBackendRes<IDocument>>(`/api/documents/${documentId}/view`);
+}
+
+export const DownloadDocument = (documentId: number) => {
+    return axios.get<IBackendRes<Blob>>(`/api/documents/${documentId}/download`, {
+        responseType: 'blob',
+    });
+}
+
+// -------------------------- Access Logs --------------------------
+export const GetDocumentAccessLogs = (documentId: number) => {
+    return axios.get<IBackendRes<IDocumentAccessLog[]>>(`/api/documents/${documentId}/access-logs`);
 }
 
 // -------------------------- Blockchain --------------------------

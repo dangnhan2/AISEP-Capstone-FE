@@ -9,7 +9,7 @@ import {
     ShieldCheck, Shield, Copy, ExternalLink, CheckCircle2, AlertTriangle,
     RefreshCcw, XCircle, Brain, Sparkles, ArrowRight,
     History as LucideHistory, Lock, Users, UserCheck, Pencil, X,
-    ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle,
+    ChevronDown, Tag, MoreHorizontal, Eye, RotateCcw, Info, AlertCircle, Clock,
 } from "lucide-react";
 import {
     GetDocumentById,
@@ -20,11 +20,13 @@ import {
     VerifyDocumentOnchain,
     GetVersionHistory,
     UploadNewVersion,
+    GetDocumentAccessLogs,
+    AddMetaData,
 } from "@/services/document/document.api";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type Visibility = "private" | "investors" | "advisors" | "both";
+type Visibility = "private" | "investors" | "advisors" | "both" | "public";
 type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
 
 interface DocData {
@@ -112,7 +114,7 @@ function mapBackendDocToUi(doc: IDocument): DocData {
         name: (doc as any).title || fileNameFromUrl(doc.fileUrl),
         fileUrl: doc.fileUrl,
         type: mapBackendTypeToUiType(doc.documentType),
-        visibility: "private",
+        visibility: visibilityFromBE(doc.visibility),
         tags: [],
         description: anyDoc.description ?? "",
         size: "—",
@@ -158,7 +160,31 @@ const VIS: Record<Visibility, { label: string; cls: string; Icon: React.ElementT
     investors: { label: "Nhà đầu tư",   cls: "bg-blue-50 text-blue-600 border-blue-100",       Icon: Users,     hint: "Các nhà đầu tư đã kết nối có thể xem tài liệu này." },
     advisors:  { label: "Cố vấn",       cls: "bg-violet-50 text-violet-600 border-violet-100", Icon: UserCheck, hint: "Các cố vấn đang mentoring startup có thể xem." },
     both:      { label: "NĐT & Cố vấn", cls: "bg-indigo-50 text-indigo-600 border-indigo-100", Icon: Users,     hint: "Cả nhà đầu tư và cố vấn đã kết nối đều có thể xem." },
+    public:    { label: "Công khai",    cls: "bg-emerald-50 text-emerald-600 border-emerald-100", Icon: Eye,    hint: "Mọi người dùng đã đăng nhập đều có thể xem." },
 };
+
+// DocumentVisibility flags: OwnerOnly=0, Investor=1, Advisor=2, Public=4.
+// We map the subset the UI supports; unknown combinations fall back to "private".
+function visibilityFromBE(n: number | null | undefined): Visibility {
+    if (n == null) return "private";
+    if (n === 4) return "public";
+    const hasInv = (n & 1) !== 0;
+    const hasAdv = (n & 2) !== 0;
+    if (hasInv && hasAdv) return "both";
+    if (hasInv) return "investors";
+    if (hasAdv) return "advisors";
+    return "private";
+}
+
+function visibilityToBE(v: Visibility): number {
+    switch (v) {
+        case "investors": return 1;
+        case "advisors":  return 2;
+        case "both":      return 3;
+        case "public":    return 4;
+        default:          return 0;
+    }
+}
 
 /* ─── Toast ───────────────────────────────────────────────── */
 function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"success"|"error"; onClose: () => void }) {
@@ -177,83 +203,59 @@ function Toast({ msg, type = "info", onClose }: { msg: string; type?: "info"|"su
     );
 }
 
-/* ─── Edit Metadata Modal ─────────────────────────────────── */
-function EditMetadataModal({ doc, onClose, onSave }: {
-    doc: DocData;
+/* ─── Visibility Modal ────────────────────────────────────── */
+function VisibilityModal({ currentVisibility, saving, onClose, onSave }: {
+    currentVisibility: Visibility;
+    saving: boolean;
     onClose: () => void;
-    onSave: (updated: DocData) => void;
+    onSave: (v: Visibility) => void;
 }) {
-    const [form, setForm] = useState({
-        name: doc.name, type: doc.type, visibility: doc.visibility,
-        tags: doc.tags.join(", "), description: doc.description,
-    });
+    const [value, setValue] = useState<Visibility>(currentVisibility);
+    const hint = VIS[value].hint;
+    const dirty = value !== currentVisibility;
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-lg mx-4 overflow-hidden">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={saving ? undefined : onClose} />
+            <div className="relative bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.12)] w-full max-w-md mx-4 overflow-hidden">
                 <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Pencil className="w-4 h-4 text-slate-600" /></div>
-                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Chỉnh sửa metadata</h2>
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Eye className="w-4 h-4 text-slate-600" /></div>
+                        <h2 className="text-[15px] font-semibold text-[#0f172a]">Cài đặt quyền xem</h2>
                     </div>
-                    <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all"><X className="w-4 h-4" /></button>
+                    <button onClick={onClose} disabled={saving} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 transition-all disabled:opacity-50"><X className="w-4 h-4" /></button>
                 </div>
-                <div className="px-6 py-5 space-y-4">
+                <div className="px-6 py-5 space-y-3">
                     <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Tên tài liệu</label>
-                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 outline-none transition-all"
-                            value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="block text-[12px] font-medium text-slate-500">Loại tài liệu</label>
-                            <div className="relative">
-                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
-                                    value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as DocType }))}>
-                                    {["Pitch Deck","Tài chính","Pháp lý","Kỹ thuật","Khác"].map(t => <option key={t}>{t}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="block text-[12px] font-medium text-slate-500">Hiển thị với</label>
-                            <div className="relative">
-                                <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
-                                    value={form.visibility} onChange={e => setForm(p => ({ ...p, visibility: e.target.value as Visibility }))}>
-                                    <option value="private">Riêng tư</option>
-                                    <option value="investors">Nhà đầu tư</option>
-                                    <option value="advisors">Cố vấn</option>
-                                    <option value="both">Nhà đầu tư & Cố vấn</option>
-                                </select>
-                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                            </div>
+                        <label className="block text-[12px] font-medium text-slate-500">Ai được xem tài liệu này?</label>
+                        <div className="relative">
+                            <select
+                                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/10 transition-all pr-8 cursor-pointer"
+                                value={value}
+                                disabled={saving}
+                                onChange={e => setValue(e.target.value as Visibility)}
+                            >
+                                <option value="private">Riêng tư (chỉ mình tôi)</option>
+                                <option value="investors">Nhà đầu tư đã kết nối</option>
+                                <option value="advisors">Cố vấn đang mentoring</option>
+                                <option value="both">Nhà đầu tư & Cố vấn</option>
+                                <option value="public">Công khai (mọi người dùng)</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         </div>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Tags <span className="text-slate-400 font-normal">(phân cách bằng dấu phẩy)</span></label>
-                        <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all"
-                            value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="Ví dụ: 2026, Series A, pitch" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <label className="block text-[12px] font-medium text-slate-500">Mô tả</label>
-                        <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] text-slate-700 focus:ring-2 focus:ring-slate-900/10 outline-none transition-all resize-none"
-                            rows={3} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-                    </div>
+                    <p className="text-[12px] text-slate-500 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                        <Info className="inline w-3.5 h-3.5 text-slate-400 mr-1.5 -mt-0.5" />{hint}
+                    </p>
                 </div>
                 <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors">Hủy bỏ</button>
+                    <button onClick={onClose} disabled={saving} className="px-4 py-2.5 rounded-xl text-[13px] font-medium text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">Hủy</button>
                     <button
-                        onClick={() => onSave({
-                            ...doc,
-                            name: form.name,
-                            type: form.type,
-                            visibility: form.visibility,
-                            tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
-                            description: form.description,
-                        })}
-                        className="px-5 py-2.5 rounded-xl text-[13px] font-medium bg-[#0f172a] text-white hover:bg-slate-800 transition-all shadow-sm"
+                        onClick={() => onSave(value)}
+                        disabled={saving || !dirty}
+                        className="px-5 py-2.5 rounded-xl text-[13px] font-medium bg-[#0f172a] text-white hover:bg-slate-800 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                     >
+                        {saving && <RefreshCcw className="w-3.5 h-3.5 animate-spin" />}
                         Lưu thay đổi
                     </button>
                 </div>
@@ -440,10 +442,15 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     const [reloadToken, setReloadToken] = useState(0);
     const [showMoreMenu, setShowMoreMenu]  = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [savingMeta, setSavingMeta] = useState(false);
     const [toast, setToast]               = useState<{ msg: string; type?: "info"|"success"|"error" } | null>(null);
     const [showUploadVersion, setShowUploadVersion] = useState(false);
     const [uploadingVersion, setUploadingVersion] = useState(false);
     const [uploadVersionError, setUploadVersionError] = useState<string | null>(null);
+    const [accessLogs, setAccessLogs] = useState<IDocumentAccessLog[]>([]);
+    const [accessLogsLoading, setAccessLogsLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<"versions" | "access-logs">("versions");
 
     const showToast = useCallback((msg: string, type: "info"|"success"|"error" = "info") => {
         setToast({ msg, type });
@@ -539,6 +546,17 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                         hashShort: shortHash(mapped.hash),
                     }]);
                 }
+                // Fetch access logs
+                try {
+                    setAccessLogsLoading(true);
+                    const logRes = await GetDocumentAccessLogs(backendDocId);
+                    if (!cancelled) setAccessLogs(logRes?.data ?? []);
+                } catch {
+                    // Access logs are optional — silently ignore errors (e.g. 403 for non-owner)
+                } finally {
+                    if (!cancelled) setAccessLogsLoading(false);
+                }
+
                 // Auto-poll if status is pending on page load
                 if (mapped.blockchainStatus === "pending") {
                     pollTxStatus(backendDocId);
@@ -666,6 +684,31 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
         })();
     };
 
+    const handleSaveVisibility = async (v: Visibility) => {
+        const backendDocId = Number(id);
+        if (!Number.isFinite(backendDocId)) {
+            showToast("ID tài liệu không hợp lệ", "error");
+            return;
+        }
+        setSavingMeta(true);
+        try {
+            const res = await AddMetaData(backendDocId, {
+                visibility: visibilityToBE(v),
+            }) as any;
+            if (res?.success === false || res?.isSuccess === false) {
+                showToast(res?.message ?? "Cập nhật thất bại", "error");
+                return;
+            }
+            showToast("Đã cập nhật quyền xem", "success");
+            setEditOpen(false);
+            setReloadToken(t => t + 1);
+        } catch (e: any) {
+            showToast(e?.response?.data?.message ?? e?.message ?? "Cập nhật thất bại", "error");
+        } finally {
+            setSavingMeta(false);
+        }
+    };
+
     const handleUploadNewVersion = async (file: File) => {
         const backendDocId = Number(id);
         setUploadingVersion(true);
@@ -746,6 +789,12 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                                     className="absolute right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1 w-[176px] z-20"
                                     onClick={e => e.stopPropagation()}
                                 >
+                                    <button
+                                        onClick={() => { setShowMoreMenu(false); setEditOpen(true); }}
+                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-slate-600 hover:bg-slate-50 text-left"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" /> Cài đặt quyền xem
+                                    </button>
                                     <button
                                         onClick={() => { setShowMoreMenu(false); setDeleteConfirm(true); }}
                                         className="w-full flex items-center gap-2.5 px-3.5 py-2 text-[13px] text-red-500 hover:bg-red-50 text-left"
@@ -843,91 +892,206 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                     {/* Right column */}
                     <div className="lg:col-span-8 space-y-5">
 
-                        {/* Version history */}
+                        {/* Tabbed card: Version History + Access Logs */}
                         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-semibold text-slate-700">Lịch sử phiên bản</span>
-                                    <span className="text-[11px] text-slate-400">({versions.length})</span>
+                            {/* Tab header */}
+                            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => setActiveTab("versions")}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all",
+                                            activeTab === "versions"
+                                                ? "bg-slate-100 text-[#0f172a]"
+                                                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <LucideHistory className="w-3.5 h-3.5" />
+                                        Lịch sử phiên bản
+                                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", activeTab === "versions" ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-400")}>{versions.length}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab("access-logs")}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all",
+                                            activeTab === "access-logs"
+                                                ? "bg-slate-100 text-[#0f172a]"
+                                                : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                                        )}
+                                    >
+                                        <Clock className="w-3.5 h-3.5" />
+                                        Nhật ký truy cập
+                                        {accessLogs.length > 0 && (
+                                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", activeTab === "access-logs" ? "bg-slate-200 text-slate-600" : "bg-slate-100 text-slate-400")}>{accessLogs.length}</span>
+                                        )}
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => { setShowUploadVersion(true); setUploadVersionError(null); }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-[12px] font-medium hover:bg-slate-800 transition-all"
-                                >
-                                    <Upload className="w-3.5 h-3.5" /> Phiên bản mới
-                                </button>
+                                {activeTab === "versions" && (
+                                    <button
+                                        onClick={() => { setShowUploadVersion(true); setUploadVersionError(null); }}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-[12px] font-medium hover:bg-slate-800 transition-all"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" /> Phiên bản mới
+                                    </button>
+                                )}
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b border-slate-100">
-                                            {["Phiên bản","Ngày upload","Hash","Blockchain",""].map((h, i) => (
-                                                <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 3 ? "text-right" : "text-left")}>{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {versions.map(v => {
-                                            const vbc = BC[v.blockchainStatus];
-                                            return (
-                                                <tr
-                                                    key={v.version}
-                                                    className={cn("transition-colors cursor-pointer", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}
-                                                    onClick={() => { if (v.documentID && v.documentID !== Number(id)) router.push(`/startup/documents/${v.documentID}`); }}
-                                                >
-                                                    <td className="px-5 py-3.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{formatVersion(v.version)}</span>
-                                                            {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-5 py-3.5">
-                                                        <span className="text-[12px] text-slate-500">{v.date}</span>
-                                                    </td>
-                                                    <td className="px-5 py-3.5">
-                                                        <code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right">
-                                                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
-                                                            <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-right">
-                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                            {v.documentID && (
-                                                                <button
-                                                                    onClick={() => router.push(`/startup/documents/${v.documentID}`)}
-                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
-                                                                    title="Xem chi tiết"
-                                                                >
-                                                                    <Eye className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                            {!v.isCurrent && v.documentID && (
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            await DeleteDocument(String(v.documentID));
-                                                                            showToast("Đã xóa phiên bản", "success");
-                                                                            setReloadToken(t => t + 1);
-                                                                        } catch {
-                                                                            showToast("Xóa phiên bản thất bại", "error");
-                                                                        }
-                                                                    }}
-                                                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
-                                                                    title="Xóa phiên bản"
-                                                                >
-                                                                    <X className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+
+                            {/* Tab: Version History */}
+                            {activeTab === "versions" && (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b border-slate-100">
+                                                {["Phiên bản","Ngày upload","Hash","Blockchain",""].map((h, i) => (
+                                                    <th key={i} className={cn("px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest", i === 3 ? "text-right" : "text-left")}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {versions.map(v => {
+                                                const vbc = BC[v.blockchainStatus];
+                                                return (
+                                                    <tr
+                                                        key={v.version}
+                                                        className={cn("transition-colors cursor-pointer", v.isCurrent ? "bg-teal-50/30" : "hover:bg-slate-50/40")}
+                                                        onClick={() => { if (v.documentID && v.documentID !== Number(id)) router.push(`/startup/documents/${v.documentID}`); }}
+                                                    >
+                                                        <td className="px-5 py-3.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={cn("text-[13px] font-semibold", v.isCurrent ? "text-teal-700" : "text-[#0f172a]")}>{formatVersion(v.version)}</span>
+                                                                {v.isCurrent && <span className="px-1.5 py-0.5 bg-teal-100 text-teal-700 text-[9px] font-semibold rounded border border-teal-200">Hiện tại</span>}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-3.5">
+                                                            <span className="text-[12px] text-slate-500">{v.date}</span>
+                                                        </td>
+                                                        <td className="px-5 py-3.5">
+                                                            <code className="text-[11px] text-slate-500 font-mono">{v.hashShort}</code>
+                                                        </td>
+                                                        <td className="px-4 py-3.5 text-right">
+                                                            <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap", vbc.cls)}>
+                                                                <vbc.Icon className={cn("w-2.5 h-2.5", vbc.spin && "animate-spin")} /> {vbc.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3.5 text-right">
+                                                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                                {v.documentID && (
+                                                                    <button
+                                                                        onClick={() => router.push(`/startup/documents/${v.documentID}`)}
+                                                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                                                                        title="Xem chi tiết"
+                                                                    >
+                                                                        <Eye className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                                {!v.isCurrent && v.documentID && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                await DeleteDocument(String(v.documentID));
+                                                                                showToast("Đã xóa phiên bản", "success");
+                                                                                setReloadToken(t => t + 1);
+                                                                            } catch {
+                                                                                showToast("Xóa phiên bản thất bại", "error");
+                                                                            }
+                                                                        }}
+                                                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"
+                                                                        title="Xóa phiên bản"
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Tab: Access Logs */}
+                            {activeTab === "access-logs" && (
+                                <>
+                                    {accessLogsLoading ? (
+                                        <div className="px-5 py-8 text-center">
+                                            <RefreshCcw className="w-4 h-4 text-slate-300 animate-spin mx-auto mb-2" />
+                                            <p className="text-[12px] text-slate-400">Đang tải...</p>
+                                        </div>
+                                    ) : accessLogs.length === 0 ? (
+                                        <div className="px-5 py-12 text-center">
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-3">
+                                                <Eye className="w-5 h-5 text-slate-300" />
+                                            </div>
+                                            <p className="text-[13px] font-medium text-slate-400">Chưa có ai truy cập</p>
+                                            <p className="text-[11px] text-slate-300 mt-1">Khi nhà đầu tư hoặc cố vấn xem tài liệu, lịch sử sẽ hiển thị ở đây</p>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead>
+                                                    <tr className="border-b border-slate-100">
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Người truy cập</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Vai trò</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-left">Hành động</th>
+                                                        <th className="px-5 py-3 text-[10px] font-medium text-slate-400 uppercase tracking-widest text-right">Thời gian</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {accessLogs.map(log => (
+                                                        <tr key={log.logID} className="hover:bg-slate-50/40 transition-colors">
+                                                            <td className="px-5 py-3.5">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                                                                        <User className="w-3.5 h-3.5 text-slate-400" />
+                                                                    </div>
+                                                                    <span className="text-[12px] font-medium text-slate-700 truncate max-w-[180px]">{log.userName}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-5 py-3.5">
+                                                                <span className={cn(
+                                                                    "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border",
+                                                                    log.userType === "Investor" ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                                    log.userType === "Advisor" ? "bg-violet-50 text-violet-600 border-violet-100" :
+                                                                    log.userType === "Staff" ? "bg-amber-50 text-amber-600 border-amber-100" :
+                                                                    log.userType === "Admin" ? "bg-red-50 text-red-600 border-red-100" :
+                                                                    "bg-slate-100 text-slate-500 border-slate-200"
+                                                                )}>
+                                                                    {log.userType === "Investor" ? "Nhà đầu tư" :
+                                                                     log.userType === "Advisor" ? "Cố vấn" :
+                                                                     log.userType === "Staff" ? "Staff" :
+                                                                     log.userType === "Admin" ? "Admin" : log.userType}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3.5">
+                                                                <span className={cn(
+                                                                    "inline-flex items-center gap-1 text-[11px] font-medium",
+                                                                    log.action === "Download" ? "text-emerald-600" : "text-slate-500"
+                                                                )}>
+                                                                    {log.action === "Download" ? <Download className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                                                    {log.action === "Download" ? "Tải xuống" : "Xem"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3.5 text-right">
+                                                                <span className="text-[11px] text-slate-400">{(() => {
+                                                                    const d = new Date(log.accessedAt);
+                                                                    if (Number.isNaN(d.getTime())) return log.accessedAt;
+                                                                    const dd = String(d.getDate()).padStart(2, "0");
+                                                                    const mm = String(d.getMonth() + 1).padStart(2, "0");
+                                                                    const hh = String(d.getHours()).padStart(2, "0");
+                                                                    const mi = String(d.getMinutes()).padStart(2, "0");
+                                                                    return `${dd}/${mm} · ${hh}:${mi}`;
+                                                                })()}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                         {/* Upload New Version Modal */}
@@ -980,7 +1144,14 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
                 </div>
             </div>
 
-            {false && <EditMetadataModal doc={doc} onClose={() => {}} onSave={() => {}} />}
+            {editOpen && (
+                <VisibilityModal
+                    currentVisibility={doc.visibility}
+                    saving={savingMeta}
+                    onClose={() => { if (!savingMeta) setEditOpen(false); }}
+                    onSave={handleSaveVisibility}
+                />
+            )}
             {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Delete confirmation dialog (independent of dropdown) */}

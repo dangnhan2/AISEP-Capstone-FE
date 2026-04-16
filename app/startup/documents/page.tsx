@@ -18,7 +18,7 @@ import { AddMetaData, DeleteDocument, DocumentType, GetDocument } from "@/servic
 
 /* ─── Types ───────────────────────────────────────────────── */
 type BlockchainStatus = "not_submitted" | "pending" | "recorded" | "matched" | "mismatch" | "failed";
-type DocType = "Pitch Deck" | "Tài chính" | "Pháp lý" | "Kỹ thuật" | "Khác";
+// Removed duplicate DocType definition. Use the one below for filtering.
 type SortKey = "updatedAt" | "name" | "type" | "blockchainStatus" | "version";
 
 interface Doc {
@@ -49,13 +49,13 @@ function formatUploadedAt(uploadedAt?: string | null): string {
     return `${dd}/${mm}/${yyyy}`;
 }
 
+type DocType = "Pitch Deck" | "Bussiness Plan" | "Không xác định";
 function mapBackendTypeToUiType(documentType?: string | null): DocType {
     const t = String(documentType ?? "").toLowerCase();
-    if (t.includes("pitch")) return "Pitch Deck";
-    if (t.includes("business") || t.includes("plan")) return "Tài chính";
-    if (t.includes("legal")) return "Pháp lý";
-    if (t.includes("tech") || t.includes("technical")) return "Kỹ thuật";
-    return "Khác";
+    // Chỉ cho phép 2 loại: Pitch Deck và Bussiness Plan
+    if (t === "0" || t === "pitch_deck" || t === "pitchdeck" || t.includes("pitch")) return "Pitch Deck";
+    if (t === "1" || t === "business_plan" || t === "bussiness_plan" || t === "businessplan" || t.includes("business") || t.includes("plan")) return "Bussiness Plan";
+    return "Không xác định";
 }
 
 function mapBlockchainStatus(doc: IDocument): BlockchainStatus {
@@ -196,7 +196,7 @@ export default function StartupDocumentsPage() {
     const docs = sortDocs(localDocs, "updatedAt");
 
     const protectedCount = localDocs.filter(d => d.blockchainStatus === "recorded" || d.blockchainStatus === "matched").length;
-    const pendingCount   = localDocs.filter(d => d.blockchainStatus === "pending").length;
+    const pendingCount   = localDocs.filter(d => d.blockchainStatus === "pending" || d.blockchainStatus === "not_submitted").length;
 
     const openMenu = (e: React.MouseEvent, docId: string) => {
         e.stopPropagation();
@@ -274,10 +274,30 @@ export default function StartupDocumentsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-4 gap-4">
                     {[
-                        { Icon: FolderOpen,  label: "Tổng tài liệu", value: String(localDocs.length), sub: "—" },
-                        { Icon: ShieldCheck, label: "Đã bảo vệ IP",  value: String(protectedCount),   sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "—" },
-                        { Icon: Clock,       label: "Chờ xác nhận",  value: String(pendingCount),     sub: "—" },
-                        { Icon: HardDrive,   label: "Dung lượng",    value: "—",                         sub: "—" },
+                        {
+                            Icon: FolderOpen,
+                            label: "Tổng tài liệu",
+                            value: String(localDocs.length),
+                            sub: localDocs.length ? "Đang quản lý" : "Chưa có tài liệu",
+                        },
+                        {
+                            Icon: ShieldCheck,
+                            label: "Đã bảo vệ IP",
+                            value: String(protectedCount),
+                            sub: localDocs.length ? `${Math.round(protectedCount / localDocs.length * 100)}% tổng số` : "Chưa có tài liệu",
+                        },
+                        {
+                            Icon: Clock,
+                            label: "Chờ xác nhận",
+                            value: String(pendingCount),
+                            sub: localDocs.length ? `${Math.round(pendingCount / localDocs.length * 100)}% tổng số` : "Không có mục chờ",
+                        },
+                        {
+                            Icon: HardDrive,
+                            label: "Loại tài liệu",
+                            value: String(new Set(localDocs.map(d => d.type)).size),
+                            sub: [...new Set(localDocs.map(d => d.type))].slice(0, 2).join(", ") || "Chưa phân loại",
+                        },
                     ].map(({ Icon, label, value, sub }) => (
                         <div key={label} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-5 py-4">
                             <div className="flex items-center gap-2 mb-3">
@@ -341,7 +361,7 @@ export default function StartupDocumentsPage() {
                                         <td className="px-4 py-4">
                                             <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md whitespace-nowrap">{doc.type}</span>
                                         </td>
-                                        <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version}</td>
+                                        <td className="px-4 py-4 text-[12px] font-medium text-slate-600 whitespace-nowrap">{doc.version?.toString().toLowerCase().startsWith("v") ? doc.version : `v${doc.version}`}</td>
                                         <td className="px-4 py-4 text-[12px] text-slate-500 whitespace-nowrap">{doc.updatedAt}</td>
                                         <td className="px-4 py-4">
                                             <div>

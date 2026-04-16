@@ -37,9 +37,13 @@ import {
   AddToWatchlist,
   GetInvestorProfile,
   GetInvestorWatchlist,
+  SearchStartups,
   GetStartupById,
   RemoveFromWatchlist,
 } from "@/services/investor/investor.api";
+import { GetStartupDocuments, ViewDocument } from "@/services/document/document.api";
+import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
+import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from "lucide-react";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 
@@ -52,7 +56,7 @@ const STAGE_LABELS: Record<string, string> = {
   SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
 };
 
-const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Liên hệ"] as const;
+const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Tài liệu", "Liên hệ"] as const;
 type Tab = typeof TABS[number];
 
 const MONOGRAM_PALETTES = [
@@ -74,6 +78,104 @@ function getErrorCode(source: any): string | undefined {
 
 function getErrorMessage(source: any): string | undefined {
   return source?.message ?? source?.error?.message ?? source?.data?.message ?? source?.response?.data?.message;
+}
+
+function normalizeScore(raw: any): number | null {
+  if (raw == null) return null;
+  let n: number;
+  if (typeof raw === "string") {
+    const matched = raw.match(/-?\d+(?:\.\d+)?/);
+    if (!matched) return null;
+    n = Number(matched[0]);
+  } else {
+    n = Number(raw);
+  }
+  if (!Number.isFinite(n)) return null;
+  if (n <= 1) return Math.round(n * 100);
+  if (n <= 10) return Math.round(n * 10);
+  return Math.round(n);
+}
+
+function extractAiScore(source: any): number | null {
+  if (!source) return null;
+  return normalizeScore(
+    source?.score ??
+    source?.Score ??
+    source?.aiScore ??
+    source?.AiScore ??
+    source?.AIScore ??
+    source?.ai_score ??
+    source?.overallScore ??
+    source?.OverallScore ??
+    source?.overall_score ??
+    source?.latestAiScore ??
+    source?.latestScore ??
+    source?.startupPotentialScore ??
+    source?.startupScore ??
+    source?.matchScore ??
+    source?.MatchScore ??
+    source?.ai?.score ??
+    source?.ai?.aiScore ??
+    source?.ai?.overallScore ??
+    source?.aiEvaluation?.overallScore ??
+    source?.overall_result?.overall_score ??
+    source?.overall_result?.overallScore ??
+    source?.report?.overall_result?.overall_score ??
+    source?.report?.overall_result?.overallScore ??
+    source?.report?.overallScore ??
+    source?.report?.overall_score ??
+    source?.data?.overall_result?.overall_score ??
+    source?.data?.overall_result?.overallScore ??
+    source?.data?.report?.overall_result?.overall_score ??
+    source?.data?.report?.overall_result?.overallScore ??
+    source?.data?.report?.overallScore ??
+    source?.data?.report?.overall_score ??
+    source?.potentialScore ??
+    source?.PotentialScore ??
+    source?.latestEvaluation?.overallScore ??
+    source?.latestEvaluation?.overall_score ??
+    source?.latestEvaluation?.report?.overall_result?.overall_score
+  );
+}
+
+function extractLatestHistoryScore(items: any[]): number | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  for (const item of sorted) {
+    const score = extractAiScore(item);
+    if (score != null && score > 0) return score;
+  }
+  return null;
+}
+
+function extractLatestCompletedRunId(items: any[]): number {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+
+  const isCompleted = (item: any) => {
+    const s = String(item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "").toLowerCase();
+    return s === "completed" || s === "partial_completed";
+  };
+
+  const getTime = (item: any) => {
+    const t = new Date(item?.generatedAt ?? item?.calculatedAt ?? item?.createdAt ?? item?.updatedAt ?? item?.created_at ?? item?.updated_at ?? 0).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const sorted = [...items].filter(isCompleted).sort((a, b) => getTime(b) - getTime(a));
+  if (sorted.length === 0) return 0;
+  const latest = sorted[0];
+  return Number(latest?.evaluationId ?? latest?.runId ?? latest?.RunId ?? latest?.id ?? latest?.Id ?? latest?.run_id ?? 0) || 0;
 }
 
 // ─── Shared UI components ─────────────────────────────────────────────────────
@@ -399,6 +501,125 @@ function TabContact({ p }: any) {
   );
 }
 
+// ─── Tab: Tài liệu ───────────────────────────────────────────────────────────
+
+function TabDocuments({ startupId }: { startupId: number }) {
+  const [startupDocs, setStartupDocs] = useState<IDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!startupId || startupId <= 0) return;
+    let cancelled = false;
+    (async () => {
+      setDocsLoading(true);
+      try {
+        const res = await GetStartupDocuments(startupId);
+        if (!cancelled && res?.isSuccess) setStartupDocs(res.data ?? []);
+      } catch { /* silent */ }
+      finally { if (!cancelled) setDocsLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [startupId]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-100/60">
+            <FolderOpen className="w-4 h-4 text-amber-600" />
+          </div>
+          <h2 className="text-[16px] font-bold text-[#0f172a]">Tài liệu Data Room</h2>
+        </div>
+        <span className="text-[11px] text-slate-400 font-medium">{startupDocs.length} tài liệu</span>
+      </div>
+      <div className="px-7 py-5">
+        {docsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <RefreshCcw className="w-4 h-4 text-slate-300 animate-spin" />
+            <span className="ml-2 text-[12px] text-slate-400">Đang tải...</span>
+          </div>
+        ) : startupDocs.length === 0 ? (
+          <div className="text-center py-6">
+            <FolderOpen className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+            <p className="text-[13px] text-slate-400">Chưa có tài liệu nào được chia sẻ</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {startupDocs.map((doc) => {
+              const docType = (doc.documentType ?? "").toLowerCase();
+              const color = docType.includes("pitch") ? "text-red-500"
+                : docType.includes("business") || docType.includes("financ") ? "text-green-500"
+                : docType.includes("legal") ? "text-blue-500"
+                : "text-slate-500";
+              const label = docType.includes("pitch") ? "Pitch Deck"
+                : docType.includes("business") ? "Business Plan"
+                : docType.includes("financ") ? "Tài chính"
+                : docType.includes("legal") ? "Pháp lý"
+                : doc.documentType ?? "Khác";
+              const uploadDate = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : "—";
+
+              return (
+                <div key={doc.documentID} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:bg-slate-50 hover:border-[#e6cc4c]/40 transition-all group">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center border border-slate-100 group-hover:bg-[#e6cc4c]/10 transition-colors flex-shrink-0">
+                      <FileTextIcon className={cn("w-5 h-5", color)} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-semibold text-slate-700 group-hover:text-[#0f172a] transition-colors truncate">{doc.title ?? "Untitled"}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">{label} • {uploadDate} • v{doc.version ?? "1"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+                    {doc.fileUrl && (
+                      <a
+                        href={/\.pdf(\?|$)/i.test(doc.fileUrl)
+                          ? doc.fileUrl
+                          : `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(doc.fileUrl)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => { ViewDocument(doc.documentID).catch(() => {}); }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                        title="Xem tài liệu"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    )}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const token = localStorage.getItem("accessToken") ?? "";
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/documents/${doc.documentID}/download`, {
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                          if (!res.ok) throw new Error("Download failed");
+                          const blob = await res.blob();
+                          const cd = res.headers.get("content-disposition");
+                          const match = cd?.match(/filename="?(.+?)"?$/);
+                          const fileName = match?.[1] ?? `${doc.title ?? "document"}.pdf`;
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = fileName;
+                          document.body.appendChild(a); a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        } catch { /* silent */ }
+                      }}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-[#e6cc4c]/10 hover:text-[#e6cc4c] transition-all"
+                      title="Tải xuống"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StartupDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -417,6 +638,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"none" | "pending" | "accepted">("none");
   const [connectionId, setConnectionId] = useState<number | null>(null);
+  const [resolvedAiScore, setResolvedAiScore] = useState<number | null>(null);
 
   const fetchStartup = useCallback(async () => {
     if (!Number.isFinite(startupId) || startupId <= 0) {
@@ -429,7 +651,57 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     try {
       const res = await GetStartupById(startupId) as any;
       if ((res?.isSuccess || res?.success) && res.data) {
-        setStartup(res.data);
+        const data = res.data;
+        let score = extractAiScore(data);
+
+        // Fallback: detail endpoint sometimes omits AI score while search endpoint has it.
+        if ((score == null || score <= 0) && Number.isFinite(startupId) && startupId > 0) {
+          try {
+            const maxPages = 4;
+            for (let page = 1; page <= maxPages && (score == null || score <= 0); page++) {
+              const searchRes = await SearchStartups(undefined, page, 100) as any;
+              const isSuccess = searchRes?.isSuccess || searchRes?.success || searchRes?.statusCode === 200;
+              if (!isSuccess) continue;
+
+              const items = searchRes?.data?.items || searchRes?.data?.data || searchRes?.items || [];
+              if (!Array.isArray(items) || items.length === 0) continue;
+
+              const matched = items.find((x: any) => Number(x?.startupID ?? x?.startupId ?? x?.StartupID ?? 0) === startupId);
+              const fallbackScore = extractAiScore(matched);
+              if (fallbackScore != null) {
+                score = fallbackScore;
+                break;
+              }
+            }
+          } catch {
+            // non-blocking fallback
+          }
+        }
+
+        // Final fallback: resolve score from AI evaluation history by startupId.
+        if ((score == null || score <= 0) && Number.isFinite(startupId) && startupId > 0) {
+          try {
+            const historyRes = await GetEvaluationHistory(startupId) as any;
+            const historyItems = historyRes?.data ?? historyRes ?? [];
+            const historyScore = extractLatestHistoryScore(historyItems);
+            if (historyScore != null) score = historyScore;
+
+            if (score == null || score <= 0) {
+              const latestRunId = extractLatestCompletedRunId(historyItems);
+              if (latestRunId > 0) {
+                const reportRes = await GetEvaluationReport(latestRunId) as any;
+                const reportPayload = reportRes?.data?.report ?? reportRes?.data ?? reportRes;
+                const reportScore = extractAiScore(reportPayload);
+                if (reportScore != null) score = reportScore;
+              }
+            }
+          } catch {
+            // non-blocking fallback
+          }
+        }
+
+        setResolvedAiScore(score ?? 0);
+        setStartup(data);
       } else {
         const code = getErrorCode(res);
         setError(code === "STARTUP_NOT_FOUND" || res?.statusCode === 404
@@ -555,7 +827,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     : (startup.industryName || startup.industry);
   const teamSizeValue = startup.teamSize ?? startup.TeamSize;
   const targetFunding = Number(startup.fundingAmountSought) || 0;
-  const aiScore = Number(startup.score ?? startup.aiScore ?? 0);
+  const aiScore = resolvedAiScore ?? extractAiScore(startup) ?? 0;
 
   const foundedDateDisplay = startup.foundedDate
     ? new Date(startup.foundedDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -760,6 +1032,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
       {activeTab === "Kinh doanh" && <TabBusiness p={startup} />}
       {activeTab === "Gọi vốn" && <TabFunding p={startup} displayStage={displayStage} />}
       {activeTab === "Đội ngũ & Xác thực" && <TabTeam p={startup} />}
+      {activeTab === "Tài liệu" && <TabDocuments startupId={startupId} />}
       {activeTab === "Liên hệ" && <TabContact p={startup} />}
     </div>
   );

@@ -28,6 +28,8 @@ import { GetDocument } from "@/services/document/document.api";
 import { GetMentorships, GetMentorshipSessions } from "@/services/startup/startup-mentorship.api";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
+import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
+import { mapCanonicalToReport } from "./ai-evaluation/canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
 
 export default function StartupDashboardPage() {
@@ -36,12 +38,15 @@ export default function StartupDashboardPage() {
   // States tải data API thật
   const [realDocCount, setRealDocCount] = useState(0);
   const [realConnectCount, setRealConnectCount] = useState(0);
-  const [realAiScore, setRealAiScore] = useState(84); // Vẫn là mockup vì chưa có API chấm điểm AI thực tế
+  const [realAiScore, setRealAiScore] = useState(0); // Sẽ lấy từ API
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [aiStrengths, setAiStrengths] = useState<string[]>([]);
 
   const [activeHandlingTab, setActiveHandlingTab] = useState<"Consulting" | "Documents" | "Verification">("Consulting");
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [actionableDocs, setActionableDocs] = useState<any[]>([]);
   const [recentDocs, setRecentDocs] = useState<any[]>([]);
+  const [recentSessions, setRecentSessions] = useState<any[]>([]);
   const [profileData, setProfileData] = useState<any>(null);
   const [profileMembers, setProfileMembers] = useState<any[]>([]);
 
@@ -59,6 +64,49 @@ export default function StartupDashboardPage() {
     }
   };
 
+  const getSessionTimestamp = (s: any) => {
+    const raw =
+      s?.scheduledStartAt || s?.scheduledAt || s?.ScheduledStartAt || s?.ScheduledAt ||
+      s?.startAt || s?.StartAt || s?.createdAt || s?.CreatedAt || 0;
+    const t = new Date(raw).getTime();
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  const getSessionId = (s: any) =>
+    s?.sessionID ?? s?.sessionId ?? s?.SessionID ?? s?.id ?? s?.Id ?? null;
+
+  const getSessionMentorshipId = (s: any) =>
+    s?.MentorshipID ?? s?.mentorshipID ?? s?.mentorshipId ?? s?.MentorshipId ??
+    s?.mentorship?.MentorshipID ?? s?.mentorship?.mentorshipID ?? s?.mentorship?.mentorshipId ?? s?.mentorship?.id ??
+    s?.Mentorship?.MentorshipID ?? s?.Mentorship?.mentorshipID ?? s?.Mentorship?.mentorshipId ?? s?.Mentorship?.id ??
+    null;
+
+  const buildRecentSessions = (sessions: any[], mentorshipStatusMap?: Map<number, string>) => {
+    const unique = new Map<string, any>();
+
+    for (const s of sessions || []) {
+      const sessionId = getSessionId(s);
+      const mentorshipId = getSessionMentorshipId(s);
+      const ts = getSessionTimestamp(s);
+
+      if (!ts) continue;
+
+      const key = sessionId != null
+        ? `session:${String(sessionId)}`
+        : `mentor:${String(mentorshipId ?? "")}:${String(ts)}`;
+
+      if (!unique.has(key)) unique.set(key, s);
+    }
+
+    const sorted = Array.from(unique.values()).sort((a: any, b: any) => getSessionTimestamp(b) - getSessionTimestamp(a));
+
+    return sorted.slice(0, 4).map((s: any) => {
+      const mId = getSessionMentorshipId(s);
+      const mStatus = mentorshipStatusMap && mId ? (mentorshipStatusMap.get(Number(mId)) || "") : "";
+      return { ...s, _mentorshipStatus: mStatus };
+    });
+  };
+
   useEffect(() => {
     // 0. Tải profile và members để tính độ hoàn thiện
     Promise.all([
@@ -67,6 +115,99 @@ export default function StartupDashboardPage() {
     ]).then(([resProfile, resMembers]: any) => {
       if (resProfile && (resProfile.success || resProfile.isSuccess) && resProfile.data) {
         setProfileData(resProfile.data);
+        // Lấy điểm AI và summary từ lần đánh giá gần nhất (COMPLETED) đúng startupId
+        const startupId = resProfile.data.id || resProfile.data.startupId || resProfile.data.startupID;
+        console.log('[AI DEBUG] Startup profile:', resProfile.data);
+        console.log('[AI DEBUG] Using startupId for history:', startupId);
+        if (startupId) {
+          const normalizeScore = (raw: any): number | null => {
+            if (raw == null) return null;
+            const n = Number(raw);
+            if (!Number.isFinite(n)) return null;
+            if (n <= 1) return Math.round(n * 100);
+            if (n <= 10) return Math.round(n * 10);
+            return Math.round(n);
+          };
+
+          const extractEvaluationId = (item: any): number => {
+            const idRaw = item?.evaluationId ?? item?.runId ?? item?.RunId ?? item?.id ?? item?.Id ?? item?.run_id ?? 0;
+            return Number(idRaw) || 0;
+          };
+
+          const isCompleted = (item: any): boolean => {
+            const statusRaw = item?.status ?? item?.Status ?? item?.statusName ?? item?.StatusName ?? "";
+            const status = String(statusRaw).toUpperCase();
+            return status === "COMPLETED" || status === "PARTIAL_COMPLETED";
+          };
+
+          GetEvaluationHistory(startupId)
+            .then(async (res: any) => {
+              console.log('[AI DEBUG] Evaluation history API result:', res);
+              if (!(res.success || res.isSuccess) || !Array.isArray(res.data)) return;
+
+              console.log('[AI DEBUG] Evaluation history data array:', res.data);
+
+              const completedList = [...res.data]
+                .filter((x: any) => isCompleted(x))
+                .map((x: any) => ({
+                  item: x,
+                  evaluationId: extractEvaluationId(x),
+                  ts: new Date(x.generatedAt || x.calculatedAt || x.createdAt || x.updatedAt || x.created_at || x.updated_at || 0).getTime() || 0,
+                }))
+                .filter((x: any) => x.evaluationId > 0)
+                .sort((a: any, b: any) => (b.ts - a.ts) || (b.evaluationId - a.evaluationId));
+
+              for (const candidate of completedList) {
+                const { item, evaluationId } = candidate;
+
+                try {
+                  const reportRes: any = await GetEvaluationReport(evaluationId);
+                  const reportPayload = reportRes?.data?.report ?? reportRes?.data ?? reportRes;
+                  console.log('[AI DEBUG] GetEvaluationReport payload:', reportPayload);
+
+                  const mapped = mapCanonicalToReport(evaluationId, reportPayload);
+                  console.log('[AI DEBUG] Mapped report:', mapped);
+
+                  const score = normalizeScore(mapped?.overallScore)
+                    ?? normalizeScore(item?.overallScore ?? item?.OverallScore ?? item?.overall_score)
+                    ?? 0;
+
+                  const strengths = Array.isArray(mapped?.strengths)
+                    ? mapped.strengths.filter((s: any) => typeof s === "string" && s.trim().length > 0)
+                    : [];
+
+                  setRealAiScore(score);
+                  setAiSummary(typeof mapped?.executiveSummary === "string" ? mapped.executiveSummary : "");
+                  setAiStrengths(strengths);
+                  return;
+                } catch {
+                  const mapped = mapCanonicalToReport(evaluationId, item);
+                  console.log('[AI DEBUG] Fallback mapped report:', mapped);
+
+                  const score = normalizeScore(mapped?.overallScore)
+                    ?? normalizeScore(item?.overallScore ?? item?.OverallScore ?? item?.overall_score)
+                    ?? 0;
+
+                  const strengths = Array.isArray(mapped?.strengths)
+                    ? mapped.strengths.filter((s: any) => typeof s === "string" && s.trim().length > 0)
+                    : [];
+
+                  if (score > 0 || strengths.length > 0 || (typeof mapped?.executiveSummary === "string" && mapped.executiveSummary.trim().length > 0)) {
+                    setRealAiScore(score);
+                    setAiSummary(typeof mapped?.executiveSummary === "string" ? mapped.executiveSummary : "");
+                    setAiStrengths(strengths);
+                    return;
+                  }
+                }
+              }
+
+              // Không có bản COMPLETED hợp lệ
+              setRealAiScore(0);
+              setAiSummary("");
+              setAiStrengths([]);
+            })
+            .catch((err: any) => { console.log('[AI DEBUG] Error fetching evaluation history:', err); });
+        }
       }
       if (resMembers && (resMembers.success || resMembers.isSuccess) && Array.isArray(resMembers.data)) {
         setProfileMembers(resMembers.data);
@@ -83,8 +224,12 @@ export default function StartupDashboardPage() {
           
           setRealDocCount(sortedDocs.length);
           
-          // Lọc tài liệu cần xử lý (VD: Chưa được phân tích, hoặc bị Failed)
-          const needsVerifying = sortedDocs.filter((d: any) => d.proofStatus !== "Verified" && d.proofStatus !== "Mục tiêu");
+          // Lọc tài liệu cần xử lý: chưa hoàn tất blockchain (chưa Anchored)
+          const needsVerifying = sortedDocs.filter((d: any) => {
+            const p = String(d.proofStatus ?? "").toLowerCase().trim();
+            // Đã anchored (on-chain) = hoàn tất, không cần xử lý
+            return p !== "anchored" && p !== "0";
+          });
           setActionableDocs(needsVerifying.slice(0, 3));
 
           // Gán tài liệu gần đây
@@ -93,30 +238,45 @@ export default function StartupDashboardPage() {
       })
       .catch(() => {});
 
-    // 2. Tải thống kê số lượng Kết nối (Cố vấn + Nhà đầu tư) thật
+    // 2. Tải thống kê số lượng Kết nối Nhà đầu tư (khớp tab "Đã kết nối" ở /startup/investors)
     Promise.all([
-      GetMentorships({ page: 1, pageSize: 1 }),
-      GetSentConnections(1, 1),
-      GetReceivedConnections(1, 1)
+      GetSentConnections(1, 100, "Accepted").catch(() => null),
+      GetReceivedConnections(1, 100, "Accepted").catch(() => null),
     ])
-      .then(([mentRes, sentConnRes, receivedConnRes]: any) => {
-        let sumConnections = 0;
-        
-        // Cộng tổng số Mentorship
-        if (mentRes.success || mentRes.isSuccess) {
-          sumConnections += mentRes.data?.paging?.totalItems ?? mentRes.data?.totalItems ?? mentRes.data?.items?.length ?? 0;
-        }
+      .then(([sentConnRes, receivedConnRes]: any) => {
+        const getItems = (res: any) => {
+          if (!res || !(res.success || res.isSuccess)) return [];
+          const payload = res.data ?? res;
+          if (Array.isArray(payload?.items)) return payload.items;
+          if (Array.isArray(payload?.data)) return payload.data;
+          if (Array.isArray(payload)) return payload;
+          return [];
+        };
 
-        // Cộng thêm kết nối Investor (Gửi và nhận)
-        if (sentConnRes.success || sentConnRes.isSuccess) {
-          sumConnections += sentConnRes.data?.paging?.totalItems ?? sentConnRes.data?.totalItems ?? sentConnRes.data?.items?.length ?? 0;
-        }
-        
-        if (receivedConnRes.success || receivedConnRes.isSuccess) {
-          sumConnections += receivedConnRes.data?.paging?.totalItems ?? receivedConnRes.data?.totalItems ?? receivedConnRes.data?.items?.length ?? 0;
-        }
-        
-        setRealConnectCount(sumConnections);
+        const sentItems = getItems(sentConnRes);
+        const receivedItems = getItems(receivedConnRes);
+        const allAccepted = [...sentItems, ...receivedItems];
+
+        // Deduplicate by connectionID to avoid double count if backend returns overlap.
+        const uniqueById = Array.from(
+          new Map(
+            allAccepted
+              .filter((x: any) => x && x.connectionID != null)
+              .map((x: any) => [String(x.connectionID), x])
+          ).values()
+        );
+
+        const totalAccepted = uniqueById.length > 0
+          ? uniqueById.length
+          : allAccepted.length;
+
+        console.log("[Startup Dashboard] investor connections count:", {
+          acceptedSent: sentItems.length,
+          acceptedReceived: receivedItems.length,
+          acceptedUnique: totalAccepted,
+        });
+
+        setRealConnectCount(totalAccepted);
       })
       .catch(() => {});
 
@@ -202,6 +362,9 @@ export default function StartupDashboardPage() {
               console.log("[Startup Dashboard] uniqueByMentorship:", uniqueByMentorship);
 
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+
+              // Luôn hiển thị đúng 4 phiên gần nhất (khử trùng theo sessionID trước khi cắt top 4)
+              setRecentSessions(buildRecentSessions(allSessions, mentorshipStatusMap));
             })
             .catch(() => {
               // Nếu không lấy được mentorship list thì fallback về filter cục bộ chỉ dựa vào session
@@ -239,6 +402,9 @@ export default function StartupDashboardPage() {
               // eslint-disable-next-line no-console
               console.log("[Startup Dashboard] fallback uniqueByMentorship:", uniqueByMentorship);
               setUpcomingSessions(uniqueByMentorship.slice(0, 3));
+
+              // Fallback: vẫn khử trùng và lấy 4 phiên gần nhất
+              setRecentSessions(buildRecentSessions(allSessions));
             });
         }
       })
@@ -430,7 +596,16 @@ export default function StartupDashboardPage() {
                                 <>
                                   <p className="text-sm font-bold text-[#171611]">{name} {doc?.version ? `· v${doc.version}` : null}</p>
                                   <p className="text-xs text-neutral-muted font-medium italic">
-                                    Trạng thái xác thực: <span className="text-red-500">{doc.proofStatus || "Thất bại"}</span> • Cập nhật lúc {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : ""}
+                                    Trạng thái xác thực: <span className="text-red-500">{
+                                      (() => {
+                                        const p = String(doc.proofStatus ?? "").toLowerCase().trim();
+                                        if (!p) return "Chưa gửi";
+                                        if (p === "pending" || p === "3") return "Chờ xác nhận";
+                                        if (p === "hashcomputed" || p === "2") return "Đã hash, chưa gửi";
+                                        if (p === "revoked" || p === "1") return "Đã thu hồi";
+                                        return doc.proofStatus || "Chưa gửi";
+                                      })()
+                                    }</span> • Cập nhật lúc {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("vi-VN") : ""}
                                   </p>
                                 </>
                               );
@@ -457,10 +632,15 @@ export default function StartupDashboardPage() {
                 <p className="text-xs font-bold text-green-800 mb-2 flex items-center gap-1 uppercase tracking-tight">
                   <TrendingUp className="w-4 h-4" /> Thế mạnh (Strengths)
                 </p>
-                <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
-                  <li>Mô hình kinh doanh có tính khả thi cao trên thị trường Việt Nam.</li>
-                  <li>Đội ngũ Founder có kinh nghiệm thực chiến trong lĩnh vực SaaS.</li>
-                </ul>
+                {aiStrengths && aiStrengths.length > 0 ? (
+                  <ul className="text-xs text-green-700 space-y-1.5 list-disc ml-4 font-medium">
+                    {aiStrengths.map((item, idx) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-green-600 italic">Chưa có dữ liệu strengths từ AI.</p>
+                )}
               </div>
             </div>
           </div>
@@ -519,43 +699,86 @@ export default function StartupDashboardPage() {
 
         <div className="grid grid-cols-12 gap-6 pb-12">
           <div className="col-span-12 bg-white rounded-2xl shadow-sm border border-neutral-surface p-6">
-            <h3 className="font-bold text-lg text-[#171611] mb-6 tracking-tight">Consulting & Advisors sessions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                {
-                  name: "Dr. Anh Tuan",
-                  role: "Expert in FinTech & Blockchain",
-                  date: "14 May, 2024",
-                  status: "Đã hoàn thành",
-                  statusColor: "text-green-600",
-                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDSyd89CCj_zHc_LuQhWMmfq2Fe9NIXo7kap3iqhwQmj6hnZ6O9G9_TEa34oVVb9u8J5WLiZKx69vTFAGzAy-bhFnogecGAGCURhKAi82skiJ-lqbRY4oyNOkcPGFCpuJzHA_CY1eapDWvsmjvttoJFOY2UyF6XDh5BVzml3HhIGL0xmQAsEIg5td4Imhf83cA9Ksa2iMq1iLFJOYjkRWnuond7_4mFqlM6HrmkPr8BPArVgb-lQuIG9HHfZKUjbN28uwltwj3MkxM"
-                },
-                {
-                  name: "Ms. Linh Chi",
-                  role: "Marketing Strategy Specialist",
-                  date: "18 May, 2024",
-                  status: "Sắp diễn ra",
-                  statusColor: "text-[#e6cc4c]",
-                  img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDKY4d1Y63lERm80mlyRmr3m2Np_8yG6dWJUtCxN7kvLrLu89DM4CSm8QpBtvvwm3konSP-3BflEBvD1vqDcqq91_XkNfgpXBi-GPYd-hBFOCZXxz2lwC-9Czkenukr5SyakSEBVtFO25lNewwy9nxMzGyi50hodZ59AUpBSMAX5bRNom8hV9w2Ni1St46YJ1PH-4LxUjHCc1vVLoVNzGnhOEiEB8wmQvzY7Ci7l7jd4qiiMK_8yyL4A1qfApGUmiShlRKOIamZjWU"
-                }
-              ].map((advisor, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
-                      <img alt={advisor.name} className="w-full h-full object-cover" src={advisor.img} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-[#171611]">{advisor.name}</p>
-                      <p className="text-xs text-neutral-muted font-medium italic">{advisor.role}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-[#171611]">{advisor.date}</p>
-                    <p className={`text-[10px] font-black uppercase tracking-wider ${advisor.statusColor}`}>{advisor.status}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg text-[#171611] tracking-tight">Consulting & Advisors sessions</h3>
+              <Link href="/startup/mentorship-requests" className="text-[#e6cc4c] font-bold text-sm hover:underline tracking-tight">Xem tất cả</Link>
             </div>
+            {recentSessions.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="w-8 h-8 text-neutral-200 mx-auto mb-3" />
+                <p className="text-sm text-neutral-400 font-medium">Chưa có phiên tư vấn nào</p>
+                <Link href="/startup/experts" className="text-[#e6cc4c] text-xs font-bold mt-2 inline-block hover:underline">Tìm cố vấn</Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recentSessions.map((session, idx) => {
+                  const advisorName = session?.advisor?.fullName || session?.advisorName || session?.AdvisorName || "Cố vấn";
+                  const advisorAvatar =
+                    session?.advisor?.profilePhotoURL ||
+                    session?.advisor?.profilePhotoUrl ||
+                    session?.advisorProfilePhotoURL ||
+                    session?.advisorProfilePhotoUrl ||
+                    session?.AdvisorProfilePhotoURL ||
+                    session?.advisorAvatar ||
+                    "";
+                  const scheduledAt = session?.scheduledStartAt || session?.scheduledAt || session?.ScheduledStartAt || session?.ScheduledAt;
+                  const scheduledDate = scheduledAt ? new Date(scheduledAt).toLocaleDateString("vi-VN") : "—";
+                  const scheduledTime = scheduledAt ? new Date(scheduledAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "";
+                  const rawStatus = String(session?.sessionStatus || session?.status || session?.SessionStatus || session?._mentorshipStatus || "").toLowerCase();
+                  const mentorshipId = session?.mentorshipID || session?.mentorshipId || session?.MentorshipID || "";
+
+                  const now = Date.now();
+                  const sessionTime = scheduledAt ? new Date(scheduledAt).getTime() : 0;
+                  const isPast = sessionTime < now;
+
+                  let statusLabel = "Đang chờ";
+                  let statusColor = "text-[#e6cc4c]";
+                  if (["completed", "finished", "done"].includes(rawStatus)) {
+                    statusLabel = "Đã hoàn thành"; statusColor = "text-green-600";
+                  } else if (["cancelled", "canceled", "rejected", "declined"].includes(rawStatus)) {
+                    statusLabel = "Đã hủy"; statusColor = "text-red-500";
+                  } else if (isPast) {
+                    statusLabel = "Đã diễn ra"; statusColor = "text-green-600";
+                  } else {
+                    statusLabel = "Sắp diễn ra"; statusColor = "text-[#e6cc4c]";
+                  }
+
+                  const initials = advisorName.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase();
+
+                  return (
+                    <Link
+                      key={idx}
+                      href={mentorshipId ? `/startup/mentorship-requests/${mentorshipId}` : "/startup/mentorship-requests"}
+                      className="flex items-center justify-between p-4 bg-[#f8f8f6] rounded-xl hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-[#e6cc4c]/20"
+                    >
+                      <div className="flex items-center gap-4">
+                        {advisorAvatar ? (
+                          <img
+                            src={advisorAvatar}
+                            alt={advisorName}
+                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-[#e6cc4c]/20 flex items-center justify-center border-2 border-white shadow-sm group-hover:scale-105 transition-transform text-sm font-bold text-[#171611]">
+                            {initials}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-bold text-[#171611]">{advisorName}</p>
+                          <p className="text-xs text-neutral-muted font-medium italic">
+                            {session?.objective || session?.topics || "Phiên tư vấn"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-[#171611]">{scheduledDate} {scheduledTime}</p>
+                        <p className={`text-[10px] font-black uppercase tracking-wider ${statusColor}`}>{statusLabel}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

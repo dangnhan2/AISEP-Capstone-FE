@@ -108,6 +108,15 @@ declare global {
     updatedAt: string;
   }
 
+  interface IDocumentAccessLog {
+    logID: number;
+    userID: number;
+    userName: string;
+    userType: string;
+    action: string;
+    accessedAt: string;
+  }
+
   interface IAdvisorProfile {
     advisorID: number;
     userId: number;
@@ -244,6 +253,8 @@ declare global {
     fileHash: string;
     transactionHash: string;
     anchoredAt: string | null;
+    visibility?: number;
+    visibilityLabel?: string;
   }
 
   interface IDocumentVersionHistory {
@@ -505,11 +516,13 @@ declare global {
     watchlistId: number;
     startupID: number;
     startupName: string;
+    companyName?: string;
     industry?: string | null;
     stage?: string | null;
     logoURL?: string | null;
     priority?: string | null;
     addedAt: string;
+    aiScore?: number | null;
   }
 
   interface ICreateWatchlistItem {
