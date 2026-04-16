@@ -13,7 +13,7 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, normalizeScore } from "@/lib/utils";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { SearchStartups, GetMasterIndustries, GetMasterStages } from "@/services/investor/investor.api";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
@@ -154,7 +154,7 @@ export default function StartupDiscoveryPage() {
             location: apiItem.country || "VN",
             target: formatMoney(apiItem.fundingAmountSought) ? `$${formatMoney(apiItem.fundingAmountSought)}` : "Chưa cập nhật",
             raised: formatMoney(apiItem.currentFundingRaised) ? `$${formatMoney(apiItem.currentFundingRaised)}` : "Chưa cập nhật",
-            score: apiItem.aiScore || 0,
+            score: normalizeScore(apiItem?.aiScore ?? apiItem?.score ?? apiItem?.matchScore ?? apiItem?.overallScore ?? apiItem?.overall_score) ?? 0,
             desc: apiItem.tagline || apiItem.subIndustry || "Chưa có thông tin mô tả",
             activeDays: apiItem.createdAt
               ? Math.max(0, Math.floor((Date.now() - new Date(apiItem.createdAt).getTime()) / 86_400_000))
