@@ -86,6 +86,31 @@ export function InvestorHeader({
       .catch(() => {});
   }, []);
 
+  // Listen to global profile-updated events (fired after photo upload) and merge changes
+  useEffect(() => {
+    const handler = (e: any) => {
+      try {
+        const payload = e?.detail;
+        if (payload) {
+          setProfile((prev) => ({ ...(prev || {}), ...payload }));
+          if (payload.profilePhotoURL) setAvatarLoadFailed(false);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("aisep:profile-updated", handler as EventListener);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("aisep:profile-updated", handler as EventListener);
+      }
+    };
+  }, []);
+
   // Notification Detail Modal State
   const [selectedNotiId, setSelectedNotiId] = useState<number | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
