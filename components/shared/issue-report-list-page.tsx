@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Bug,
   ChevronDown,
   ChevronRight,
   Filter,
   Loader2,
-  Paperclip,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -24,65 +22,48 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  GetIssueReportsList,
+  GetMyIssueReports,
   type IssueCategory,
-  type IssueReportDetailDto,
   type IssueReportStatus,
+  type IssueReportSummaryDto,
   type RelatedEntityType,
 } from "@/services/issue-report.api";
 import {
-  formatIssueReporterIdentity,
-  formatIssueReportUpdatedAt,
-  getIssueReporterAvatarStyle,
-  getIssueReporterInitials,
-  ISSUE_REPORT_ENTITY_LABELS,
-  ISSUE_REPORT_CATEGORIES,
-  ISSUE_REPORT_STATUS_OPTIONS,
   formatIssueReportDateTime,
+  formatIssueReportUpdatedAt,
   getIssueCategoryOption,
   getIssueStatusOption,
+  ISSUE_REPORT_CATEGORIES,
+  ISSUE_REPORT_ENTITY_LABELS,
+  ISSUE_REPORT_STATUS_OPTIONS,
 } from "@/lib/issue-report";
 
 const PAGE_SIZE = 20;
 
 type CategoryFilter = IssueCategory | "ALL";
 type StatusFilter = IssueReportStatus | "ALL";
-type EntityFilter = RelatedEntityType | "UNLINKED" | "ALL";
-
-const ENTITY_FILTER_OPTIONS: { value: EntityFilter; label: string }[] = [
-  { value: "ALL", label: "Mọi thực thể" },
-  ...Object.entries(ISSUE_REPORT_ENTITY_LABELS).map(([value, label]) => ({
-    value: value as RelatedEntityType,
-    label,
-  })),
-  { value: "UNLINKED", label: "Không gắn thực thể" },
-];
 
 type BackendRequestError = {
   response?: {
-    status?: number;
     data?: IBackendRes<unknown>;
   };
 };
 
-const getItems = (payload?: IPaginatedRes<IssueReportDetailDto> | null) =>
+const getItems = (payload?: IPaginatedRes<IssueReportSummaryDto> | null) =>
   payload?.items ?? payload?.data ?? [];
 
-const getTotalPages = (payload?: IPaginatedRes<IssueReportDetailDto> | null) => {
+const getTotalPages = (payload?: IPaginatedRes<IssueReportSummaryDto> | null) => {
   const totalItems = payload?.paging?.totalItems ?? getItems(payload).length;
   const pageSize = payload?.paging?.pageSize ?? PAGE_SIZE;
   return payload?.paging?.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize));
 };
 
-export default function StaffIssueReportsPage() {
-  const router = useRouter();
-
+export function IssueReportListPage({ roleBaseUrl }: { roleBaseUrl: string }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-  const [entityFilter, setEntityFilter] = useState<EntityFilter>("ALL");
-  const [items, setItems] = useState<IssueReportDetailDto[]>([]);
+  const [items, setItems] = useState<IssueReportSummaryDto[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -93,12 +74,12 @@ export default function StaffIssueReportsPage() {
     setError(null);
 
     try {
-      const res = (await GetIssueReportsList({
+      const res = (await GetMyIssueReports({
         page,
         pageSize: PAGE_SIZE,
         ...(statusFilter !== "ALL" && { status: statusFilter }),
         ...(categoryFilter !== "ALL" && { category: categoryFilter }),
-      })) as unknown as IBackendRes<IPaginatedRes<IssueReportDetailDto>>;
+      })) as unknown as IBackendRes<IPaginatedRes<IssueReportSummaryDto>>;
 
       if ((res.success || res.isSuccess) && res.data) {
         const nextItems = getItems(res.data);
@@ -111,19 +92,17 @@ export default function StaffIssueReportsPage() {
       setItems([]);
       setTotalItems(0);
       setTotalPages(1);
-      setError(res.message || "Không thể tải danh sách báo cáo sự cố.");
+      setError(res.message || "Không thể tải danh sách báo cáo của bạn.");
     } catch (fetchError) {
       const backendError = fetchError as BackendRequestError;
       setItems([]);
       setTotalItems(0);
       setTotalPages(1);
-      setError(
-        backendError.response?.data?.message || "Không thể tải danh sách báo cáo sự cố."
-      );
+      setError(backendError.response?.data?.message || "Không thể tải danh sách báo cáo của bạn.");
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, categoryFilter]);
+  }, [categoryFilter, page, statusFilter]);
 
   useEffect(() => {
     fetchReports();
@@ -131,45 +110,36 @@ export default function StaffIssueReportsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, categoryFilter]);
+  }, [categoryFilter, statusFilter]);
 
   const displayedItems = useMemo(() => {
     const searchQuery = search.trim().toLowerCase();
 
     return items.filter((item) => {
-      const matchesSearch =
-        !searchQuery ||
+      if (!searchQuery) return true;
+
+      return (
         String(item.issueReportID).includes(searchQuery) ||
         item.description.toLowerCase().includes(searchQuery) ||
-        (item.reporterEmail ?? "").toLowerCase().includes(searchQuery);
-
-      const matchesEntity =
-        entityFilter === "ALL" ||
-        (entityFilter === "UNLINKED"
-          ? !item.relatedEntityType
-          : item.relatedEntityType === entityFilter);
-
-      return matchesSearch && matchesEntity;
+        (item.relatedEntityType ?? "").toLowerCase().includes(searchQuery) ||
+        String(item.relatedEntityID ?? "").includes(searchQuery)
+      );
     });
-  }, [entityFilter, items, search]);
+  }, [items, search]);
 
   const hasActiveFilters =
-    search.trim() !== "" ||
-    categoryFilter !== "ALL" ||
-    statusFilter !== "ALL" ||
-    entityFilter !== "ALL";
+    search.trim() !== "" || categoryFilter !== "ALL" || statusFilter !== "ALL";
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-[1100px] space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="flex items-center gap-2.5 font-plus-jakarta-sans text-[20px] font-bold tracking-tight text-slate-900">
             <Bug className="h-5 w-5 text-[#eec54e]" />
-            Báo cáo sự cố
+            Báo cáo của tôi
           </h1>
           <p className="mt-1 text-[13px] text-slate-500">
-            Theo dõi báo cáo người dùng gửi lên, lọc theo trạng thái xử lý và mở
-            chi tiết để cập nhật phản hồi.
+            Theo dõi các báo cáo bạn đã gửi và xem phản hồi xử lý từ đội ngũ vận hành.
           </p>
         </div>
 
@@ -190,7 +160,7 @@ export default function StaffIssueReportsPage() {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Tìm theo mã báo cáo, email hoặc mô tả trên trang hiện tại..."
+            placeholder="Tìm theo mã báo cáo, mô tả hoặc thực thể trên trang hiện tại..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50/30 py-2.5 pl-10 pr-4 text-[13px] placeholder:text-slate-400 transition-all focus:border-[#eec54e] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20"
           />
         </div>
@@ -286,50 +256,12 @@ export default function StaffIssueReportsPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-[13px] font-bold transition-all shadow-sm active:scale-95",
-                  entityFilter !== "ALL"
-                    ? "border-[#eec54e] bg-amber-50 text-[#C8A000]"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <span>
-                  {ENTITY_FILTER_OPTIONS.find((item) => item.value === entityFilter)?.label}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-[220px] rounded-2xl border-slate-100 bg-white p-1.5 font-plus-jakarta-sans shadow-xl"
-            >
-              <DropdownMenuRadioGroup
-                value={entityFilter}
-                onValueChange={(value) => setEntityFilter(value as EntityFilter)}
-              >
-                {ENTITY_FILTER_OPTIONS.map((entity) => (
-                  <DropdownMenuRadioItem
-                    key={entity.value}
-                    value={entity.value}
-                    className="cursor-pointer rounded-xl py-2 text-[12px] font-medium focus:bg-slate-50"
-                  >
-                    {entity.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {hasActiveFilters && (
             <button
               onClick={() => {
                 setSearch("");
                 setCategoryFilter("ALL");
                 setStatusFilter("ALL");
-                setEntityFilter("ALL");
               }}
               className="rounded-xl border border-rose-100 bg-rose-50 p-2.5 text-rose-500 transition-all hover:bg-rose-100 active:scale-95"
               title="Xóa bộ lọc"
@@ -344,9 +276,7 @@ export default function StaffIssueReportsPage() {
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-            <span className="ml-3 text-[13px] text-slate-500">
-              Đang tải danh sách báo cáo...
-            </span>
+            <span className="ml-3 text-[13px] text-slate-500">Đang tải danh sách báo cáo...</span>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center gap-3 py-24">
@@ -365,17 +295,18 @@ export default function StaffIssueReportsPage() {
             <p className="text-[14px] font-semibold text-slate-500">
               {hasActiveFilters
                 ? "Không có báo cáo phù hợp với bộ lọc hiện tại."
-                : "Chưa có báo cáo sự cố nào."}
+                : "Bạn chưa gửi báo cáo nào."}
             </p>
             {hasActiveFilters && (
               <button
                 onClick={() => {
                   setSearch("");
-                  setEntityFilter("ALL");
+                  setCategoryFilter("ALL");
+                  setStatusFilter("ALL");
                 }}
                 className="text-[12px] font-bold text-[#eec54e] hover:underline"
               >
-                Xóa lọc cục bộ
+                Xóa bộ lọc
               </button>
             )}
           </div>
@@ -389,9 +320,6 @@ export default function StaffIssueReportsPage() {
                   </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     Danh mục
-                  </th>
-                  <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                    Người báo cáo
                   </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     Liên quan
@@ -421,7 +349,6 @@ export default function StaffIssueReportsPage() {
                     <tr
                       key={item.issueReportID}
                       className="group cursor-pointer transition-colors hover:bg-slate-50/60"
-                      onClick={() => router.push(`/staff/issue-reports/${item.issueReportID}`)}
                     >
                       <td className="px-6 py-5">
                         <span className="font-mono text-[12px] font-bold tracking-tighter text-slate-900">
@@ -441,9 +368,7 @@ export default function StaffIssueReportsPage() {
                               <category.icon className={cn("h-4 w-4", category.color)} />
                             </div>
                             <div>
-                              <p className="text-[13px] font-bold text-slate-900">
-                                {category.label}
-                              </p>
+                              <p className="text-[13px] font-bold text-slate-900">{category.label}</p>
                               <p className="text-[11px] text-slate-400">{item.category}</p>
                             </div>
                           </div>
@@ -453,51 +378,10 @@ export default function StaffIssueReportsPage() {
                       </td>
 
                       <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={cn(
-                              "flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br text-[12px] font-bold text-white shadow-sm",
-                              getIssueReporterAvatarStyle(item.reporterUserType)
-                            )}
-                          >
-                            {item.reporterAvatarUrl ? (
-                              <Image
-                                src={item.reporterAvatarUrl}
-                                alt={item.reporterEmail || "Reporter avatar"}
-                                width={36}
-                                height={36}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              getIssueReporterInitials(item.reporterEmail, item.reporterUserType)
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="max-w-[220px] truncate text-[13px] font-bold text-slate-900">
-                              {item.reporterEmail || "Không có email"}
-                            </p>
-                            <p className="text-[11px] text-slate-400">
-                              {formatIssueReporterIdentity(item.reporterUserType, item.reporterUserID)}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-5">
                         <p className="text-[13px] font-bold text-slate-900">{entityLabel}</p>
-                        <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-400">
-                          <span>
-                            {item.relatedEntityID != null
-                              ? `#${item.relatedEntityID}`
-                              : "Không có ID"}
-                          </span>
-                          {item.attachments.length > 0 && (
-                            <span className="inline-flex items-center gap-1">
-                              <Paperclip className="h-3.5 w-3.5" />
-                              {item.attachments.length} tệp
-                            </span>
-                          )}
-                        </div>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {item.relatedEntityID != null ? `#${item.relatedEntityID}` : "Không có ID"}
+                        </p>
                       </td>
 
                       <td className="px-6 py-5">
@@ -512,9 +396,7 @@ export default function StaffIssueReportsPage() {
                             {status.label}
                           </span>
                         ) : (
-                          <span className="text-[12px] font-bold text-slate-500">
-                            {item.status}
-                          </span>
+                          <span className="text-[12px] font-bold text-slate-500">{item.status}</span>
                         )}
                       </td>
 
@@ -528,16 +410,13 @@ export default function StaffIssueReportsPage() {
                       </td>
 
                       <td className="px-6 py-5 text-right">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            router.push(`/staff/issue-reports/${item.issueReportID}`);
-                          }}
+                        <Link
+                          href={`${roleBaseUrl}/${item.issueReportID}`}
                           className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#eec54e] transition-colors hover:text-[#e6cc4c]"
                         >
                           Xem chi tiết
                           <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   );

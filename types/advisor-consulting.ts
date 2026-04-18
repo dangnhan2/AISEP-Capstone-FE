@@ -98,6 +98,7 @@ export interface IConsultingRequest {
   slotProposals: ITimeSlotProposal[];
   confirmation: IScheduleConfirmation;
   isPayoutEligible?: boolean;
+  payoutReleasedAt?: string | null;
   paymentStatus?: string | null;
   paidAt?: string | null;
   rejectionReason?: string;

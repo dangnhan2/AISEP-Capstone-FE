@@ -101,6 +101,8 @@ function CreateReportContent() {
   const sessionId = searchParams.get("sessionId");
   
   const [session, setSession] = useState<IConsultingSession | null>(null);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const [warnExistingReport, setWarnExistingReport] = useState<{ reportId: string; status: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -129,10 +131,21 @@ function CreateReportContent() {
           .then((res: any) => {
             const Object = res.data;
             if (Object) {
-              // Extract real sessionId from sessions array (pick latest Conducted/Completed/InProgress session)
               const sessions: any[] = Object.sessions || [];
-              const realSession = sessions.find((s: any) => ["Conducted", "Completed", "InProgress", "Scheduled"].includes(s.status || s.sessionStatus))
-                || sessions[sessions.length - 1];
+              const mentorshipStatus = String(Object.status || Object.mentorshipStatus || "").toLowerCase();
+
+              // Guard 1: Block nếu mentorship đã bị hủy / từ chối / hết hạn
+              if (["cancelled", "rejected", "expired"].includes(mentorshipStatus)) {
+                setBlockedReason(
+                  mentorshipStatus === "cancelled" ? "Yêu cầu tư vấn đã bị hủy."
+                  : mentorshipStatus === "rejected" ? "Yêu cầu tư vấn đã bị từ chối."
+                  : "Yêu cầu tư vấn đã hết hạn."
+                );
+                return;
+              }
+
+              // Pick session để lấy sessionID
+              const realSession = sessions[0] ?? null;
               const realSessionId = realSession?.sessionID ?? realSession?.id ?? null;
 
               const mappedSes: any = {
@@ -146,26 +159,33 @@ function CreateReportContent() {
               };
               setSession(mappedSes as any);
 
-              // Check for existing draft
               const rawReports: any[] = Object.reports || [];
-              const existingDraft = rawReports.find((r: any) => r.reviewStatus === "Draft");
-              if (existingDraft) {
-                const parsed = parseReportFields(
-                  existingDraft.reportSummary || "",
-                  existingDraft.detailedFindings || "",
-                  existingDraft.recommendations || ""
-                );
-                setFormData(prev => ({ ...prev, ...parsed }));
-                setDraftReportId(existingDraft.reportID?.toString() || null);
-                setIsDraftRestored(true);
-                if (existingDraft.attachmentsURL) {
-                  setExistingAttachmentUrl(existingDraft.attachmentsURL);
+              // Reports sorted DESC by BE — index 0 là mới nhất
+              const activeReport = rawReports.find((r: any) => r.isLatestForSession !== false && r.supersededByReportID == null);
+
+              if (activeReport) {
+                const rs: string = activeReport.reviewStatus || "Draft";
+                if (rs === "Draft") {
+                  // Restore bản nháp hiện có vào form
+                  const parsed = parseReportFields(
+                    activeReport.reportSummary || "",
+                    activeReport.detailedFindings || "",
+                    activeReport.recommendations || ""
+                  );
+                  setFormData(prev => ({ ...prev, ...parsed }));
+                  setDraftReportId(activeReport.reportID?.toString() || null);
+                  setIsDraftRestored(true);
+                  if (activeReport.attachmentsURL) setExistingAttachmentUrl(activeReport.attachmentsURL);
+                } else if (rs === "Passed") {
+                  // Warn: đã có report đã duyệt — bất thường nếu tạo thêm
+                  setWarnExistingReport({ reportId: activeReport.reportID?.toString(), status: rs });
+                  setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
+                } else {
+                  // NeedsMoreInfo / Failed → BE sẽ auto-supersede, vào thẳng
+                  setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
                 }
               } else {
-                setFormData(prev => ({
-                  ...prev,
-                  title: `Báo cáo tư vấn ${mappedSes.startup.displayName}`
-                }));
+                setFormData(prev => ({ ...prev, title: `Báo cáo tư vấn ${mappedSes.startup.displayName}` }));
               }
             }
           })
@@ -302,6 +322,22 @@ function CreateReportContent() {
     return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
   }
 
+  if (blockedReason) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+      <AlertCircle className="w-12 h-12 text-red-400 opacity-70" />
+      <div>
+        <p className="text-[15px] font-bold text-slate-800">Không thể tạo báo cáo</p>
+        <p className="text-[13px] text-slate-500 mt-1 max-w-sm">{blockedReason}</p>
+      </div>
+      <button
+        onClick={() => router.push("/advisor/reports")}
+        className="mt-2 px-5 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all"
+      >
+        Quay lại danh sách báo cáo
+      </button>
+    </div>
+  );
+
   if (!session) return (
     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
       <AlertCircle className="w-10 h-10 mb-2 opacity-20" />
@@ -334,6 +370,26 @@ function CreateReportContent() {
           Lưu bản nháp
         </button>
       </div>
+
+      {/* Warning: existing Passed report */}
+      {warnExistingReport && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-6 py-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-[13px] font-bold text-amber-800">Buổi tư vấn này đã có báo cáo đã được duyệt</p>
+            <p className="text-[12px] text-amber-700 mt-0.5">
+              Báo cáo #{warnExistingReport.reportId} đang ở trạng thái <strong>Đã hoàn tất</strong>.
+              Bạn vẫn có thể tạo báo cáo mới, nhưng cả hai sẽ cùng tồn tại — báo cáo cũ sẽ không bị xóa.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push(`/advisor/reports/${sessionId}`)}
+            className="shrink-0 text-[12px] font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors"
+          >
+            Xem báo cáo cũ
+          </button>
+        </div>
+      )}
 
       {/* Header Info (White Card Pattern) */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">

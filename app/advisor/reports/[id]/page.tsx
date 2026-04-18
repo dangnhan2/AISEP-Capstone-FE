@@ -19,21 +19,19 @@ import type { IConsultationReport, ConsultationReportStatus } from "@/types/advi
 /* ─── Constants ──────────────────────────────────────────────── */
 
 const STATUS_LABEL: Record<ConsultationReportStatus, string> = {
-  DRAFT: "Bản nháp",
-  SUBMITTED: "Đang chờ duyệt",
-  UNDER_REVIEW: "Đang thẩm định",
-  NEEDS_REVISION: "Cần chỉnh sửa",
-  FINALIZED: "Đã hoàn tất",
-  DELETED: "Đã xóa",
+  Draft: "Bản nháp",
+  Passed: "Đã hoàn tất",
+  Failed: "Không đạt",
+  NeedsMoreInfo: "Cần bổ sung",
+  PendingReview: "Đang xét duyệt",
 };
 
 const STATUS_CFG: Record<ConsultationReportStatus, { dot: string; badge: string }> = {
-  DRAFT: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
-  SUBMITTED: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
-  UNDER_REVIEW: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
-  NEEDS_REVISION: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
-  FINALIZED: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
-  DELETED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
+  Draft: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  Passed: { dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  Failed: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
+  NeedsMoreInfo: { dot: "bg-blue-400", badge: "bg-blue-50 text-blue-600 border-blue-200/80" },
+  PendingReview: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
 };
 
 /* ─── Components ─────────────────────────────────────────────── */
@@ -115,8 +113,9 @@ export default function ReportDetailPage() {
     setIsSubmitting(true);
     try {
       await UpdateMentorshipReport(report.sessionId, report.id, { isDraft: false });
-      toast.success("Đã gửi báo cáo thành công!");
-      setReport(prev => prev ? { ...prev, status: 'SUBMITTED', reviewStatus: 'PendingReview' } : null);
+      toast.success("Đã gửơi báo cáo thành công! Startup sẽ thấy báo cáo ngay bây giờ.");
+      // Auto-approve: report trở thành Passed ngay sau khi submit
+      setReport(prev => prev ? { ...prev, reviewStatus: 'Passed' } : null);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Có lỗi xảy ra khi nộp báo cáo.");
     } finally {
@@ -141,7 +140,7 @@ export default function ReportDetailPage() {
     </AdvisorShell>
   );
 
-  const cfg = STATUS_CFG[report.status];
+  const cfg = STATUS_CFG[report.reviewStatus] ?? STATUS_CFG['Draft'];
   const avatarGradient = getAvatarColor(report.startup.displayName);
 
   return (
@@ -161,14 +160,14 @@ export default function ReportDetailPage() {
           </button>
           
           <div className="flex items-center gap-3">
-            {report.status === "FINALIZED" && (
+            {report.reviewStatus === "Passed" && (
               <button className="px-4 py-2 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm flex items-center gap-2">
                 <Download className="w-4 h-4" />
                 Tải PDF
               </button>
             )}
             
-            {report.status === "DRAFT" && (
+            {report.reviewStatus === "Draft" && (
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => router.push(`/advisor/reports/${report.sessionId}/edit`)}
@@ -188,7 +187,7 @@ export default function ReportDetailPage() {
               </div>
             )}
 
-            {report.status === "NEEDS_REVISION" && report.reviewStatus !== "Failed" && (
+            {report.reviewStatus === "NeedsMoreInfo" && (
               <button
                 onClick={() => router.push(`/advisor/reports/${report.sessionId}/edit`)}
                 className="px-5 py-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-700 text-[13px] font-bold hover:bg-blue-100 transition-all flex items-center gap-2"
@@ -234,7 +233,7 @@ export default function ReportDetailPage() {
                   cfg.badge
                 )}>
                   <span className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
-                  {STATUS_LABEL[report.status]}
+                  {STATUS_LABEL[report.reviewStatus] ?? STATUS_LABEL['Draft']}
                 </span>
               </div>
               <p className="text-[13px] text-slate-500 mt-1 font-medium italic line-clamp-1">
@@ -350,7 +349,7 @@ export default function ReportDetailPage() {
           {/* Side Column */}
           <div className="space-y-6">
             {/* Staff Feedback */}
-          {(report.status === "NEEDS_REVISION" || report.reviewStatus === "Failed") &&
+          {(report.reviewStatus === "NeedsMoreInfo" || report.reviewStatus === "Failed") &&
             (report.staffRemarks || report.staffReviewNote) && (
             <div className={cn(
               "rounded-2xl border-2 px-6 py-5 animate-in duration-500",
@@ -362,7 +361,7 @@ export default function ReportDetailPage() {
                 <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="text-[13px] font-bold text-red-800 uppercase tracking-widest mb-1">
-                    {report.reviewStatus === "Failed" ? "Báo cáo không đạt" : "Cần chỉnh sửa nội dung"}
+                    {report.reviewStatus === "Failed" ? "Báo cáo không đạt" : "Cần bổ sung nội dung"}
                   </h3>
                   <p className="text-[13px] text-red-700 leading-relaxed font-medium">
                     {report.staffRemarks || report.staffReviewNote}
@@ -371,6 +370,30 @@ export default function ReportDetailPage() {
               </div>
             </div>
           )}
+
+            {/* Startup Acknowledgement */}
+            {report.reviewStatus === "Passed" && (
+              <div className={cn(
+                "rounded-2xl border px-5 py-4",
+                report.startupAcknowledgedAt
+                  ? "border-emerald-200 bg-emerald-50/50"
+                  : "border-amber-200 bg-amber-50/40"
+              )}>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className={cn("w-4 h-4 shrink-0 mt-0.5", report.startupAcknowledgedAt ? "text-emerald-500" : "text-amber-400")} />
+                  <div>
+                    <h3 className={cn("text-[12px] font-bold uppercase tracking-widest mb-1", report.startupAcknowledgedAt ? "text-emerald-700" : "text-amber-700")}>
+                      {report.startupAcknowledgedAt ? "Startup đã xác nhận" : "Chờ Startup xác nhận"}
+                    </h3>
+                    <p className="text-[12px] font-medium text-slate-500">
+                      {report.startupAcknowledgedAt
+                        ? `Đã đọc và xác nhận lúc ${new Date(report.startupAcknowledgedAt).toLocaleString("vi-VN")}`
+                        : "Startup có 24h để xác nhận, sau đó hệ thống tự động xác nhận."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Attachments */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -417,7 +440,7 @@ export default function ReportDetailPage() {
           </div>
           <div className="bg-white px-6 pt-5 pb-8 -mt-4 rounded-t-3xl shadow-[0_-4px_15px_rgba(0,0,0,0.05)] relative z-10">
             <DialogDescription className="text-slate-600 leading-relaxed text-[14px]">
-              Khi báo cáo được nộp, trạng thái sẽ chuyển sang <strong className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Chờ thẩm định</strong>. Bạn sẽ không thể tiếp tục chỉnh sửa nội dung này trừ khi nhận được yêu cầu bổ sung từ đội ngũ Operations.
+              Khi nộp báo cáo, hệ thống tự động duyệt và đánh dấu là <strong className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">Đã hoàn tất</strong>. Startup sẽ thấy báo cáo của bạn <strong>ngay lập tức</strong>.
               <br /><br />
               Bạn đã chắc chắn muốn gửi chưa?
             </DialogDescription>

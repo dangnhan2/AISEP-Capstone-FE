@@ -22,6 +22,7 @@ const routeLabels: Record<string, string> = {
   resubmit: "Cập nhật hồ sơ",
   status: "Trạng thái chi tiết",
   messaging: "Tin nhắn",
+  "issue-reports": "Báo cáo của tôi",
   notifications: "Thông báo",
   settings: "Cài đặt",
   availability: "Lịch rảnh",

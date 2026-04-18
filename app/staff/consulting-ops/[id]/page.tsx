@@ -1,30 +1,22 @@
 "use client";
 
+import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   ChevronLeft,
   CheckCircle2,
-  XCircle,
   AlertCircle,
-  Clock,
-  Calendar,
   FileText,
   Download,
-  ExternalLink,
   Loader2,
-  MessageSquare,
   ShieldAlert,
   User,
   Building2,
   Video,
 } from "lucide-react";
-import Link from "next/link";
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
 import {
   GetOversightReports,
-  ReviewReport,
-  MarkSessionCompleted,
   MarkSessionDispute,
   MarkSessionResolved,
 } from "@/services/staff/consulting-oversight.api";
@@ -32,66 +24,77 @@ import type { IReportOversightItem } from "@/types/startup-mentorship";
 import { parseReportFields } from "@/lib/report-parser";
 import { toast } from "sonner";
 
-// ── Status configs ───────────────────────────────────────────────────────────
-
-const REVIEW_STATUS_CFG: Record<string, { label: string; badge: string; icon: typeof Clock }> = {
-  PendingReview: { label: "Chờ thẩm định", badge: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock },
-  Passed: { label: "Đã duyệt", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-  Failed: { label: "Không đạt", badge: "bg-red-50 text-red-700 border-red-200", icon: XCircle },
-  NeedsMoreInfo: { label: "Cần bổ sung", badge: "bg-blue-50 text-blue-700 border-blue-200", icon: AlertCircle },
+const REVIEW_STATUS_CFG: Record<string, { label: string; badge: string }> = {
+  Passed: {
+    label: "Đã hoàn tất",
+    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  Failed: {
+    label: "Không đạt",
+    badge: "bg-red-50 text-red-700 border-red-200",
+  },
+  NeedsMoreInfo: {
+    label: "Cần bổ sung",
+    badge: "bg-blue-50 text-blue-700 border-blue-200",
+  },
 };
 
 const SESSION_STATUS_CFG: Record<string, { label: string; color: string }> = {
-  Scheduled: { label: "Đã lên lịch", color: "text-blue-600" },
-  InProgress: { label: "Đang diễn ra", color: "text-amber-600" },
   Conducted: { label: "Đã tư vấn", color: "text-indigo-600" },
   Completed: { label: "Hoàn tất", color: "text-emerald-600" },
   InDispute: { label: "Tranh chấp", color: "text-red-600" },
   Resolved: { label: "Đã giải quyết", color: "text-slate-600" },
+  Scheduled: { label: "Đã lên lịch", color: "text-blue-600" },
+  InProgress: { label: "Đang diễn ra", color: "text-amber-600" },
 };
 
-const MENTORSHIP_STATUS_LABEL: Record<string, string> = {
-  Pending: "Chờ xác nhận",
-  Active: "Đang hoạt động",
-  InProgress: "Đang tiến hành",
-  Completed: "Hoàn tất",
-  Cancelled: "Đã hủy",
-  Disputed: "Đang tranh chấp",
-};
+function formatDateTime(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
-// ── Page ─────────────────────────────────────────────────────────────────────
-
-export default function ConsultingOpsDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ConsultingOpsDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const router = useRouter();
-  const reportId = parseInt(id, 10);
+  const reportId = Number.parseInt(id, 10);
 
   const [report, setReport] = useState<IReportOversightItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Review form state
-  const [reviewNote, setReviewNote] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Session action state
   const [sessionActionNote, setSessionActionNote] = useState("");
   const [isSessionActing, setIsSessionActing] = useState(false);
 
-  // Fetch report data
   useEffect(() => {
     async function fetchReport() {
       setLoading(true);
+      setError(null);
+
       try {
-        const res = await GetOversightReports({ reviewStatus: "all", page: 1, pageSize: 100 }) as unknown as IBackendRes<IPagingData<IReportOversightItem>>;
+        const res =
+          (await GetOversightReports({
+            reviewStatus: "all",
+            page: 1,
+            pageSize: 200,
+          })) as unknown as IBackendRes<IPagingData<IReportOversightItem>>;
+
         const items = res.data?.items ?? res.data?.data ?? [];
-        const found = items.find((r) => r.reportID === reportId);
-        if (found) {
-          setReport(found);
-        } else {
+        const found = items.find((item) => item.reportID === reportId);
+
+        if (!found) {
           setError("Báo cáo không tồn tại.");
+        } else {
+          setReport(found);
         }
       } catch {
         setError("Không thể tải dữ liệu.");
@@ -99,72 +102,25 @@ export default function ConsultingOpsDetailPage({ params }: { params: Promise<{ 
         setLoading(false);
       }
     }
+
     fetchReport();
   }, [reportId]);
-
-  // Review action handler
-  const handleReview = async (status: "Passed" | "Failed" | "NeedsMoreInfo") => {
-    setIsSubmitting(true);
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    try {
-      await ReviewReport(reportId, {
-        reviewStatus: status,
-        note: reviewNote.trim() || undefined,
-      });
-      const labels: Record<string, string> = {
-        Passed: "Đã duyệt báo cáo thành công.",
-        Failed: "Đã từ chối báo cáo.",
-        NeedsMoreInfo: "Đã yêu cầu bổ sung thông tin.",
-      };
-      setSubmitSuccess(labels[status]);
-      setReport((prev) => prev ? { ...prev, reviewStatus: status, staffReviewNote: reviewNote.trim() || null } : prev);
-    } catch (err: any) {
-      const code = err?.response?.data?.errorCode ?? err?.response?.data?.code;
-      if (code === "SESSION_NOT_CONDUCTED") {
-        setSubmitError("Buổi tư vấn chưa được startup xác nhận — không thể duyệt báo cáo.");
-      } else if (code === "INVALID_REVIEW_STATUS") {
-        setSubmitError("Kết quả review không hợp lệ.");
-      } else if (code === "REPORT_NOT_FOUND") {
-        setSubmitError("Báo cáo không tồn tại.");
-      } else {
-        setSubmitError(err?.response?.data?.message ?? "Đã xảy ra lỗi. Vui lòng thử lại.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Session action handlers
-  const handleMarkCompleted = async () => {
-    if (!report) return;
-    setIsSessionActing(true);
-    try {
-      await MarkSessionCompleted(report.mentorshipID, report.sessionID, sessionActionNote.trim() ? { note: sessionActionNote.trim() } : undefined);
-      toast.success("Session đã được đánh dấu Hoàn tất.");
-      setReport((prev) => prev ? { ...prev, sessionStatus: "Completed" } : prev);
-    } catch (err: any) {
-      const code = err?.response?.data?.code;
-      if (code === "REPORTS_NOT_ALL_PASSED") toast.error("Tất cả reports phải Passed trước khi hoàn tất session.");
-      else if (code === "NO_REPORT") toast.error("Session chưa có report nào.");
-      else if (code === "SESSION_NOT_CONDUCTED") toast.error("Startup chưa xác nhận buổi tư vấn.");
-      else if (code === "INVALID_STATUS_TRANSITION") toast.error("Không thể chuyển trạng thái session.");
-      else toast.error(err?.response?.data?.message || "Đã xảy ra lỗi.");
-    } finally {
-      setIsSessionActing(false);
-    }
-  };
 
   const handleMarkDispute = async () => {
     if (!report || !sessionActionNote.trim()) {
       toast.error("Vui lòng nhập lý do tranh chấp.");
       return;
     }
+
     setIsSessionActing(true);
     try {
-      await MarkSessionDispute(report.mentorshipID, report.sessionID, { reason: sessionActionNote.trim() });
-      toast.success("Session đã được đánh dấu Tranh chấp.");
-      setReport((prev) => prev ? { ...prev, sessionStatus: "InDispute" } : prev);
+      await MarkSessionDispute(report.mentorshipID, report.sessionID, {
+        reason: sessionActionNote.trim(),
+      });
+      toast.success("Session đã được đánh dấu tranh chấp.");
+      setReport((prev) =>
+        prev ? { ...prev, sessionStatus: "InDispute" } : prev
+      );
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Đã xảy ra lỗi.");
     } finally {
@@ -177,14 +133,26 @@ export default function ConsultingOpsDetailPage({ params }: { params: Promise<{ 
       toast.error("Vui lòng nhập ghi chú giải quyết.");
       return;
     }
+
     setIsSessionActing(true);
     try {
       await MarkSessionResolved(report.mentorshipID, report.sessionID, {
         resolution: sessionActionNote.trim(),
         restoreCompleted,
       });
-      toast.success(restoreCompleted ? "Tranh chấp đã giải quyết → Completed." : "Tranh chấp đã giải quyết → Resolved.");
-      setReport((prev) => prev ? { ...prev, sessionStatus: restoreCompleted ? "Completed" : "Resolved" } : prev);
+      toast.success(
+        restoreCompleted
+          ? "Tranh chấp đã được giải quyết và session quay lại Completed."
+          : "Tranh chấp đã được giải quyết và session chuyển sang Resolved."
+      );
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              sessionStatus: restoreCompleted ? "Completed" : "Resolved",
+            }
+          : prev
+      );
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Đã xảy ra lỗi.");
     } finally {
@@ -195,73 +163,106 @@ export default function ConsultingOpsDetailPage({ params }: { params: Promise<{ 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-        <span className="ml-3 text-[13px] text-slate-500">Đang tải báo cáo...</span>
+        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        <span className="ml-3 text-[13px] text-slate-500">
+          Đang tải báo cáo...
+        </span>
       </div>
     );
   }
 
   if (error || !report) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4">
-        <ShieldAlert className="w-10 h-10 text-red-400" />
-        <p className="text-[14px] text-red-500">{error ?? "Không tìm thấy báo cáo."}</p>
-        <Link href="/staff/consulting-ops" className="text-[13px] font-bold text-[#eec54e] hover:underline">
+      <div className="flex flex-col items-center justify-center gap-4 py-32">
+        <ShieldAlert className="h-10 w-10 text-red-400" />
+        <p className="text-[14px] text-red-500">
+          {error ?? "Không tìm thấy báo cáo."}
+        </p>
+        <Link
+          href="/staff/consulting-ops"
+          className="text-[13px] font-bold text-[#eec54e] hover:underline"
+        >
           ← Quay lại danh sách
         </Link>
       </div>
     );
   }
 
-  const reviewCfg = REVIEW_STATUS_CFG[report.reviewStatus] ?? REVIEW_STATUS_CFG.PendingReview;
-  const ReviewIcon = reviewCfg.icon;
-  const sessCfg = SESSION_STATUS_CFG[report.sessionStatus] ?? { label: report.sessionStatus, color: "text-slate-500" };
-  const isReviewed = report.reviewStatus !== "PendingReview";
+  const reviewCfg =
+    REVIEW_STATUS_CFG[report.reviewStatus] ?? REVIEW_STATUS_CFG.Passed;
+  const sessCfg = SESSION_STATUS_CFG[report.sessionStatus] ?? {
+    label: report.sessionStatus,
+    color: "text-slate-500",
+  };
+  const parsed = parseReportFields(
+    report.reportSummary,
+    report.detailedFindings,
+    report.recommendations
+  );
+
+  const Field = ({ label, value }: { label: string; value: string }) =>
+    value ? (
+      <div>
+        <h4 className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+          {label}
+        </h4>
+        <p className="whitespace-pre-wrap rounded-xl border border-slate-100 bg-slate-50 p-4 text-[14px] leading-relaxed text-slate-700">
+          {value}
+        </p>
+      </div>
+    ) : null;
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-500 font-plus-jakarta-sans">
-      {/* Header */}
+    <div className="space-y-6 pb-12 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <Link
           href="/staff/consulting-ops"
-          className="group flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-slate-900 transition-colors"
+          className="group flex items-center gap-2 text-[13px] font-bold text-slate-500 transition-colors hover:text-slate-900"
         >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           Quay lại Vận hành tư vấn
         </Link>
-        <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold border", reviewCfg.badge)}>
-          <ReviewIcon className="w-3.5 h-3.5" />
+
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-[11px] font-bold",
+            reviewCfg.badge
+          )}
+        >
           {reviewCfg.label}
         </span>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Report Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Session Summary Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-5">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0f172a] to-[#1e293b] flex items-center justify-center text-white shrink-0 shadow-lg">
-                <Video className="w-7 h-7 text-[#eec54e]" />
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white shadow-lg">
+                <Video className="h-7 w-7 text-[#eec54e]" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-[20px] font-bold text-slate-900 tracking-tight">
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-[20px] font-bold tracking-tight text-slate-900">
                     Report #{report.reportID}
                   </h1>
                 </div>
-                <div className="flex items-center gap-3 mt-1.5 text-slate-400 text-[12px] font-medium flex-wrap">
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[12px] font-medium text-slate-400">
                   <span className="flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="h-3.5 w-3.5" />
                     Session #{report.sessionID}
                   </span>
                   <span>•</span>
-                  <span className={cn("font-bold", sessCfg.color)}>{sessCfg.label}</span>
+                  <span className={cn("font-bold", sessCfg.color)}>
+                    {sessCfg.label}
+                  </span>
                   {report.startupConfirmedConductedAt && (
                     <>
                       <span>•</span>
-                      <span className="text-emerald-600 font-bold">✓ Startup đã xác nhận</span>
+                      <span className="font-bold text-emerald-600">
+                        Startup đã xác nhận
+                      </span>
                     </>
                   )}
                 </div>
@@ -269,341 +270,223 @@ export default function ConsultingOpsDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          {/* Parties Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Building2 className="w-4 h-4 text-slate-400" />
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Startup</p>
-              </div>
-              <p className="text-[14px] font-bold text-slate-900">{report.startupName}</p>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <div className="mb-4 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <p className="text-[12px] font-bold uppercase tracking-widest text-slate-400">
+                Trạng thái contract mới
+              </p>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <User className="w-4 h-4 text-slate-400" />
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Advisor</p>
+            <p className="text-[14px] leading-relaxed text-slate-700">
+              Báo cáo này được hệ thống auto-approve ngay khi Advisor submit.
+              Staff không còn duyệt report thủ công; chỉ cần theo dõi và mở
+              tranh chấp session nếu phát hiện vấn đề.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="mb-3 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-slate-400" />
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Startup
+                </p>
               </div>
-              <p className="text-[14px] font-bold text-slate-900">{report.advisorName}</p>
+              <p className="text-[14px] font-bold text-slate-900">
+                {report.startupName}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <div className="mb-3 flex items-center gap-2">
+                <User className="h-4 w-4 text-slate-400" />
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Advisor
+                </p>
+              </div>
+              <p className="text-[14px] font-bold text-slate-900">
+                {report.advisorName}
+              </p>
             </div>
           </div>
 
-          {/* Challenge Description */}
           {report.challengeDescription && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+              <h3 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                 Mục tiêu tư vấn
               </h3>
-              <p className="text-[14px] text-slate-700 leading-relaxed font-medium italic">
-                &ldquo;{report.challengeDescription}&rdquo;
+              <p className="text-[14px] font-medium italic leading-relaxed text-slate-700">
+                “{report.challengeDescription}”
               </p>
             </div>
           )}
 
-          {/* Report Content */}
-          {(() => {
-            const parsed = parseReportFields(
-              report.reportSummary,
-              report.detailedFindings,
-              report.recommendations
-            );
-            const Field = ({ label, value }: { label: string; value: string }) =>
-              value ? (
-                <div>
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">{label}</h4>
-                  <p className="text-[14px] text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">
-                    {value}
-                  </p>
-                </div>
-              ) : null;
-
-            return (
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100">
-                  <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-[#eec54e]" />
-                    Nội dung báo cáo
-                  </h3>
-                </div>
-                <div className="p-6 space-y-5">
-                  <Field label="Tiêu đề" value={parsed.title} />
-                  <Field label="Tóm tắt" value={parsed.summary} />
-                  <Field label="Nội dung thảo luận" value={parsed.discussionOverview} />
-                  <Field label="Phát hiện chính (Key Findings)" value={parsed.keyFindings} />
-                  <Field label="Rủi ro nhận diện" value={parsed.identifiedRisks} />
-                  <Field label="Khuyến nghị của Advisor" value={parsed.advisorRecommendations} />
-                  <Field label="Các bước tiếp theo (Next Steps)" value={parsed.nextSteps} />
-                  <Field label="Sản phẩm bàn giao (Deliverables)" value={parsed.deliverablesSummary} />
-                  {parsed.followUpRequired && (
-                    <div>
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Yêu cầu Follow-up</h4>
-                      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-                        <span className="text-amber-500 text-[13px] font-bold shrink-0">↻</span>
-                        <p className="text-[13px] text-amber-800 font-medium leading-relaxed">
-                          {parsed.followUpNotes || "Advisor yêu cầu có buổi tái đánh giá"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {report.attachmentsURL && (() => {
-                    const url = report.attachmentsURL;
-                    const isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
-                    const isPdf = /\.pdf(\?|$)/i.test(url);
-                    const isOffice = /\.(docx?|xlsx?|pptx?)(\?|$)/i.test(url);
-                    const fileName = url.split("/").pop()?.split("?")[0] || "Tài liệu đính kèm";
-
-                    let embedSrc: string | null = null;
-                    if (isImage) embedSrc = url;
-                    else if (isPdf) embedSrc = url;
-                    else if (isOffice) embedSrc = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
-
-                    return (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Tài liệu đính kèm</h4>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-[#eec54e] transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            Tải xuống
-                          </a>
-                        </div>
-                        {embedSrc ? (
-                          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50" style={{ height: 480 }}>
-                            {isImage ? (
-                              <img src={embedSrc} alt={fileName} className="w-full h-full object-contain bg-white" />
-                            ) : (
-                              <iframe
-                                title={fileName}
-                                src={embedSrc}
-                                className="w-full h-full bg-white"
-                                allow="fullscreen"
-                              />
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50">
-                            <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="text-[13px] text-slate-600 truncate">{fileName}</span>
-                            <span className="text-[11px] text-slate-400 ml-auto shrink-0">Không hỗ trợ xem trước</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Previous Review Info */}
-          {isReviewed && report.staffReviewNote && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-              <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-                Ghi chú review trước đó
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <div className="border-b border-slate-100 px-6 py-4">
+              <h3 className="flex items-center gap-2 text-[13px] font-bold uppercase tracking-tight text-slate-900">
+                <FileText className="h-4 w-4 text-[#eec54e]" />
+                Nội dung báo cáo
               </h3>
-              <p className="text-[14px] text-slate-700 leading-relaxed italic bg-slate-50 p-4 rounded-xl border border-slate-100">
-                {report.staffReviewNote}
-              </p>
-              {report.reviewedAt && (
-                <p className="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {new Date(report.reviewedAt).toLocaleString("vi-VN")}
-                </p>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <Field label="Tiêu đề" value={parsed.title} />
+              <Field label="Tóm tắt" value={parsed.summary} />
+              <Field label="Nội dung thảo luận" value={parsed.discussionOverview} />
+              <Field label="Phát hiện chính" value={parsed.keyFindings} />
+              <Field label="Rủi ro nhận diện" value={parsed.identifiedRisks} />
+              <Field
+                label="Khuyến nghị của Advisor"
+                value={parsed.advisorRecommendations}
+              />
+              <Field label="Các bước tiếp theo" value={parsed.nextSteps} />
+              <Field label="Sản phẩm bàn giao" value={parsed.deliverablesSummary} />
+
+              {report.attachmentsURL && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      Tài liệu đính kèm
+                    </h4>
+                    <a
+                      href={report.attachmentsURL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400 transition-colors hover:text-[#eec54e]"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Tải xuống
+                    </a>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="truncate text-[13px] text-slate-600">
+                      {report.attachmentsURL.split("/").pop()?.split("?")[0] ||
+                        "Tài liệu đính kèm"}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Right Column: Review Decision Panel */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xl shadow-slate-100 sticky top-24">
-            <h3 className="text-[12px] font-bold uppercase tracking-widest mb-6 font-plus-jakarta-sans text-slate-400">
-              Phê duyệt quyết định
+          <div className="sticky top-24 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-100">
+            <h3 className="mb-6 text-[12px] font-bold uppercase tracking-widest text-slate-400">
+              Quản lý session
             </h3>
 
-            {submitSuccess && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[12px] text-emerald-700 font-medium flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                {submitSuccess}
-              </div>
-            )}
-
-            {submitError && (
-              <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-700 font-medium flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                {submitError}
-              </div>
-            )}
-
-            {!["Conducted", "Completed", "InDispute", "Resolved"].includes(report.sessionStatus) ? (
-              <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[12px] font-bold text-amber-700">Chưa thể thẩm định</p>
-                  <p className="text-[11px] text-amber-600 mt-0.5">Startup chưa xác nhận đã tư vấn. Session cần ở trạng thái <span className="font-bold">Conducted</span> trở lên.</p>
-                </div>
-              </div>
-            ) : report.reviewStatus === "Passed" ? (
-              <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã được duyệt — không thể thay đổi.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleReview("Passed")}
-                  disabled={isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#eec54e] text-slate-900 text-[13px] font-bold hover:bg-[#ffe082] transition-all group active:scale-[0.98] disabled:opacity-50 shadow-md shadow-[#eec54e]/20"
-                >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  Duyệt (Passed)
-                </button>
-                <button
-                  onClick={() => handleReview("NeedsMoreInfo")}
-                  disabled={isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 text-[13px] font-bold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  Yêu cầu bổ sung
-                </button>
-                <button
-                  onClick={() => handleReview("Failed")}
-                  disabled={isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-100 text-red-500 text-[13px] font-bold hover:bg-red-50 transition-all active:scale-[0.98] disabled:opacity-50"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Từ chối (Failed)
-                </button>
-              </div>
-            )}
-
-            {!isReviewed && (
-            <div className="mt-6 pt-6 border-t border-slate-50">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Ghi chú review</p>
-              <textarea
-                rows={3}
-                value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)}
-                maxLength={2000}
-                placeholder="Nhập ghi chú (tùy chọn, tối đa 2000 ký tự)..."
-                className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] resize-none transition-all font-plus-jakarta-sans"
-              />
-              <p className="text-[10px] text-slate-400 mt-1 text-right">{reviewNote.length}/2000</p>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[12px] leading-relaxed text-slate-600">
+              Report review thủ công đã bị loại khỏi flow. Staff chỉ can thiệp
+              qua dispute hoặc resolution nếu cần.
             </div>
-            )}
-          </div>
 
-          {/* Report Meta Info */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 space-y-3">
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thông tin</h3>
-            <div className="space-y-2 text-[12px]">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Mentorship</span>
-                <span className="font-bold text-slate-700">#{report.mentorshipID}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Session</span>
-                <span className="font-bold text-slate-700">#{report.sessionID}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Trạng thái Session</span>
-                <span className={cn("font-bold", sessCfg.color)}>{sessCfg.label}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Trạng thái Mentorship</span>
-                <span className="font-bold text-slate-700">{MENTORSHIP_STATUS_LABEL[report.mentorshipStatus] ?? report.mentorshipStatus}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Nộp lúc</span>
-                <span className="font-bold text-slate-700">
-                  {new Date(report.submittedAt).toLocaleString("vi-VN")}
-                </span>
-              </div>
-              {report.supersededByReportID && (
-                <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-100 text-[11px] text-amber-700 font-medium">
-                  ⚠ Đã thay thế bởi Report #{report.supersededByReportID}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Staff Session Actions */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5 space-y-4">
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Quản lý Session</h3>
-
-            <div className="space-y-2">
-              {/* Conducted → Mark Completed */}
-              {report.sessionStatus === "Conducted" && (
-                report.reviewStatus === "Passed" ? (
-                  <button
-                    onClick={handleMarkCompleted}
-                    disabled={isSessionActing}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-[12px] font-bold hover:bg-emerald-700 transition-all active:scale-[0.98] disabled:opacity-50"
-                  >
-                    {isSessionActing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    Hoàn tất Session
-                  </button>
-                ) : (
-                  <div className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center font-medium">
-                    Cần duyệt báo cáo trước khi hoàn tất
-                  </div>
-                )
-              )}
-
-              {/* Conducted → Mark Dispute */}
-              {(report.sessionStatus === "Conducted" || report.sessionStatus === "Completed") && (
+            <div className="space-y-3">
+              {(report.sessionStatus === "Conducted" ||
+                report.sessionStatus === "Completed") && (
                 <button
                   onClick={handleMarkDispute}
                   disabled={isSessionActing}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-[12px] font-bold hover:bg-red-50 transition-all active:scale-[0.98] disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-[12px] font-bold text-red-600 transition-all hover:bg-red-50 active:scale-[0.98] disabled:opacity-50"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5" />
+                  {isSessionActing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                  )}
                   Mở tranh chấp
                 </button>
               )}
 
-              {/* InDispute → Resolve */}
               {report.sessionStatus === "InDispute" && (
                 <>
                   <button
                     onClick={() => handleResolveDispute(true)}
                     disabled={isSessionActing}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-[12px] font-bold hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-[12px] font-bold text-white transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                     Giải quyết → Completed
                   </button>
                   <button
                     onClick={() => handleResolveDispute(false)}
                     disabled={isSessionActing}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-[12px] font-bold hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-[12px] font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50"
                   >
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    Giải quyết → Resolved (chặn payout)
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Giải quyết → Resolved
                   </button>
                 </>
               )}
 
-              {/* No actions available */}
-              {!["Conducted", "Completed", "InDispute"].includes(report.sessionStatus) && (
-                <p className="text-[11px] text-slate-400 italic">Không có hành động nào khả dụng cho trạng thái hiện tại.</p>
+              {!["Conducted", "Completed", "InDispute"].includes(
+                report.sessionStatus
+              ) && (
+                <p className="text-[11px] italic text-slate-400">
+                  Không có hành động nào khả dụng cho trạng thái hiện tại.
+                </p>
               )}
             </div>
 
-            {/* Action note */}
-            <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Ghi chú hành động</p>
+            <div className="mt-6 border-t border-slate-50 pt-6">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                Ghi chú hành động
+              </p>
               <textarea
-                rows={2}
+                rows={3}
                 value={sessionActionNote}
                 onChange={(e) => setSessionActionNote(e.target.value)}
                 maxLength={2000}
-                placeholder="Nhập lý do / ghi chú cho hành động session..."
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[12px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20 focus:border-[#eec54e] resize-none transition-all font-plus-jakarta-sans"
+                placeholder="Nhập lý do hoặc ghi chú cho action session..."
+                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] text-slate-900 placeholder:text-slate-400 transition-all focus:border-[#eec54e] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20"
               />
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+              Thông tin
+            </h3>
+
+            <div className="space-y-2 text-[12px]">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Mentorship</span>
+                <span className="font-bold text-slate-700">
+                  #{report.mentorshipID}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Session</span>
+                <span className="font-bold text-slate-700">
+                  #{report.sessionID}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Review status</span>
+                <span className="font-bold text-slate-700">
+                  {reviewCfg.label}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Session status</span>
+                <span className={cn("font-bold", sessCfg.color)}>
+                  {sessCfg.label}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-400">Submitted at</span>
+                <span className="text-right font-bold text-slate-700">
+                  {formatDateTime(report.submittedAt)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-400">Startup confirmed</span>
+                <span className="text-right font-bold text-slate-700">
+                  {formatDateTime(report.startupConfirmedConductedAt)}
+                </span>
+              </div>
             </div>
           </div>
         </div>

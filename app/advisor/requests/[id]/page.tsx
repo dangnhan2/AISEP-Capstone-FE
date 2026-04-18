@@ -261,57 +261,75 @@ export default function AdvisorRequestDetailPage() {
     { value: "America/Los_Angeles", label: "GMT-8 – Los Angeles" },
   ];
 
-  useEffect(() => {
-    const loadRequestDetail = async () => {
-      if (!requestId) {
-        setRequest(null);
-        setLoading(false);
-        return;
-      }
+  const loadRequestDetail = async (showLoading = true) => {
+    if (!requestId) {
+      setRequest(null);
+      setRawApiSessions([]);
+      setSessionDispute(null);
+      setReport(null);
+      setLoading(false);
+      return;
+    }
+
+    if (showLoading) {
       setLoading(true);
-      try {
-        const res = await GetAdvisorMentorshipById(requestId);
-        if (res.isSuccess && res.data) {
-          const mapped = mapMentorshipToConsultingRequest(res.data);
-          setRequest(mapped);
+    }
 
-          // Lấy dispute/resolution info từ sessions array
-          const rawSessions = (res.data as any).sessions || [];
-          setRawApiSessions(rawSessions);
-          const disputeSession = rawSessions.find((s: any) =>
-            ["InDispute", "Resolved"].includes(s.status || s.sessionStatus)
-          );
-          if (disputeSession) {
-            setSessionDispute({
-              disputeReason: disputeSession.disputeReason || null,
-              resolutionNote: disputeSession.resolutionNote || null,
-            });
-          }
+    try {
+      const res = await GetAdvisorMentorshipById(requestId);
+      if (res.isSuccess && res.data) {
+        const mapped = mapMentorshipToConsultingRequest(res.data);
+        setRequest(mapped);
 
-          // Lấy report từ reports[] array trong mentorship detail (không cần call thêm API)
-          const rawReports = (res.data as any).reports || [];
-          if (rawReports.length > 0) {
-            const r = rawReports[0];
+        const rawSessions = (res.data as any).sessions || [];
+        setRawApiSessions(rawSessions);
+
+        const disputeSession = rawSessions.find((s: any) =>
+          ["InDispute", "Resolved"].includes(s.status || s.sessionStatus)
+        );
+        setSessionDispute(
+          disputeSession
+            ? {
+                disputeReason: disputeSession.disputeReason || null,
+                resolutionNote: disputeSession.resolutionNote || null,
+              }
+            : null
+        );
+
+        const rawReports = (res.data as any).reports || [];
+        if (rawReports.length > 0) {
+          const r = rawReports[0];
             setReport({
               reportID: r.reportID,
               mentorshipID: r.mentorshipID,
               createdAt: r.submittedAt || r.createdAt || new Date().toISOString(),
               content: [r.reportSummary, r.detailedFindings, r.recommendations].filter(Boolean).join("\n\n"),
-              reviewStatus: r.reviewStatus || "PendingReview",
+              reviewStatus: r.reviewStatus || "Passed",
               staffReviewNote: r.staffReviewNote || null,
             } as any);
-          }
         } else {
-          setRequest(null);
+          setReport(null);
         }
-      } catch (error) {
-        console.error("Failed to load request detail:", error);
+      } else {
         setRequest(null);
-      } finally {
+        setRawApiSessions([]);
+        setSessionDispute(null);
+        setReport(null);
+      }
+    } catch (error) {
+      console.error("Failed to load request detail:", error);
+      setRequest(null);
+      setRawApiSessions([]);
+      setSessionDispute(null);
+      setReport(null);
+    } finally {
+      if (showLoading) {
         setLoading(false);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     loadRequestDetail();
   }, [requestId]);
 
@@ -431,16 +449,12 @@ const handleAcceptConfirm = async () => {
     }
   };
 
-  // Fix #4 — Khi đề xuất giờ từ PENDING → ngầm accept request luôn
-  // Đồng thời vô hiệu hoá các slot cũ nếu có
 const handleProposeConfirm = async () => {
     if (!request) return;
     const validSlots = proposedSlots.filter(s => s.date && s.startTime && s.endTime);
     if (validSlots.length === 0) { toast.error("Vui lòng thêm ít nhất 1 khung giờ"); return; }
 
-    const wasRequested = request.status === "PENDING";
     const wasScheduled = request.status === "SCHEDULED";
-
     const requestDuration = Number(request.durationMinutes) || 60;
     const payloadSlots = validSlots.map(s => ({
       startAt: `${s.date}T${s.startTime}:00+07:00`,
@@ -458,49 +472,15 @@ const handleProposeConfirm = async () => {
       const res = results[results.length - 1]; // lấy kết quả cuối để check
       
       if (res.isSuccess || (res as any).success) {
-        // Gắn lại date locally cho UI đỡ phải reload ngay:
-        const now = new Date().toISOString();
-        const newSlots: ITimeSlotProposal[] = payloadSlots.map((s, i) => ({
-          id: `slot-prop-${Date.now()}-${i}`,
-          proposedBy: "ADVISOR" as const,
-          startAt: s.startAt + "+07:00", // local UI mapping
-          endAt: s.endAt + "+07:00",
-          timezone: s.timezone,
-          status: "PROPOSED" as const,
-          note: s.note,
-          createdAt: now,
-        }));
-
-        const updatedPreferred = request.preferredSlots.map(s =>
-          s.status === "PROPOSED" || s.status === "ACCEPTED" ? { ...s, status: "DECLINED" as const } : s
-        );
-        const updatedProposals = request.slotProposals.map(s =>
-          s.status === "PROPOSED" || s.status === "ACCEPTED" ? { ...s, status: "SUPERSEDED" as const } : s
-        );
-
-        setRequest({
-          ...request,
-          status: wasRequested || wasScheduled ? "SCHEDULED" : request.status,
-          acceptedAt: wasRequested ? now : request.acceptedAt,
-          advisorRespondedAt: (wasRequested || wasScheduled) ? now : request.advisorRespondedAt,
-          preferredSlots: updatedPreferred,
-          slotProposals: [...updatedProposals, ...newSlots],
-          confirmation: {
-            startupConfirmedAt: null,
-            advisorConfirmedAt: null,
-            fullyConfirmed: false,
-          },
-          timeline: [
-            ...request.timeline,
-            ...(wasRequested ? [{ id: `act-${Date.now()}a`, actionType: "REQUEST_ACCEPTED" as const, actorType: "ADVISOR" as const, fromStatus: "PENDING", toStatus: "ACCEPTED", createdAt: now }] : []),
-            { id: `act-${Date.now()}b`, actionType: "ADVISOR_PROPOSED_TIME" as const, actorType: "ADVISOR" as const, metadata: { slotCount: newSlots.length, isReschedule: wasScheduled }, createdAt: now },
-          ],
-        });
-
+        await loadRequestDetail(false);
         setProposeOpen(false);
         setSelectedSlotId(null);
         setProposedSlots([{ date: "", startTime: "", endTime: "", note: "" }]);     
-        toast.success(wasScheduled ? "Đã gửi đề xuất dời lịch mới" : `Đã gửi ${newSlots.length} khung giờ đề xuất${wasRequested ? " — yêu cầu đã được chấp nhận" : ""}`);
+        toast.success(
+          wasScheduled
+            ? "Đã gửi đề xuất dời lịch mới"
+            : `Đã gửi ${payloadSlots.length} khung giờ đề xuất`
+        );
       } else {
         toast.error(res.message || "Lỗi khi đề xuất lịch");
       }
@@ -587,7 +567,7 @@ const handleCancelConfirm = async () => {
     ["Conducted", "Completed", "Resolved"].includes(s.status || s.sessionStatus)
   );
   const scheduledSession = rawApiSessions.find((s: any) =>
-    (s.status || s.sessionStatus) === "Scheduled"
+    ["Scheduled", "InProgress"].includes(s.status || s.sessionStatus)
   );
   const sessionEndedButUnconfirmed = !!scheduledSession &&
     !scheduledSession.startupConfirmedConductedAt &&
@@ -600,6 +580,11 @@ const handleCancelConfirm = async () => {
     request.status === "COMPLETED" ||
     hasStartupAcceptedAdvisorProposal ||
     hasAdvisorAcceptedStartupProposal;
+  const isWaitingForStartupOnAdvisorProposal =
+    request.status === "PENDING" &&
+    hasAdvisorProposedSlots &&
+    !hasStartupProposedSlots &&
+    !hasConfirmedSchedule;
   const isStartupPaid = isMentorshipPaymentCompleted(
     request.paymentStatus,
     request.paidAt,
@@ -845,69 +830,103 @@ const handleCancelConfirm = async () => {
               {/* PENDING */}
               {request.status === "PENDING" && (
                 <div className="flex-1 w-full">
-                  {(() => {
-                    const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
-                    const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
-                    const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
-                    const isValidLink = isGoogleMeet
-                      ? rawLink.includes("meet.google.com/")
-                      : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
-                    if (!isValidLink) return (
-                      <p className="text-[11px] text-red-500 mb-2 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        Link {isGoogleMeet ? "Google Meet" : "MS Teams"} trong hồ sơ chưa hợp lệ. Vui lòng{" "}
-                        <a href="/advisor/profile/edit" className="underline font-semibold">cập nhật hồ sơ</a>{" "}
-                        trước khi chấp nhận.
-                      </p>
-                    );
-                    return null;
-                  })()}
-                  {!selectedSlotId && (
-                    <p className="text-[11px] text-amber-600 mb-2 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      Vui lòng chọn một khung giờ đề xuất bên trên trước khi chấp nhận.
-                    </p>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {(() => {
-                      const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
-                      const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
-                      const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
-                      const isValidLink = isGoogleMeet
-                        ? rawLink.includes("meet.google.com/")
-                        : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
-                      const canAccept = !!selectedSlotId && isValidLink;
-                      return (
+                  {isWaitingForStartupOnAdvisorProposal ? (
+                    <div className="space-y-3">
+                      <div className="px-4 py-3 rounded-xl bg-blue-50 border border-blue-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-blue-700 mb-0.5">Bạn đã đề xuất lịch mới</p>
+                            <p className="text-[12px] text-blue-600">
+                              Startup đang chờ xác nhận một trong các khung giờ bạn vừa đề xuất.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={handleAccept}
-                          disabled={!canAccept}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all shadow-sm",
-                            canAccept
-                              ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                              : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                          )}
+                          onClick={() => setProposeOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          Chấp nhận
+                          <Clock className="w-4 h-4" />
+                          Đề xuất thêm thời gian
                         </button>
-                      );
-                    })()}
-                    <button
-                      onClick={() => setRejectOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Từ chối
-                    </button>
-                    <button
-                      onClick={() => setProposeOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
-                    >
-                      <Clock className="w-4 h-4" />
-                      Đề xuất thời gian khác
-                    </button>
-                  </div>
+                        <button
+                          onClick={() => setRejectOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Từ chối
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {(() => {
+                        const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
+                        const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
+                        const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
+                        const isValidLink = isGoogleMeet
+                          ? rawLink.includes("meet.google.com/")
+                          : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
+                        if (!isValidLink) return (
+                          <p className="text-[11px] text-red-500 mb-2 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Link {isGoogleMeet ? "Google Meet" : "MS Teams"} trong hồ sơ chưa hợp lệ. Vui lòng{" "}
+                            <a href="/advisor/profile/edit" className="underline font-semibold">cập nhật hồ sơ</a>{" "}
+                            trước khi chấp nhận.
+                          </p>
+                        );
+                        return null;
+                      })()}
+                      {!selectedSlotId && (
+                        <p className="text-[11px] text-amber-600 mb-2 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Vui lòng chọn một khung giờ đề xuất bên trên trước khi chấp nhận.
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {(() => {
+                          const isGoogleMeet = request.preferredFormat === "GOOGLE_MEET";
+                          const meetingLinkKey = isGoogleMeet ? "googleMeet" : "msTeams";
+                          const rawLink = advisorLinks?.[meetingLinkKey] ?? "";
+                          const isValidLink = isGoogleMeet
+                            ? rawLink.includes("meet.google.com/")
+                            : rawLink.includes("teams.microsoft.com/") || rawLink.includes("teams.live.com/");
+                          const canAccept = !!selectedSlotId && isValidLink;
+                          return (
+                            <button
+                              onClick={handleAccept}
+                              disabled={!canAccept}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-medium transition-all shadow-sm",
+                                canAccept
+                                  ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
+                                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                              )}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              Chấp nhận
+                            </button>
+                          );
+                        })()}
+                        <button
+                          onClick={() => setRejectOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-[13px] font-medium hover:bg-red-50 transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Từ chối
+                        </button>
+                        <button
+                          onClick={() => setProposeOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
+                        >
+                          <Clock className="w-4 h-4" />
+                          Đề xuất thời gian khác
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -975,6 +994,33 @@ const handleCancelConfirm = async () => {
                     <div className="w-full p-3 rounded-xl bg-blue-50 border border-blue-100 text-[12px] text-blue-700 font-medium leading-relaxed">
                       Việc xác nhận hoàn thành buổi tư vấn sẽ do bộ phận Vận hành xử lý sau khi Startup xác nhận và báo cáo được duyệt.
                     </div>
+                    {(sessionEndedButUnconfirmed || canWriteReport) && !report && (
+                      <Link
+                        href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Viết báo cáo tư vấn
+                        <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Link>
+                    )}
+                    {(sessionEndedButUnconfirmed || canWriteReport) && !report && (
+                      <div className="w-full px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
+                            <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc. Bạn có thể viết báo cáo ngay bây giờ.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {report && (
+                      <div className="w-full px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã nộp thành công.</p>
+                      </div>
+                    )}
                     <button
                       onClick={() => setProposeOpen(true)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-[13px] font-medium hover:bg-slate-50 transition-colors"
@@ -1053,8 +1099,8 @@ const handleCancelConfirm = async () => {
                         <div className="flex items-start gap-2">
                           <CheckCircle2 className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                           <div>
-                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Báo cáo đã nộp — đang chờ duyệt</p>
-                            <p className="text-[12px] text-amber-600">Bộ phận Vận hành đang thẩm định báo cáo của bạn. Kết quả sẽ được thông báo sớm.</p>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Báo cáo đã nộp thành công</p>
+                            <p className="text-[12px] text-amber-600">Báo cáo đã sẵn sàng cho Startup xem và session sẽ được hệ thống hoàn tất theo contract mới.</p>
                           </div>
                         </div>
                       </div>
@@ -1080,14 +1126,24 @@ const handleCancelConfirm = async () => {
                       </Link>
                     </>
                   ) : sessionEndedButUnconfirmed ? (
-                    <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-                      <div className="flex items-start gap-2">
-                        <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
-                          <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc.</p>
+                    <div className="space-y-3">
+                      <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-[12px] font-medium text-amber-700 mb-0.5">Startup chưa xác nhận buổi họp</p>
+                            <p className="text-[12px] text-amber-600">Hệ thống sẽ tự xác nhận sau 24h kể từ khi buổi kết thúc. Bạn có thể viết báo cáo ngay bây giờ.</p>
+                          </div>
                         </div>
                       </div>
+                      <Link
+                        href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
+                        className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm w-fit"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Viết báo cáo tư vấn
+                        <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
+                      </Link>
                     </div>
                   ) : (
                     <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
@@ -1145,7 +1201,7 @@ const handleCancelConfirm = async () => {
                   ) : (report as any)?.reviewStatus === "Passed" ? (
                     <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã được duyệt.</p>
+                      <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã hoàn tất và sẵn sàng cho Startup xem.</p>
                     </div>
                   ) : !report ? (
                     <Link
@@ -1159,7 +1215,7 @@ const handleCancelConfirm = async () => {
                   ) : (
                     <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
-                      <p className="text-[12px] font-medium text-amber-700">Báo cáo đã nộp — đang chờ duyệt.</p>
+                      <p className="text-[12px] font-medium text-amber-700">Báo cáo đã nộp thành công.</p>
                     </div>
                   )}
                 </div>
@@ -1657,12 +1713,12 @@ const handleCancelConfirm = async () => {
       <IssueReportModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
-        context={{
-          entityType: "CONSULTING_REQUEST",
-          entityId: String(request.mentorshipID),
+        context={request.mentorshipID ? {
+          entityType: "Mentorship",
+          entityId: request.mentorshipID,
           entityTitle: `Yêu cầu tư vấn: ${request.objective}`,
           otherPartyName: request.startup.displayName
-        }}
+        } : undefined}
       />
     </AdvisorShell>
   );

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Bell, Calendar, ExternalLink, Loader2, Trash2, Clock, X } from "lucide-react";
 import { GetNotificationById, DeleteNotification } from "@/services/notification/notification.api";
 import { cn } from "@/lib/utils";
+import { localizeIssueReportNotificationText } from "@/lib/notification";
 
 interface NotificationDetailModalProps {
   notificationId: number | null;
@@ -93,7 +94,9 @@ export function NotificationDetailModal({
 
         {/* Title */}
         <h3 className="text-[20px] font-bold text-slate-900 leading-tight mb-4">
-          {loading ? "Đang tải..." : noti?.title || "Chi tiết thông báo"}
+          {loading
+            ? "Đang tải..."
+            : localizeIssueReportNotificationText(noti ?? {}, noti?.title || "Chi tiết thông báo")}
         </h3>
 
         {/* Body */}
@@ -107,7 +110,7 @@ export function NotificationDetailModal({
             {/* Message */}
             <div className="px-4 py-3.5 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {noti.message}
+                {localizeIssueReportNotificationText(noti, noti.message)}
               </p>
             </div>
 

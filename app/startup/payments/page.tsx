@@ -9,7 +9,7 @@ import {
   BadgeCheck, Star, Search, Filter, Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { IssueReportModal, type IssueReportContext } from "@/components/shared/issue-report-modal";
+import { IssueReportModal } from "@/components/shared/issue-report-modal";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -134,16 +134,13 @@ export default function PaymentHistoryPage() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<"all" | PaymentStatus>("all");
   const [search, setSearch] = useState("");
-  const [issueContext, setIssueContext] = useState<IssueReportContext | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
-  const openIssue = (e: React.MouseEvent, payment: PaymentRecord) => {
+  // Tạm thời không gắn entity context vì payments page đang dùng mock data, chưa có numeric PaymentID từ BE.
+  // Khi tích hợp xong API list Payment thật, đổi lại entityType: "Payment" + entityId: payment.paymentID.
+  const openIssue = (e: React.MouseEvent, _payment: PaymentRecord) => {
     e.stopPropagation();
-    setIssueContext({
-      entityType: "PAYMENT",
-      entityId: payment.reference ?? payment.requestNo,
-      entityTitle: `Thanh toán · ${payment.topic}`,
-      otherPartyName: payment.advisor.name,
-    });
+    setIsReportOpen(true);
   };
 
   const filtered = MOCK_PAYMENTS.filter(p => {
@@ -336,9 +333,8 @@ export default function PaymentHistoryPage() {
       </div>
 
       <IssueReportModal
-        isOpen={!!issueContext}
-        onClose={() => setIssueContext(null)}
-        context={issueContext ?? undefined}
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
       />
     </StartupShell>
   );

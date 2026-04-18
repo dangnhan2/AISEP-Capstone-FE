@@ -30,7 +30,6 @@ export type MentorshipSessionStatus =
   | "Resolved";
 
 export type ReportReviewStatus =
-  | "PendingReview"
   | "Passed"
   | "Failed"
   | "NeedsMoreInfo";
@@ -173,20 +172,6 @@ export interface IMentorshipSession {
   markedAt?: string;
 }
 
-export interface IMentorshipReport {
-  reportID: number;
-  mentorshipID: number;
-  sessionID: number;
-  createdByAdvisorID: number;
-  reportSummary: string;
-  detailedFindings: string;
-  recommendations: string;
-  attachmentsURL: string;
-  reportReviewStatus?: ReportReviewStatus | string | null;
-  submittedAt: string;
-  createdAt: string;
-}
-
 export interface IMentorshipFeedback {
   feedbackID: number;
   mentorshipID: number;
@@ -209,6 +194,11 @@ export interface ICreateMentorshipFeedback {
 export interface IMentorshipReport {
   reportID: number;
   mentorshipID: number;
+  reviewStatus?: ReportReviewStatus | string | null;
+  startupAcknowledgedAt?: string | null;
+  issueReportDeadlineAt?: string | null;
+  canSubmitIssueReport?: boolean;
+  attachmentsURL?: string | null;
   advisor: IMentorshipAdvisor;
   content: string; // Keep for backward compatibility
   title?: string;
@@ -219,6 +209,9 @@ export interface IMentorshipReport {
   advisorRecommendations?: string;
   nextSteps?: string;
   deliverablesSummary?: string;
+  followUpRequired?: boolean;
+  followUpNotes?: string;
+  submittedAt?: string;
   createdAt: string;
 }
 
@@ -282,6 +275,7 @@ export interface IReportOversightItem {
   attachmentsURL: string | null;
   submittedAt: string;
   reviewStatus: ReportReviewStatus;
+  startupAcknowledgedAt: string | null;
   reviewedByStaffID: number | null;
   staffReviewNote: string | null;
   reviewedAt: string | null;

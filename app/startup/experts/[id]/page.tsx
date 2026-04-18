@@ -5,15 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Star, MessageSquare, Send, Calendar, Briefcase, Users,
-  BadgeCheck, CheckCircle2, Info, Lock, Loader2, Linkedin
+  BadgeCheck, CheckCircle2, Info, Lock, Loader2, Linkedin, ArrowRight, Activity
 } from "lucide-react";
 import { useState, useEffect, use } from "react";
 import { MentorshipRequestModal } from "@/components/startup/mentorship-request-modal";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { GetAdvisorById } from "@/services/startup/startup-mentorship.api";
-import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot } from "@/types/startup-mentorship";
+import { GetAdvisorById, GetMentorships } from "@/services/startup/startup-mentorship.api";
+import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot, IMentorshipRequest } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
 
@@ -168,22 +168,34 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   const [toast, setToast] = useState<string | null>(null);
 
   const [advisor, setAdvisor] = useState<IAdvisorDetail | null>(null);
+  const [activeMentorship, setActiveMentorship] = useState<IMentorshipRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const ACTIVE_STATUSES = ["Requested", "Pending", "Accepted", "InProgress"];
 
   const fetchAdvisor = async () => {
     setLoading(true);
     setError(false);
     try {
-      const res = await GetAdvisorById(parseInt(id)) as unknown as IBackendRes<IAdvisorDetail>;
-      console.log("Fetch Advisor Item Response:", res);
-      // Because we learned from the list API, backend might nest the object inside `res.data.data` or just `res.data`
-      const data = res.data && (res.data as any).data ? (res.data as any).data : res.data;
-      
-      if ((res.success || res.isSuccess) && data) {
+      const [advisorRes, mentorshipsRes] = await Promise.all([
+        GetAdvisorById(parseInt(id)) as unknown as Promise<IBackendRes<IAdvisorDetail>>,
+        GetMentorships({ pageSize: 100 }) as unknown as Promise<IBackendRes<IPagingData<IMentorshipRequest>>>,
+      ]);
+
+      const data = advisorRes.data && (advisorRes.data as any).data ? (advisorRes.data as any).data : advisorRes.data;
+      if ((advisorRes.success || advisorRes.isSuccess) && data) {
         setAdvisor(data);
       } else {
         setError(true);
+      }
+
+      if (mentorshipsRes.isSuccess || mentorshipsRes.success) {
+        const items: IMentorshipRequest[] = (mentorshipsRes.data as any)?.items ?? (mentorshipsRes.data as any)?.data ?? [];
+        const found = items.find(
+          m => m.advisorID === parseInt(id) && ACTIVE_STATUSES.includes(m.status as string)
+        );
+        setActiveMentorship(found ?? null);
       }
     } catch {
       setError(true);
@@ -199,10 +211,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   if (loading) return <ProfileSkeleton />;
   if (error || !advisor) return <ErrorState onRetry={fetchAdvisor} />;
 
-  // TODO: Determine hasActiveMentorship from a real API call (e.g. check if there is an active mentorship with this advisor)
-  const hasActiveMentorship = false;
-
-    // Check if advisor has configured their hourly rate and durations
+  // Check if advisor has configured their hourly rate and durations
     const isMissingRequiredInfo = typeof advisor.hourlyRate !== "number" || !advisor.supportedDurations || advisor.supportedDurations.length === 0;
 
   return (
@@ -306,7 +315,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
                 </Button>
-                {hasActiveMentorship ? (
+                {!!activeMentorship ? (
                   <Button
                     variant="outline"
                     onClick={() => router.push("/startup/messaging")}
@@ -461,43 +470,69 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
           {/* Right: Sidebar */}
           <div className="space-y-6">
             {/* Pricing Card */}
-            <Card className="rounded-2xl border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phí tư vấn</h4>
-                  <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-md text-[10px] font-bold text-emerald-600">Đã thanh toán</span>
-                </div>
+            {activeMentorship ? (
+              <Card className="rounded-2xl border-blue-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Activity className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-900 leading-snug">Đang có phiên tư vấn</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">với cố vấn này</p>
+                    </div>
+                  </div>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Bạn đang trong một cuộc tư vấn với <span className="font-semibold text-slate-700">{advisor.fullName}</span>. Vui lòng hoàn thành phiên hiện tại trước khi đặt lịch mới.
+                  </p>
+                  <button
+                    onClick={() => router.push(`/startup/mentorship-requests/${activeMentorship.mentorshipID}`)}
+                    className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                  >
+                    Xem chi tiết phiên tư vấn
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="rounded-2xl border-amber-100 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">Phí tư vấn</h4>
+                    <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-100 rounded-md text-[10px] font-bold text-emerald-600">Đã thanh toán</span>
+                  </div>
 
-                <div className="flex items-end gap-1">
-                  <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(advisor.hourlyRate)}</span>
-                  <span className="text-[13px] text-slate-400 mb-1">/giờ</span>
-                </div>
+                  <div className="flex items-end gap-1">
+                    <span className="text-[32px] font-black text-slate-900 leading-none">{formatVND(advisor.hourlyRate)}</span>
+                    <span className="text-[13px] text-slate-400 mb-1">/giờ</span>
+                  </div>
 
-                <div className="space-y-2">
-                  {(advisor.supportedDurations || []).map(d => {
-                    const price = Math.round(advisor.hourlyRate * d / 60);
-                    return (
-                      <div key={d} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
-                        <span className="text-[12px] font-semibold text-slate-600">{d} phút</span>
-                        <span className="text-[13px] font-bold text-slate-900">{formatVND(price)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                  <div className="space-y-2">
+                    {(advisor.supportedDurations || []).map(d => {
+                      const price = Math.round(advisor.hourlyRate * d / 60);
+                      return (
+                        <div key={d} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl">
+                          <span className="text-[12px] font-semibold text-slate-600">{d} phút</span>
+                          <span className="text-[13px] font-bold text-slate-900">{formatVND(price)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                <div className="flex items-start gap-2 p-3 bg-amber-50/50 border border-amber-100/60 rounded-xl">
-                  <Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-700 leading-relaxed">Bạn chỉ thanh toán sau khi lịch hẹn được xác nhận.</p>
-                </div>
+                  <div className="flex items-start gap-2 p-3 bg-amber-50/50 border border-amber-100/60 rounded-xl">
+                    <Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-amber-700 leading-relaxed">Bạn chỉ thanh toán sau khi lịch hẹn được xác nhận.</p>
+                  </div>
 
-                <button
-                  onClick={() => setIsRequestModalOpen(true)}
-                  className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all"
-                >
-                  Đặt lịch tư vấn
-                </button>
-              </CardContent>
-            </Card>
+                  <button
+                    onClick={() => setIsRequestModalOpen(true)}
+                    className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all"
+                  >
+                    Đặt lịch tư vấn
+                  </button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Quick Facts */}
             <Card className="rounded-2xl border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">

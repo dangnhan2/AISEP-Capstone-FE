@@ -90,9 +90,11 @@ export default function AdvisorSchedulePage() {
   const openIssue = (e: React.MouseEvent, session: any) => {
     e.preventDefault();
     e.stopPropagation();
+    const sid = Number(session.sessionID ?? session.id ?? 0);
+    if (!sid) return;
     setIssueContext({
-      entityType: "CONSULTING_SESSION",
-      entityId: String(session.sessionID ?? session.id ?? ""),
+      entityType: "Session",
+      entityId: sid,
       entityTitle: `Buổi tư vấn · ${getObjective(session)}`,
       otherPartyName: getStartupName(session),
     });

@@ -32,10 +32,15 @@ export async function getAdvisorReports(): Promise<IConsultationReport[]> {
            const rawReports: any[] = data.reports || [];
            // Only show the latest (non-superseded) report per session
            const latestReports = rawReports.filter(
-             (r: any) => r.supersededByReportID == null
+             // BE cung cấp isLatestForSession; fallback về supersededByReportID == null
+             (r: any) => r.isLatestForSession !== false && r.supersededByReportID == null
            );
            const actualReports = latestReports.length > 0 ? latestReports : rawReports.slice(-1);
            actualReports.forEach((r: any) => {
+           const normalizedReviewStatus: ConsultationReportStatus =
+                 r.reviewStatus === "Draft" || !r.reviewStatus
+                   ? "Draft"
+                   : (r.reviewStatus as ConsultationReportStatus);
                reports.push({
                    ...parseReportFields(r.reportSummary, r.detailedFindings, r.recommendations),
                    id: r.reportID?.toString() || data.MentorshipID?.toString(),
@@ -46,21 +51,17 @@ export async function getAdvisorReports(): Promise<IConsultationReport[]> {
                        id: data.startupID,
                        displayName: data.startupName,
                        logoUrl: data.startupLogoUrl || null,
-                       industry: data.startupIndustry || "Công nghệ",
+                       industry: data.startupIndustry || "Ông nghệ",
                        stage: data.startupStage || "SEED"
                    },
-                   status: r.reviewStatus === "Draft" ? "DRAFT"
-                     : r.reviewStatus === "Passed" ? "FINALIZED"
-                     : r.reviewStatus === "NeedsMoreInfo" || r.reviewStatus === "Failed" ? "NEEDS_REVISION"
-                     : (data.completionConfirmedByStartup || (data.feedbacks && data.feedbacks.some((f: any) => f.fromRole?.toUpperCase() === 'STARTUP'))) ? "FINALIZED"
-                     : "SUBMITTED",
+                   reviewStatus: normalizedReviewStatus,
                    version: 1,
                    submittedAt: r.submittedAt || r.createdAt || new Date().toISOString(),
                    lastEditedAt: r.updatedAt || r.createdAt || new Date().toISOString(),
                    sessionDate: data.scheduledStartAt || data.updatedAt || new Date().toISOString(),
                    sessionFormat: "GOOGLE_MEET",
                    attachmentsURL: r.attachmentsURL || null,
-                   reviewStatus: r.reviewStatus || undefined,
+                   startupAcknowledgedAt: r.startupAcknowledgedAt || null,
                    staffReviewNote: r.staffReviewNote || null,
                    attachments: r.attachmentsURL
                      ? [{
@@ -96,6 +97,11 @@ export async function getAdvisorReportById(id: string): Promise<IConsultationRep
      const actualReport = Array.isArray(data.reports) ? data.reports[0] : null;
      if (!actualReport) return null;
 
+     const normalizedReviewStatus: ConsultationReportStatus =
+       actualReport.reviewStatus === "Draft" || !actualReport.reviewStatus
+         ? "Draft"
+         : (actualReport.reviewStatus as ConsultationReportStatus);
+
      return {
          ...parseReportFields(actualReport.reportSummary, actualReport.detailedFindings, actualReport.recommendations),
          id: actualReport.reportID?.toString() || actualReport.ReportID?.toString() || data.MentorshipID?.toString(),
@@ -109,18 +115,14 @@ export async function getAdvisorReportById(id: string): Promise<IConsultationRep
              industry: data.startupIndustry || "Công nghệ",
              stage: data.startupStage || "SEED"
          },
-         status: actualReport.reviewStatus === "Draft" ? "DRAFT"
-           : actualReport.reviewStatus === "Passed" ? "FINALIZED"
-           : actualReport.reviewStatus === "NeedsMoreInfo" || actualReport.reviewStatus === "Failed" ? "NEEDS_REVISION"
-           : (data.completionConfirmedByStartup || (data.feedbacks && data.feedbacks.some((f: any) => f.fromRole?.toUpperCase() === 'STARTUP'))) ? "FINALIZED"
-           : "SUBMITTED",
+         reviewStatus: normalizedReviewStatus,
          version: 1,
          submittedAt: actualReport.submittedAt || actualReport.createdAt || new Date().toISOString(),
          lastEditedAt: actualReport.updatedAt || actualReport.createdAt || new Date().toISOString(),
          sessionDate: data.scheduledStartAt || data.updatedAt || new Date().toISOString(),
          sessionFormat: "GOOGLE_MEET",
          attachmentsURL: actualReport.attachmentsURL || null,
-         reviewStatus: actualReport.reviewStatus || undefined,
+         startupAcknowledgedAt: actualReport.startupAcknowledgedAt || null,
          staffReviewNote: actualReport.staffReviewNote || null,
          attachments: actualReport.attachmentsURL
            ? [{

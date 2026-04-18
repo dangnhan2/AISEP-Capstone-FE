@@ -42,6 +42,20 @@ const formatTime = (iso: string) => {
   return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 };
 
+const getSessionEndAt = (session: IMentorshipSession) => {
+  if (session.scheduledEndAt) {
+    return session.scheduledEndAt;
+  }
+
+  if (!session.scheduledStartAt || !session.durationMinutes) {
+    return null;
+  }
+
+  return new Date(
+    new Date(session.scheduledStartAt).getTime() + session.durationMinutes * 60_000
+  ).toISOString();
+};
+
 const REQUEST_STATUS_MAP: Record<string, { label: string; color: string }> = {
   Requested:  { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
   Pending:    { label: "Chờ phản hồi",  color: "text-blue-600 bg-blue-50 border-blue-100" },
@@ -1131,13 +1145,38 @@ function StartupAdvisorsPageInner() {
                     )}
                     {filteredSessions.map(item => {
                       const sessionStatusKey = getSessionStatusKey(item);
-                      const sessionStatusInfo = SESSION_STATUS_DISPLAY_SAFE[sessionStatusKey] ?? { label: SESSION_TEXT.unknownStatus, color: "text-slate-500 bg-slate-50 border-slate-100" };
+                      const sessionEndAt = getSessionEndAt(item);
+                      // Override badge for Scheduled: FE tự tính trạng thái theo giờ thực
+                      // vì BE không auto-update status theo thời gian
+                      const resolvedStatusInfo = (() => {
+                        const base = SESSION_STATUS_DISPLAY_SAFE[sessionStatusKey] ?? { label: SESSION_TEXT.unknownStatus, color: "text-slate-500 bg-slate-50 border-slate-100" };
+                        if (sessionStatusKey === "Scheduled") {
+                          const now = Date.now();
+                          const startMs = item.scheduledStartAt ? new Date(item.scheduledStartAt).getTime() : null;
+                          const endMs = sessionEndAt ? new Date(sessionEndAt).getTime() : null;
+                          if (endMs && now >= endMs) {
+                            return { label: "Đã kết thúc", color: "text-slate-600 bg-slate-50 border-slate-200" };
+                          }
+                          if (startMs && now >= startMs) {
+                            return { label: "Đang diễn ra", color: "text-teal-600 bg-teal-50 border-teal-100" };
+                          }
+                        }
+                        return base;
+                      })();
+                      const sessionStatusInfo = resolvedStatusInfo;
                       const advisorDisplay = getSessionAdvisorDisplay(item);
                       const meetingType = getSessionMeetingType(item);
                       const meetingLink = item.meetingURL;
                       const isActive = sessionStatusKey === "Scheduled" || sessionStatusKey === "InProgress";
                       const needsPayment = isActive && !meetingLink;
-                      const canJoin = isActive && !!meetingLink;
+                      const canJoin = isActive && !!meetingLink && !(!!sessionEndAt && Date.now() >= new Date(sessionEndAt).getTime() + 5 * 60_000);
+                      const canConfirmConducted =
+                        isActive &&
+                        !!meetingLink &&
+                        !!item.mentorshipID &&
+                        !!item.sessionID &&
+                        !!sessionEndAt &&
+                        Date.now() >= new Date(sessionEndAt).getTime();
                       const sessionTopic = getSessionTopic(item);
                       const advisorSubtitle = advisorDisplay.title || item.advisor?.title || "";
                       return (
@@ -1222,9 +1261,13 @@ function StartupAdvisorsPageInner() {
                               {isActive && !!meetingLink && item.mentorshipID && item.sessionID && (
                                 <button
                                   onClick={() => handleConfirmConducted(item.mentorshipID, item.sessionID!)}
-                                  disabled={confirmingConductedId === item.sessionID}
-                                  title="Xác nhận đã hoàn thành buổi tư vấn"
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50"
+                                  disabled={confirmingConductedId === item.sessionID || !canConfirmConducted}
+                                  title={
+                                    canConfirmConducted
+                                      ? "Xác nhận đã hoàn thành buổi tư vấn"
+                                      : "Bạn có thể xác nhận sau khi phiên tư vấn kết thúc"
+                                  }
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-semibold hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {confirmingConductedId === item.sessionID ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

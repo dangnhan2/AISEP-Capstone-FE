@@ -1,4 +1,4 @@
-import type { IConsultingRequest, ConsultingRequestStatus } from "@/types/advisor-consulting";
+import type { IConsultingRequest, ConsultingRequestStatus, ITimeSlotProposal } from "@/types/advisor-consulting";
 import type { IMentorshipRequest } from "@/types/startup-mentorship";
 
 const parseSpecificQuestions = (specificQuestions?: string | null) => {
@@ -64,7 +64,8 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
           .map((tag: string) => tag.trim())
           .filter(Boolean);
 
-  const sessions = ((item as any).sessions || []).filter((s: any) => {
+  const sessionSource = Array.isArray((item as any).sessions) ? (item as any).sessions : [];
+  const sessions = sessionSource.filter((s: any) => {
     const st = (s.status || s.sessionStatus || "").toUpperCase();
     return st !== "CANCELLED";
   });
@@ -74,9 +75,9 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     (item as any).mentorshipRequestedSlots ||
     (item as any).slots ||
     [];
-  const rawSlots = [...sessions, ...otherSlots];
+  const rawSlots = sessionSource.length > 0 ? sessions : otherSlots;
 
-  const mappedSlots = rawSlots.map((slot: any, idx) => {
+  const mappedSlots: ITimeSlotProposal[] = rawSlots.map((slot: any, idx: number) => {
     const rawState = slot.status || slot.sessionStatus;
     let statusVal = rawState ? (rawState.toUpperCase() === "PENDING" ? "PROPOSED" : rawState.toUpperCase()) : "PROPOSED";
 
@@ -110,8 +111,8 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     };
   });
 
-  const preferredSlots = mappedSlots.filter(s => s.proposedBy === "STARTUP");
-  const slotProposals = mappedSlots.filter(s => s.proposedBy === "ADVISOR");
+  const preferredSlots = mappedSlots.filter((s: ITimeSlotProposal) => s.proposedBy === "STARTUP");
+  const slotProposals = mappedSlots.filter((s: ITimeSlotProposal) => s.proposedBy === "ADVISOR");
 
   const rawStatus = item.status?.toUpperCase() || (item as any).mentorshipStatus?.toUpperCase() || "PENDING";
   let normalizedStatus: ConsultingRequestStatus = "PENDING";
@@ -202,6 +203,7 @@ export const mapMentorshipToConsultingRequest = (item: IMentorshipRequest): ICon
     preferredSlots: preferredSlots as any,
     slotProposals: slotProposals as any,
     isPayoutEligible: (item as any).isPayoutEligible ?? false,
+    payoutReleasedAt: (item as any).payoutReleasedAt ?? null,
     paymentStatus: item.paymentStatus ?? null,
     paidAt: item.paidAt ?? null,
     feedbacks: (item as any).feedbacks || [],
