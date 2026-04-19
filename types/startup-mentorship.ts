@@ -98,8 +98,9 @@ export interface IMentorshipRequest {
   actualAmount?: number | null;
   paymentStatus?: string | null;
   paidAt?: string | null;
-  expectedDuration?: string;
   advisorHourlyRate?: number | null;
+  advisorTitle?: string;
+  advisorPhotoURL?: string;
   isPayoutEligible?: boolean;
   payoutReleasedAt?: string | null;
   hasReport?: boolean;
