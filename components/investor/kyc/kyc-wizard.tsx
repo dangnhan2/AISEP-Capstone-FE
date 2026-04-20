@@ -43,13 +43,21 @@ interface KYCWizardProps {
 
 /* ─── Helper ─────────────────────────────────────────────────── */
 
+const VALID_INVESTOR_CATEGORIES = ["INSTITUTIONAL", "INDIVIDUAL_ANGEL"] as const;
+type ValidInvestorCategory = typeof VALID_INVESTOR_CATEGORIES[number];
+
+function sanitizeInvestorCategory(value: string | null | undefined): ValidInvestorCategory | null {
+  if (value === "INSTITUTIONAL" || value === "INDIVIDUAL_ANGEL") return value;
+  return null;
+}
+
 function buildInitialForm(status: IInvestorKYCStatus, profileInvestorType?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null): Partial<IInvestorKYCSubmission> {
   const s = status.submissionSummary;
   return {
     fullName: s?.fullName ?? "",
     contactEmail: s?.contactEmail ?? "",
     declarationAccepted: false,
-    investorCategory: (s?.investorCategory as any) ?? profileInvestorType ?? "INDIVIDUAL_ANGEL",
+    investorCategory: sanitizeInvestorCategory(s?.investorCategory) ?? profileInvestorType ?? "INDIVIDUAL_ANGEL",
     currentRoleTitle: s?.currentRoleTitle ?? "",
     organizationName: s?.organizationName ?? "",
     location: s?.location ?? "",
