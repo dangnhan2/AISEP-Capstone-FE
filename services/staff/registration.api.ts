@@ -75,6 +75,39 @@ export interface IPendingResponse<T> {
     }
 }
 
+export interface IKYCHistoryItem {
+    applicantId: number;
+    applicantName: string;
+    roleType: "STARTUP" | "ADVISOR" | "INVESTOR";
+    result: "APPROVED" | "REJECTED" | "PENDING_MORE_INFO";
+    processedAt: string;
+    reviewedBy: string;
+    remarks: string | null;
+}
+
+export interface IKYCHistoryParams {
+    page?: number;
+    pageSize?: number;
+    roleType?: "STARTUP" | "ADVISOR" | "INVESTOR" | "";
+    result?: "APPROVED" | "REJECTED" | "PENDING_MORE_INFO" | "";
+    from?: string;
+    to?: string;
+}
+
+export const GetKYCHistory = (params: IKYCHistoryParams = {}) => {
+    const { page = 1, pageSize = 20, roleType, result, from, to } = params;
+    const query = new URLSearchParams();
+    query.set("page", String(page));
+    query.set("pageSize", String(pageSize));
+    if (roleType) query.set("roleType", roleType);
+    if (result) query.set("result", result);
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    return axios.get<IBackendRes<{ items: IKYCHistoryItem[]; paging: { page: number; pageSize: number; totalItems: number; totalPages: number } }>>(
+        `/api/registration/history?${query.toString()}`
+    );
+};
+
 // GET LISTS
 export const GetPendingStartups = (page: number = 1, pageSize: number = 10) => {
     return axios.get<IBackendRes<IPendingResponse<IPendingStartupDto>>>(
