@@ -156,12 +156,13 @@ function VerifyEmailClientInner() {
       }
 
       router.replace(getWorkspacePath(authPayload.user.userType));
-    } catch (requestError) {
-      const message =
-        requestError instanceof Error
-          ? requestError.message
-          : "Có lỗi xảy ra. Vui lòng thử lại.";
-      setError(message);
+    } catch (requestError: any) {
+      const status = requestError?.response?.status ?? requestError?.status;
+      if (status === 400 || status === 401) {
+        setError("Email hoặc mã OTP không hợp lệ.");
+      } else {
+        setError("Có lỗi xảy ra. Vui lòng thử lại.");
+      }
     } finally {
       setIsVerifying(false);
     }

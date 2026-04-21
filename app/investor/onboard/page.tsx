@@ -73,6 +73,8 @@ export default function InvestorOnboardingPage() {
           submitterRole: data.submitterRole ?? prev.submitterRole,
         }));
       }
+    }).catch(() => {
+      // 404 = investor profile chưa tồn tại (expected cho tài khoản mới) → bỏ qua
     });
   }, []);
 

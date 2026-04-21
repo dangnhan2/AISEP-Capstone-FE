@@ -43,9 +43,22 @@ function getTokenFromResponseBody(body: any): string | null {
   );
 }
 
+// Các endpoint public — không cần access token, 401 = credentials sai (không phải token hết hạn)
+// → KHÔNG trigger refresh flow khi gặp 401 từ những endpoint này
+const PUBLIC_AUTH_ENDPOINTS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/verify-email",
+  "/api/auth/resend",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+  "/api/auth/refresh-token",
+  "/api/auth/logout",
+];
+
 function isAuthEndpoint(url?: string): boolean {
   if (!url) return false;
-  return url.includes("/api/auth/refresh-token") || url.includes("/api/auth/logout") || url.includes("/login");
+  return PUBLIC_AUTH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
 }
 
 // Request interceptor: gắn Bearer token
