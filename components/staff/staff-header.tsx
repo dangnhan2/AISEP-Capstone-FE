@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { GetNotifications } from "@/services/notification/notification.api";
 import { cn } from "@/lib/utils";
 import {
   Bell,
@@ -33,6 +35,14 @@ export function StaffHeader({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const { data: notifData } = useQuery({
+    queryKey: ["staff-unread-notifications"],
+    queryFn: () => GetNotifications({ unreadOnly: true, pageSize: 1 }),
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+  const hasUnread = ((notifData as any)?.data?.paging?.totalItems ?? 0) > 0;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -82,7 +92,7 @@ export function StaffHeader({
         {/* Notifications */}
         <Link href="/staff/notifications" className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:text-[#eec54e] hover:bg-[#eec54e]/5 transition-all relative cursor-pointer">
           <Bell className="w-5 h-5" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+          {hasUnread && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>}
         </Link>
 
         {/* Help */}

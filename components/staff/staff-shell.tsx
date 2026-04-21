@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, PanelLeft } from "lucide-react";
 import React from "react";
+import { cn } from "@/lib/utils";
 import { StaffHeader } from "./staff-header";
 import { StaffSidebar } from "./staff-sidebar";
 import { StaffHelpDrawer } from "./staff-help-drawer";
@@ -13,13 +14,12 @@ const routeLabels: Record<string, string> = {
   staff: "Vận hành",
   activity: "Giám sát nền tảng",
   kyc: "Xét duyệt KYC",
-  "ai-exceptions": "AI Exceptions",
   complaints: "Khiếu nại & Tranh chấp",
-  "profile-changes": "Thay đổi hồ sơ",
   "issue-reports": "Báo cáo sự cố",
   "consulting-ops": "Vận hành tư vấn",
   "payment-ops": "Vận hành thanh toán",
   profile: "Hồ sơ cá nhân",
+  history: "Lịch sử thẩm định",
 };
 
 function StaffBreadcrumb() {
@@ -40,7 +40,7 @@ function StaffBreadcrumb() {
   if (crumbs.length <= 1 || pathname === "/staff/profile" || pathname === "/staff/settings" || pathname === "/staff/notifications") return null;
 
   return (
-    <nav className="flex items-center gap-1.5 mb-6 text-[12px] font-plus-jakarta-sans">
+    <nav className="flex items-center gap-1.5 px-8 pt-6 pb-4 text-[12px] font-plus-jakarta-sans">
       {crumbs.map((crumb, i) => (
         <React.Fragment key={crumb.href}>
           {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />}
@@ -62,26 +62,37 @@ type StaffShellProps = {
 };
 
 export function StaffShell({ children }: StaffShellProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState(false);
   const [isHelpOpen, setIsHelpOpen] = React.useState(false);
 
   return (
     <AuthGuard allowedRoles={["Staff"]}>
       <div className="min-h-screen bg-[#f8f8f8] text-[#171611] font-manrope selection:bg-[#eec54e]/30">
-        <StaffSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <StaffSidebar collapsed={collapsed} />
         <StaffHelpDrawer isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+        {/* Collapse toggle button */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className={cn(
+            "fixed top-[18px] z-[60] p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all duration-300 shadow-sm",
+            collapsed ? "left-[72px]" : "left-[248px]"
+          )}
+          title={collapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
+        >
+          <PanelLeft className="w-3.5 h-3.5" />
+        </button>
         
-        <div className="lg:pl-[280px] flex flex-col min-h-screen relative transition-all duration-300">
-          <StaffHeader 
-            onMenuClick={() => setIsSidebarOpen(true)} 
-            onHelpClick={() => setIsHelpOpen(true)}
-          />
+        <div className={cn(
+          "flex flex-col min-h-screen transition-all duration-300",
+          collapsed ? "pl-[64px]" : "pl-[240px]"
+        )}>
+          <StaffHeader onHelpClick={() => setIsHelpOpen(true)} />
           
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto w-full animate-in fade-in duration-500 overflow-x-hidden">
+          <main className="flex-1 overflow-x-hidden animate-in fade-in duration-500">
             <StaffBreadcrumb />
             {children}
           </main>
-          
         </div>
       </div>
     </AuthGuard>

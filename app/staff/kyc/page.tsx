@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -140,12 +140,15 @@ function normalizeStartupSubtype(item: {
   return "STARTUP_NO_ENTITY";
 }
 
+const PAGE_SIZE = 15;
+
 export default function KYCPendingListPage() {
   const [activeTab, setActiveTab] = useState<
     "ALL" | "STARTUP" | "INVESTOR" | "ADVISOR"
   >("ALL");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
 
   const { data: startupData, isLoading: startupLoading } = useQuery({
     queryKey: ["kyc-pending-startups"],
@@ -252,8 +255,14 @@ export default function KYCPendingListPage() {
     return matchesTab && matchesSearch && matchesStatus;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const pagedData = filteredData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [activeTab, statusFilter, search]);
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-400">
+    <div className="px-8 py-7 pb-16 space-y-6 animate-in fade-in duration-400">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="font-plus-jakarta-sans text-[20px] font-bold tracking-tight text-slate-900">
@@ -453,7 +462,7 @@ export default function KYCPendingListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredData.map((item) => {
+              {pagedData.map((item) => {
                 const status = STATUS_CFG[item.status];
                 const isOverdue = item.slaDays > 1 && item.status === "PENDING";
 
@@ -552,21 +561,29 @@ export default function KYCPendingListPage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+        {totalPages > 1 && <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <p className="text-[12px] font-medium text-slate-500">
-            Hiển thị{" "}
-            <span className="font-bold text-slate-900">{filteredData.length}</span>{" "}
-            trên {combinedData.length} hồ sơ
+            Trang <span className="font-bold text-slate-900">{page}</span> / {totalPages}
+            {" · "}
+            <span className="font-bold text-slate-900">{filteredData.length}</span> hồ sơ
           </p>
           <div className="flex items-center gap-2">
-            <button className="cursor-not-allowed rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-400 transition-colors">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
               Trước
             </button>
-            <button className="cursor-not-allowed rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-400 transition-colors">
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
               Sau
             </button>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

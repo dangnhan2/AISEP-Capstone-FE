@@ -2,270 +2,351 @@
 
 import { cn } from "@/lib/utils";
 import {
-  Activity,
   Users,
   ShieldCheck,
   AlertCircle,
-  Zap,
-  ArrowUpRight,
+  Activity,
+  MessageSquareWarning,
   RefreshCw,
-  Download,
-  Eye,
-  Search,
-  History,
-  ShieldAlert,
-  ArrowLeft,
-  Filter
+  LayoutDashboard,
+  Cpu,
+  Lock,
+  AlertOctagon,
+  Workflow,
+  AlertTriangle,
+  Loader2,
+  ChevronRight,
+  X,
 } from "lucide-react";
-import { useState } from "react";
 import Link from "next/link";
-import { CustomToast } from "@/components/ui/custom-toast";
+import { useState, useEffect, useCallback } from "react";
+import {
+  GetDashboardStats,
+  GetKycTrend,
+  GetActivityFeed,
+  IStaffDashboardStats,
+  IKycTrendPoint,
+  IActivityFeedItem,
+} from "@/services/staff/dashboard.api";
+
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  KYC_REVIEW: "xét duyệt hồ sơ KYC",
+  KYC_APPROVED: "đã duyệt hồ sơ KYC",
+  KYC_REJECTED: "đã từ chối hồ sơ KYC",
+  USER_LOCKED: "khoá tài khoản",
+  USER_UNLOCKED: "mở khoá tài khoản",
+  COMPLAINT_ESCALATED: "khiếu nại leo thang",
+  PROFILE_CHANGE: "thay đổi hồ sơ",
+  PAYMENT_ACTION: "xử lý thanh toán",
+};
+
+const ACTION_DOT_COLOR: Record<string, string> = {
+  KYC_REVIEW: "bg-amber-400",
+  KYC_APPROVED: "bg-emerald-500",
+  KYC_REJECTED: "bg-rose-500",
+  USER_LOCKED: "bg-rose-500",
+  USER_UNLOCKED: "bg-emerald-500",
+  COMPLAINT_ESCALATED: "bg-rose-500",
+  PROFILE_CHANGE: "bg-sky-500",
+  PAYMENT_ACTION: "bg-indigo-500",
+};
+
+function formatRelativeTime(iso: string): string {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 export default function PlatformActivityPage() {
-  const [refreshing, setRefreshing] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<"7D" | "30D">("7D");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 800);
-  };
+  const [stats, setStats] = useState<IStaffDashboardStats | null>(null);
+  const [trendPoints, setTrendPoints] = useState<IKycTrendPoint[]>([]);
+  const [feed, setFeed] = useState<IActivityFeedItem[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingTrend, setLoadingTrend] = useState(true);
 
-  const handleExport = () => {
-    setIsExporting(true);
-    setTimeout(() => {
-      setIsExporting(false);
-      setShowToast(true);
-    }, 1500);
-  };
+  useEffect(() => {
+    setLoadingStats(true);
+    (GetDashboardStats() as any)
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        if (d) setStats(d);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingStats(false));
+  }, []);
 
-  const KPI_DATA = [
-    { label: "Người dùng mới", value: "+42", icon: Users, color: "text-blue-600", bg: "bg-blue-50/50", border: "border-blue-100/50" },
-    { label: "Yêu cầu KYC", value: "24", icon: ShieldCheck, color: "text-amber-600", bg: "bg-amber-50/50", border: "border-amber-100/50" },
-    { label: "Tranh chấp", value: "03", icon: AlertCircle, color: "text-red-600", bg: "bg-red-50/50", border: "border-red-100/50" },
-    { label: "Giải ngân", value: "12", icon: RefreshCw, color: "text-emerald-600", bg: "bg-emerald-50/50", border: "border-emerald-100/50" },
-    { label: "AI Exceptions", value: "05", icon: Zap, color: "text-[#eec54e]", bg: "bg-[#eec54e]/10", border: "border-[#eec54e]/20" },
-    { label: "Báo cáo sự cố", value: "02", icon: ShieldAlert, color: "text-orange-600", bg: "bg-orange-50/50", border: "border-orange-100/50" },
+  useEffect(() => {
+    setLoadingTrend(true);
+    (GetKycTrend(selectedPeriod) as any)
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        if (d?.points) setTrendPoints(d.points);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingTrend(false));
+  }, [selectedPeriod]);
+
+  const fetchFeed = useCallback(() => {
+    setLoadingFeed(true);
+    (GetActivityFeed(10) as any)
+      .then((res: any) => {
+        const d = res?.data ?? res;
+        if (Array.isArray(d)) setFeed(d);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingFeed(false));
+  }, []);
+
+  useEffect(() => { fetchFeed(); }, [fetchFeed]);
+
+  const maxSubmitted = Math.max(...trendPoints.map((p) => p.submitted), 1);
+  const chartData = trendPoints.map((p) => Math.round((p.submitted / maxSubmitted) * 100));
+
+  const statCards = [
+    {
+      label: "Tổng người dùng",
+      value: loadingStats ? "—" : (stats?.totalUsers?.toLocaleString() ?? "—"),
+      sub: "tài khoản đăng ký",
+      icon: Users,
+      warn: false,
+      href: "/staff/activity",
+    },
+    {
+      label: "Tài khoản bị khoá",
+      value: loadingStats ? "—" : (stats?.lockedAccounts?.toString() ?? "—"),
+      sub: "cần xem xét",
+      icon: Lock,
+      warn: !loadingStats && (stats?.lockedAccounts ?? 0) > 0,
+      href: "/staff/kyc",
+    },
+    {
+      label: "Chờ duyệt KYC",
+      value: loadingStats ? "—" : (stats?.pendingKycCount?.toString() ?? "—"),
+      sub: "hồ sơ",
+      icon: ShieldCheck,
+      warn: !loadingStats && (stats?.pendingKycCount ?? 0) > 0,
+      href: "/staff/kyc",
+    },
+    {
+      label: "AI Service",
+      value: loadingStats ? "—" : (stats?.aiServiceOnline ? "Online" : "Offline"),
+      sub: "uptime 30 ngày",
+      icon: Cpu,
+      warn: !loadingStats && stats?.aiServiceOnline === false,
+      href: "/staff/activity",
+    },
   ];
 
-  const RECENT_ACTIVITIES = [
-    { type: "KYC", detail: "Phê duyệt hồ sơ Startup GreenEats", time: "10:45", status: "SUCCESS", statusLabel: "Thành công" },
-    { type: "PAYMENT", detail: "Giao dịch rút tiền VinaCapital #882", time: "10:30", status: "PENDING", statusLabel: "Chờ xử lý" },
-    { type: "AI", detail: "AI Exception: Lỗi trích xuất Pitch Deck #7002", time: "10:15", status: "ERROR", statusLabel: "Lỗi AI" },
-    { type: "COMPLAINT", detail: "Khiếu nại tư vấn bởi MedChain AI", time: "09:50", status: "WARNING", statusLabel: "Cảnh báo" },
-    { type: "KYC", detail: "Yêu cầu bổ sung hồ sơ TechAlpha", time: "09:30", status: "INFO", statusLabel: "Thông báo" },
+  const governanceItems = [
+    { label: "Chờ duyệt KYC Startup", value: loadingStats ? "—" : String(stats?.pendingKycCount ?? "—"), icon: ShieldCheck, href: "/staff/kyc" },
+    { label: "Tài khoản bị khoá (24h)", value: loadingStats ? "—" : String(stats?.lockedAccounts ?? "—"), icon: Lock, href: "/staff/kyc" },
+    { label: "Khiếu nại leo thang", value: "—", icon: MessageSquareWarning, href: "/staff/complaints" },
+    { label: "Role thay đổi gần đây", value: "—", icon: LayoutDashboard, href: "/staff/activity" },
+    { label: "Yêu cầu mở khẩn cấp", value: "—", icon: AlertOctagon, href: "/staff/issue-reports" },
+    { label: "Workflow chờ xử lý", value: "—", icon: Workflow, href: "/staff/consulting-ops" },
   ];
-
-  const STATUS_CFG: Record<string, { badge: string; dot: string }> = {
-    SUCCESS: { badge: "bg-emerald-50/80 text-emerald-700 border-emerald-200/60", dot: "bg-emerald-500" },
-    PENDING: { badge: "bg-amber-50/80 text-amber-700 border-amber-200/60", dot: "bg-amber-500" },
-    ERROR: { badge: "bg-red-50/80 text-red-700 border-red-200/60", dot: "bg-red-500" },
-    WARNING: { badge: "bg-orange-50/80 text-orange-700 border-orange-200/60", dot: "bg-orange-500" },
-    INFO: { badge: "bg-blue-50/80 text-blue-700 border-blue-200/60", dot: "bg-blue-500" },
-  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-400">
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[20px] font-bold text-slate-900 tracking-tight font-plus-jakarta-sans">Giám sát nền tảng</h1>
-          <p className="text-[13px] text-slate-500 mt-1">Theo dõi hoạt động và sức khỏe hệ thống thời gian thực.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleRefresh}
-            className="p-2.5 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all shadow-sm active:scale-95"
+    <div className="px-8 py-7 space-y-6 pb-16 animate-in fade-in duration-400">
+
+      {/* Maintenance Alert Banner */}
+      {!bannerDismissed && (
+        <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/40 px-5 py-4 flex items-start gap-4">
+          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase tracking-wide">Hệ thống</span>
+              <p className="text-[13px] font-semibold text-slate-800">Bảo trì hệ thống định kỳ</p>
+            </div>
+            <p className="text-[12px] text-amber-700 leading-relaxed">
+              Hệ thống sẽ tiến hành bảo trì cơ sở dữ liệu vào Chủ nhật từ{" "}
+              <span className="font-semibold">02:00 đến 04:00</span>. Một số dịch vụ AI có thể chậm hơn bình thường.
+            </p>
+          </div>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="w-7 h-7 flex items-center justify-center text-amber-400 hover:text-amber-600 hover:bg-amber-100 rounded-lg transition-colors shrink-0"
           >
-            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-          </button>
-          <button 
-            onClick={handleExport}
-            disabled={isExporting}
-            className={cn(
-              "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-[13px] font-bold transition-all shadow-sm active:scale-95",
-              isExporting 
-                ? "bg-slate-50 border-slate-100 text-slate-400 cursor-not-allowed" 
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            )}
-          >
-            {isExporting ? (
-              <RefreshCw className="w-4 h-4 animate-spin text-[#eec54e]" />
-            ) : (
-              <Download className="w-4 h-4 text-slate-400" />
-            )}
-            {isExporting ? "Đang xử lý..." : "Xuất báo cáo"}
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
+      )}
 
-      {/* KPI Cards Section */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {KPI_DATA.map((kpi, idx) => (
-          <div key={idx} className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col items-center justify-center text-center group hover:border-[#eec54e]/30 transition-all font-plus-jakarta-sans">
-            <div className={cn("w-10 h-10 rounded-xl mb-3 flex items-center justify-center border transition-transform group-hover:scale-110", kpi.bg, kpi.border)}>
-              <kpi.icon className={cn("w-5 h-5", kpi.color)} />
-            </div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
-            <p className="text-[20px] font-black text-slate-900 mt-1">{kpi.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Insights Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Real-time Charts Column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Chart 1: Submission Volume */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                  <Activity className="w-4 h-4 text-emerald-600" />
-                </div>
-                <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-tight">Lưu lượng hồ sơ KYC</h3>
-              </div>
-              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50/80 border border-emerald-100 px-2.5 py-1 rounded-md flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> +15%
-              </span>
-            </div>
-            <div className="h-[220px] flex items-end justify-between gap-2 px-1">
-              {[30, 45, 60, 25, 80, 50, 95, 40, 70, 55, 85, 45].map((h, i) => (
-                <div key={i} className="flex-1 bg-[#eec54e] rounded-t-lg transition-all relative group cursor-pointer border-x border-t border-transparent" style={{ height: `${h}%` }}>
-                   <div className="absolute -top-10 left-1/2 -translate-x-1/2 text-[11px] font-black opacity-0 group-hover:opacity-100 transition-all bg-slate-900 text-white px-2.5 py-1.5 rounded-xl shadow-2xl shadow-slate-200/50 whitespace-nowrap z-10 border border-slate-800">{h} lượt</div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 pt-5 border-t border-slate-50 flex justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              <span>01 Th3</span>
-              <span>10 Th3</span>
-              <span>20 Th3</span>
-              <span>31 Th3</span>
-            </div>
-          </div>
-
-          {/* Activity Table */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-tight flex items-center gap-2 font-plus-jakarta-sans">
-                <History className="w-4 h-4 text-slate-400" />
-                Dòng hoạt động mới nhất
-              </h3>
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-[#eec54e] transition-colors" />
-                <input 
-                  type="text" 
-                  placeholder="Tìm kiếm nhanh..." 
-                  className="pl-9 pr-4 py-1.5 bg-slate-50 border border-transparent rounded-xl text-[12px] w-56 focus:outline-none focus:ring-2 focus:ring-[#eec54e]/10 focus:bg-white focus:border-[#eec54e] transition-all" 
-                />
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50/50">
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase text-slate-400 tracking-widest border-b border-slate-100">Phân loại</th>
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase text-slate-400 tracking-widest border-b border-slate-100">Nội dung</th>
-                    <th className="px-6 py-3 text-[11px] font-bold uppercase text-slate-400 tracking-widest border-b border-slate-100 text-right">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {RECENT_ACTIVITIES.map((act, i) => (
-                    <tr key={i} className="hover:bg-slate-50/30 transition-colors group">
-                      <td className="px-6 py-4">
-                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border",
-                          act.type === "KYC" ? "text-blue-700 bg-blue-50/50 border-blue-100/50" :
-                          act.type === "PAYMENT" ? "text-emerald-700 bg-emerald-50/50 border-emerald-100/50" :
-                          act.type === "AI" ? "text-purple-700 bg-purple-50/50 border-purple-100/50" :
-                          "text-amber-700 bg-amber-50/50 border-amber-100/50"
-                        )}>
-                          {act.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-[13px] font-semibold text-slate-700">{act.detail}</span>
-                          <span className="text-[11px] text-slate-400 font-medium">{act.time} · Nhật ký hệ thống</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border", STATUS_CFG[act.status].badge)}>
-                          <div className={cn("w-1.5 h-1.5 rounded-full", STATUS_CFG[act.status].dot)} />
-                          {act.statusLabel}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      {/* -- Overview Stats -- */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-slate-400" />
+            System Health
+          </h2>
         </div>
-
-        {/* Sidebar panels */}
-        <div className="space-y-6">
-          {/* Critical Alerts Panel */}
-          <div className="bg-white rounded-2xl border border-red-100 shadow-[0_1px_3px_rgba(239,68,68,0.05)] overflow-hidden">
-            <div className="bg-red-50/50 px-6 py-5 border-b border-red-100 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-red-600 animate-pulse" />
-              </div>
-              <h3 className="text-[13px] font-bold text-red-900 uppercase tracking-tight">Cảnh báo khẩn cấp</h3>
-            </div>
-            <div className="p-6 space-y-5">
-              {[
-                { detail: "Phát hiện đột biến hồ sơ từ Nga (IP bypass)", severity: "critical" },
-                { detail: "Lỗi AI Scanner không thể giải mã CCCD (ID: 1554)", severity: "high" },
-                { detail: "Giao dịch rút tiền lớn chưa được phê duyệt (>2k$)", severity: "medium" }
-              ].map((alert, i) => (
-                <div key={i} className="flex gap-3 items-start group">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.4)] group-hover:scale-125 transition-transform" />
-                  <p className="text-[12px] text-slate-600 font-semibold leading-relaxed group-hover:text-slate-900 transition-colors">{alert.detail}</p>
-                </div>
-              ))}
-              <Link 
-                href="/staff/issue-reports"
-                className="w-full mt-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-[13px] font-bold rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2"
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {statCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <Link
+                key={card.label}
+                href={card.href}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-4 hover:shadow-md hover:border-slate-300 transition-all group"
               >
-                <ShieldAlert className="w-4 h-4 text-[#eec54e]" />
-                Xử lý rủi ro
+                <div className="flex items-start justify-between mb-3">
+                  <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-slate-100 transition-colors">
+                    <Icon className="w-4 h-4 text-slate-400" />
+                  </div>
+                  {card.warn && (
+                    <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-amber-400 animate-pulse" />
+                  )}
+                </div>
+                <p className="text-[20px] font-bold text-slate-900 leading-none mb-1">{card.value}</p>
+                <p className="text-[12px] font-medium text-slate-500">{card.label}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{card.sub}</p>
               </Link>
-            </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* -- Main Content: Chart + Governance -- */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        {/* KYC Trend Chart */}
+        <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-slate-400" />
+              Xu hướng hồ sơ KYC
+            </h2>
+            <select
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-medium text-slate-600 bg-white focus:outline-none focus:border-[#eec54e] transition-colors cursor-pointer"
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value as "7D" | "30D")}
+            >
+              <option value="7D">7 ngày gần nhất</option>
+              <option value="30D">30 ngày gần nhất</option>
+            </select>
           </div>
 
-          {/* System Health Status */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-6">
-             <h3 className="text-[13px] font-bold text-slate-900 uppercase tracking-tight mb-5 flex items-center gap-2">
-               <Zap className="w-4 h-4 text-[#eec54e]" />
-               Tình trạng dịch vụ
-             </h3>
-             <div className="space-y-4">
-                {[
-                  { name: "AI Core Engine", status: "Đang hoạt động", color: "text-emerald-500" },
-                  { name: "KYC Validator", status: "Đang hoạt động", color: "text-emerald-500" },
-                  { name: "Payment Gateway", status: "Cảnh báo", color: "text-amber-500" },
-                  { name: "Database Cluster", status: "Đang hoạt động", color: "text-emerald-500" },
-                ].map((service, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <span className="text-[12px] font-bold text-slate-600">{service.name}</span>
-                    <span className={cn("text-[11px] font-black uppercase flex items-center gap-1.5", service.color)}>
-                      <div className={cn("w-1.5 h-1.5 rounded-full", service.color.replace('text', 'bg'))} />
-                      {service.status}
+          <div className="px-6 py-5">
+            <div className={cn("h-[200px] flex items-end", selectedPeriod === "7D" ? "gap-3" : "gap-1")}>
+              {loadingTrend ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <p className="text-[12px] text-slate-400">Không có dữ liệu</p>
+                </div>
+              ) : chartData.map((h, i) => (
+                <div key={i} className="flex-1 h-full relative group/bar cursor-pointer">
+                  <div
+                    className="absolute bottom-0 left-0 right-0 bg-[#eec54e] rounded-t-sm transition-all duration-300 hover:bg-[#d4a800]"
+                    style={{ height: `${Math.max(h, 4)}%` }}
+                  />
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none"
+                    style={{ bottom: `calc(${h}% + 8px)` }}
+                  >
+                    <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-sm">
+                      {trendPoints[i]?.submitted ?? h}
                     </span>
                   </div>
-                ))}
-             </div>
-          </div>
-
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+              {selectedPeriod === "7D" ? (
+                <><span>Thứ Hai</span><span>Chủ Nhật</span></>
+              ) : (
+                <><span>30 ngày trước</span><span>Hôm nay</span></>
+              )}
+            </div>
           </div>
         </div>
 
-        <CustomToast 
-          message="Báo cáo giám sát đã được trích xuất thành công!" 
-          isVisible={showToast} 
-          onClose={() => setShowToast(false)} 
-          type="success"
-        />
+        {/* Governance Summary */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-slate-400" />
+              Governance
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {governanceItems.map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={i}
+                  href={item.href}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50/80 transition-colors group"
+                >
+                  <div className="size-8 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 group-hover:bg-[#fdf8e6] transition-colors">
+                    <Icon className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#b8902e] transition-colors" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-slate-700">{item.label}</p>
+                  </div>
+                  <span className="text-[15px] font-bold text-slate-800 shrink-0">{item.value}</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </div>
-    );
+
+      {/* -- Live Activity Feed -- */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold text-slate-900 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-slate-400" />
+            Live Feed
+          </h2>
+          <button
+            onClick={fetchFeed}
+            disabled={loadingFeed}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-[11px] font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", loadingFeed && "animate-spin")} />
+            Làm mới
+          </button>
+        </div>
+
+        {loadingFeed ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-slate-300" />
+          </div>
+        ) : feed.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <p className="text-[13px] font-medium text-slate-400">Không có hoạt động nào</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {feed.map((act, i) => (
+              <div key={act.logId ?? i} className="px-6 py-3 flex items-center gap-3 hover:bg-slate-50/60 transition-colors">
+                <span className="text-[11px] text-slate-400 font-mono w-14 shrink-0">
+                  {formatRelativeTime(act.createdAt)}
+                </span>
+                <div className={cn("w-2 h-2 rounded-full shrink-0", ACTION_DOT_COLOR[act.actionType] ?? "bg-slate-400")} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-slate-700 truncate">
+                    {act.userEmail ?? "Hệ thống"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {act.actionDetails ?? ACTION_TYPE_LABELS[act.actionType] ?? act.actionType}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
