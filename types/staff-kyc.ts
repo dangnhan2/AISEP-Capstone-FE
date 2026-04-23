@@ -111,7 +111,7 @@ export const KYC_SUBTYPE_CONFIGS: Record<KYCSubtype, KYCConfig> = {
     ]
   },
   INSTITUTIONAL_INVESTOR: {
-    label: "Nhà đầu tư tổ chức",
+    label: "Tổ chức / Quỹ đầu tư",
     icon: Building2,
     fields: [
       { id: "orgLegalName", label: "Tên pháp lý tổ chức", value: "", type: "text", options: ["EXACT_MATCH", "PARTIAL_MATCH", "CANNOT_VERIFY", "MISMATCH"] },
@@ -193,7 +193,7 @@ export const getSuggestedResult = (subtype: KYCSubtype, assessments: Record<stri
   let suggestedDecision: "APPROVE" | "REJECT" | "PENDING_MORE_INFO" = "REJECT";
 
   if (hasHardFail) {
-    suggestedLabel = "Verification Failed";
+    suggestedLabel = "Xác minh thất bại";
     suggestedDecision = "REJECT";
     return { totalScore, hasHardFail, suggestedLabel, suggestedDecision };
   }

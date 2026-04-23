@@ -238,6 +238,8 @@ const getMentorshipAdvisorDisplay = (item: IMentorshipRequest) => {
   return { fullName, title, profilePhotoURL };
 };
 
+const isAdvisorAvailable = (availabilityHint?: string | null) => availabilityHint === "Available";
+
 // ─── Helper Components ───────────────────────────────────────────────────────
 
 const getSessionStatusKey = (session: IMentorshipSession) => {
@@ -592,6 +594,10 @@ function StartupAdvisorsPageInner() {
   };
 
   const handleOpenRequest = (advisor: IAdvisorSearchItem) => {
+    if (!isAdvisorAvailable(advisor.availabilityHint)) {
+      showToast("Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn.");
+      return;
+    }
     setSelectedAdvisor(advisor);
     setShowRequestModal(true);
   };
@@ -864,7 +870,14 @@ function StartupAdvisorsPageInner() {
                       </button>
                       <button
                         onClick={() => handleOpenRequest(advisor)}
-                        className="flex-1 py-2.5 rounded-xl bg-[#fdf8e6] border border-[#eec54e]/30 text-slate-800 text-[13px] font-semibold hover:bg-[#eec54e] transition-all"
+                        disabled={!isAdvisorAvailable(advisor.availabilityHint)}
+                        title={!isAdvisorAvailable(advisor.availabilityHint) ? "Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn." : undefined}
+                        className={cn(
+                          "flex-1 py-2.5 rounded-xl border text-[13px] font-semibold transition-all",
+                          isAdvisorAvailable(advisor.availabilityHint)
+                            ? "bg-[#fdf8e6] border-[#eec54e]/30 text-slate-800 hover:bg-[#eec54e]"
+                            : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                        )}
                       >
                         Gửi yêu cầu
                       </button>

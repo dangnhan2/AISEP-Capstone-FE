@@ -97,12 +97,9 @@ export function getInvestorKycUiState(
 export function resolveInvestorCategory(
   profile?: Pick<IInvestorProfile, "investorType"> | null,
   kycStatus?: IInvestorKYCStatus | null,
-): InvestorCategory {
-  return (
-    normalizeCategory(kycStatus?.submissionSummary?.investorCategory) ||
-    normalizeCategory(profile?.investorType) ||
-    "INDIVIDUAL_ANGEL"
-  );
+): InvestorCategory | null {
+  void kycStatus;
+  return normalizeCategory(profile?.investorType) || null;
 }
 
 export function getInvestorCategoryLabel(category?: InvestorCategory | null) {
@@ -117,7 +114,7 @@ export function getSubmitterRoleLabel(role?: string | null) {
 }
 
 function buildInstitutionalIdentityLine(
-  category: InvestorCategory,
+  category: InvestorCategory | null,
   representativeName: string | null,
   representativeRole: string | null,
   mode: InstitutionalIdentityLineMode,

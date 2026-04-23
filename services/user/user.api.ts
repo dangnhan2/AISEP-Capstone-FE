@@ -1,5 +1,5 @@
 import axios from "../interceptor";
 
-export const GetMe = () => {
-    return axios.get<IBackendRes<IUser>>(`/api/users/me`);
-}
+export const GetMe = (): Promise<IBackendRes<IUser>> => {
+    return axios.get(`/api/users/me`);
+};

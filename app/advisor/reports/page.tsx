@@ -135,7 +135,7 @@ function ReportCard({ report, onReport }: { report: IConsultationReport; onRepor
 
 function PendingSessionCard({ session }: { session: IConsultingSession }) {
   return (
-    <div className="bg-amber-50/40 rounded-2xl border-2 border-amber-200 px-6 py-5 flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-300">
+    <div className="bg-amber-50/40 rounded-2xl border-2 border-amber-200 px-6 py-5 flex items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-300 overflow-hidden">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200/50 uppercase tracking-widest">
@@ -215,7 +215,7 @@ export default function AdvisorReportsPage() {
         const mapSession = (s: any): IConsultingSession => ({
           id: s.mentorshipID?.toString() || s.id?.toString(),
           requestId: s.mentorshipID?.toString() || s.id?.toString(),
-          objective: s.challengeDescription || s.topicsDiscussed || "Tư vấn khởi nghiệp",
+          objective: (() => { const raw = s.challengeDescription || "Tư vấn khởi nghiệp"; return raw.length > 80 ? raw.slice(0, 80).trimEnd() + "..." : raw; })(),
           startup: { displayName: s.startupName || s.startup?.name || "Startup" } as any,
           scheduledStartAt: s.scheduledStartAt || "",
           scheduledEndAt: s.scheduledEndAt || "",

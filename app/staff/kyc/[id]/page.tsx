@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { 
   ApproveStartupRegistration, ApproveAdvisorRegistration, ApproveInvestorRegistration,
   RejectStartupRegistration, RejectAdvisorRegistration, RejectInvestorRegistration,
-  GetPendingStartupKycById, GetPendingAdvisorById, GetPendingInvestorKycById
+  GetPendingStartupKycById, GetPendingAdvisorById, GetPendingInvestorKycById,
+  GetKYCCaseHistory,
+  type KycCaseHistoryEntryDto,
 } from "@/services/staff/registration.api";
 import axios from "@/services/interceptor";
 import { useAuth } from "@/context/context";
@@ -31,9 +34,33 @@ import {
   Building2,
   User,
   GraduationCap,
-  ShieldAlert
+  ShieldAlert,
+  X,
+  Star,
+  Briefcase,
+  Globe,
+  BadgeCheck,
+  Sparkles,
+  CreditCard,
+  Linkedin,
+  MapPin,
+  AlertTriangle,
+  Lightbulb,
+  Target,
+  TrendingUp,
+  DollarSign,
+  Layers,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
+import { StaffAdvisorProfileDrawerView } from "@/components/staff/staff-advisor-profile-drawer-view";
+import { StaffInvestorProfileDrawerView } from "@/components/staff/staff-investor-profile-drawer-view";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   KYCSubtype,
   AssessmentValue,
@@ -44,8 +71,12 @@ import {
   HARD_FAIL_VALUES,
   APPROVAL_THRESHOLDS,
 } from "@/types/staff-kyc";
+import type { IAdvisorDetail } from "@/types/startup-mentorship";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { GetAdvisorById } from "@/services/startup/startup-mentorship.api";
+import { GetStartupById } from "@/services/investor/investor.api";
+import { GetInvestorById } from "@/services/startup/startup.api";
 
 // --- Types ---
 type KYCStatus = "PENDING" | "IN_REVIEW" | "PENDING_MORE_INFO" | "APPROVED" | "REJECTED" | "FAILED";
@@ -197,15 +228,859 @@ const getSubtypeById = (id: string): KYCSubtype => {
   return "STARTUP_ENTITY";
 };
 
+// --- History Tab ---
+const ACTION_CFG: Record<string, { label: string; dot: string; badge: string }> = {
+  APPROVED:            { label: "Đã duyệt",         dot: "bg-emerald-400", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
+  REJECTED:            { label: "Từ chối",           dot: "bg-red-400",     badge: "bg-red-50 text-red-700 border-red-200/80" },
+  REQUESTED_MORE_INFO: { label: "Yêu cầu bổ sung",  dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200/80" },
+  UNDER_REVIEW:        { label: "Đang soát xét",    dot: "bg-blue-400",    badge: "bg-blue-50 text-blue-700 border-blue-200/80" },
+  SUPERSEDED:          { label: "Đã thay thế",      dot: "bg-slate-300",   badge: "bg-slate-50 text-slate-500 border-slate-200/80" },
+};
+
+const RESULT_LABEL_MAP: Record<string, string> = {
+  VERIFIED_COMPANY: "Doanh nghiệp đã xác minh",
+  VERIFIED_FOUNDING_TEAM: "Đội ngũ sáng lập đã xác minh",
+  VERIFIED_ADVISOR: "Advisor đã xác minh",
+  VERIFIED_INVESTOR: "Nhà đầu tư đã xác minh",
+  BASIC_VERIFIED: "Xác minh cơ bản",
+  PENDING_MORE_INFO: "Cần bổ sung thông tin",
+  VERIFICATION_FAILED: "Xác minh thất bại",
+  REJECTED: "Từ chối",
+  NONE: "",
+};
+
+function getResultLabelText(value?: string | null) {
+  if (!value) return "";
+  return RESULT_LABEL_MAP[value] ?? value;
+}
+
+function formatHistoryDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("vi-VN", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function HistoryTab({ entityId, entityType }: {
+  entityId: number;
+  entityType: "STARTUP" | "ADVISOR" | "INVESTOR";
+}) {
+  const { data, isLoading } = useQuery<KycCaseHistoryEntryDto[]>({
+    queryKey: ["kyc-case-history", entityId, entityType],
+    queryFn: async () => {
+      const res = await GetKYCCaseHistory(entityId, entityType);
+      const envelope = res as unknown as IBackendRes<KycCaseHistoryEntryDto[]>;
+      return envelope.data ?? [];
+    },
+    enabled: !isNaN(entityId),
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-7 h-7 border-4 border-[#eec54e] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-16 text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto">
+          <History className="w-6 h-6 text-slate-300" />
+        </div>
+        <p className="text-[14px] font-semibold text-slate-500">Chưa có lịch sử xử lý</p>
+        <p className="text-[12px] text-slate-400">MSG143 — Hồ sơ này chưa từng được review.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] px-6 py-6">
+      <h2 className="text-[13px] font-semibold text-slate-900 mb-6 flex items-center gap-2">
+        <History className="w-4 h-4 text-slate-400" />
+        Lịch sử xử lý
+        <span className="ml-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[11px] font-bold">
+          {data.length}
+        </span>
+      </h2>
+
+      <div className="relative">
+        {data.map((entry, idx) => {
+          const isLast = idx === data.length - 1;
+          const cfg = ACTION_CFG[entry.action] ?? ACTION_CFG.UNDER_REVIEW;
+          const resultLabelText = getResultLabelText(entry.resultLabel);
+          return (
+            <div key={idx} className="flex gap-4 pb-6 last:pb-0">
+              {/* Spine */}
+              <div className="flex flex-col items-center pt-1 shrink-0">
+                <div className={cn("w-3 h-3 rounded-full z-10 ring-2 ring-white", cfg.dot)} />
+                {!isLast && <div className="w-px flex-1 bg-slate-100 mt-1" />}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-semibold border", cfg.badge)}>
+                    {cfg.label}
+                  </span>
+                  {entry.version > 0 && (
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
+                      v{entry.version}
+                    </span>
+                  )}
+                  {resultLabelText && (
+                    <span className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md font-medium">
+                      {resultLabelText}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[12px] text-slate-500 mb-2">
+                  {entry.submittedAt && (
+                    <span>
+                      <span className="font-medium text-slate-400">Nộp hồ sơ:</span>{" "}
+                      {formatHistoryDate(entry.submittedAt)}
+                    </span>
+                  )}
+                  {entry.reviewedAt && (
+                    <span>
+                      <span className="font-medium text-slate-400">Review:</span>{" "}
+                      {formatHistoryDate(entry.reviewedAt)}
+                    </span>
+                  )}
+                  {entry.reviewedByEmail && (
+                    <span className="sm:col-span-2">
+                      <span className="font-medium text-slate-400">Staff:</span>{" "}
+                      {entry.reviewedByEmail}
+                    </span>
+                  )}
+                  {entry.requiresNewEvidence && (
+                    <span className="sm:col-span-2 text-amber-600 font-medium">
+                      ⚠ Yêu cầu nộp lại tài liệu minh chứng
+                    </span>
+                  )}
+                </div>
+
+                {entry.remarks && (
+                  <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+                      Nhận xét / Ghi chú
+                    </p>
+                    <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                      {entry.remarks}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Profile Drawer ─────────────────────────────────────────── */
+
+const EXPERTISE_LABEL: Record<string, string> = {
+  FUNDRAISING: "Gọi vốn",
+  PRODUCT_STRATEGY: "Chiến lược SP",
+  GO_TO_MARKET: "Go-to-market",
+  FINANCE: "Tài chính",
+  LEGAL_IP: "Pháp lý & SHTT",
+  OPERATIONS: "Vận hành",
+  TECHNOLOGY: "Công nghệ",
+  MARKETING: "Marketing",
+  HR_OR_TEAM_BUILDING: "Nhân sự",
+};
+
+const STAGE_LABEL: Record<string, string> = {
+  "0": "Idea", "1": "Pre-seed", "2": "Seed",
+  "3": "Series A", "4": "Series B", "5": "Series C", "6": "Growth",
+  Idea: "Idea", PreSeed: "Pre-seed", Seed: "Seed",
+  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C", Growth: "Growth",
+};
+
+const STARTUP_PROFILE_TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
+type StartupProfileTab = typeof STARTUP_PROFILE_TABS[number];
+
+const PROFILE_STAGE_LABELS: Record<string, string> = {
+  "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)",
+  "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
+  Idea: "Hạt giống (Idea)", PreSeed: "Tiền ươm mầm (Pre-Seed)", Seed: "Ươm mầm (Seed)",
+  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
+};
+
+function calcAdvisorDrawerCompleteness(advisor: IAdvisorDetail) {
+  const checks = [
+    Boolean(advisor.fullName?.trim()),
+    Boolean(advisor.title?.trim()),
+    Boolean(advisor.company?.trim()),
+    advisor.yearsOfExperience != null && advisor.yearsOfExperience >= 0,
+    Boolean(advisor.linkedInURL?.trim()),
+    Boolean(advisor.expertise?.length),
+    Boolean((advisor.biography || advisor.bio)?.trim()),
+    Boolean((advisor.mentorshipPhilosophy || advisor.philosophy)?.trim()),
+    advisor.hourlyRate > 0,
+    Boolean(advisor.supportedDurations?.length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function ProfileDrawer({ entityId, entityType, open, onClose }: {
+  entityId: number;
+  entityType: "ADVISOR" | "STARTUP" | "INVESTOR";
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = React.useState<"overview" | "expertise" | "contact">("overview");
+  const [startupTab, setStartupTab] = React.useState<StartupProfileTab>("Tổng quan");
+
+  const advisorQuery = useQuery({
+    queryKey: ["drawer-advisor", entityId],
+    queryFn: async () => { const r = await GetAdvisorById(entityId); return (r as any)?.data ?? r; },
+    enabled: open && entityType === "ADVISOR",
+  });
+
+  const startupQuery = useQuery({
+    queryKey: ["drawer-startup", entityId],
+    queryFn: async () => { const r = await GetStartupById(entityId); return (r as any)?.data ?? r; },
+    enabled: open && entityType === "STARTUP",
+  });
+
+  const investorQuery = useQuery({
+    queryKey: ["drawer-investor", entityId],
+    queryFn: async () => { const r = await GetInvestorById(entityId); return (r as any)?.data ?? r; },
+    enabled: open && entityType === "INVESTOR",
+  });
+
+  const isLoading = advisorQuery.isLoading || startupQuery.isLoading || investorQuery.isLoading;
+  const advisor = advisorQuery.data;
+  const startup = startupQuery.data;
+  const investor = investorQuery.data;
+
+  // Reset tab when entity changes
+  React.useEffect(() => {
+    setStartupTab("Tổng quan");
+  }, [entityId, entityType]);
+
+  const drawerTitle = entityType === "ADVISOR" ? "Hồ sơ Advisor"
+    : entityType === "STARTUP" ? "Hồ sơ Startup"
+    : "Hồ sơ Investor";
+
+  return (
+    <>
+      {/* Backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[55] backdrop-blur-sm"
+          onClick={onClose}
+        />
+      )}
+      {/* Full-screen modal panel */}
+      <div className={cn(
+        "fixed inset-0 z-[60] flex flex-col bg-white transition-all duration-300",
+        open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+      )}>
+        {/* Floating close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 rounded-xl bg-white/80 backdrop-blur-sm border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors shadow-sm"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Body — no dialog header, starts directly with content */}
+        <div className={cn("flex-1 min-h-0", entityType === "STARTUP" && startup ? "flex flex-col overflow-hidden" : "overflow-y-auto")}>
+          {isLoading && (
+            <div className="flex items-center justify-center h-40">
+              <p className="text-[13px] text-slate-400">Đang tải...</p>
+            </div>
+          )}
+
+          {!isLoading && !advisor && !startup && !investor && (
+            <div className="flex flex-col items-center justify-center gap-2 h-40 text-center px-6">
+              <p className="text-[14px] font-semibold text-slate-700">Chưa có hồ sơ</p>
+              <p className="text-[12px] text-slate-400">Người dùng chưa tạo hồ sơ hoặc xảy ra lỗi.</p>
+            </div>
+          )}
+
+          {/* ── ADVISOR ── */}
+          {entityType === "ADVISOR" && advisor && (
+            <StaffAdvisorProfileDrawerView advisor={advisor} />
+          )}
+
+          {false && entityType === "ADVISOR" && advisor && (() => {
+            const expertise: string[] = advisor.expertise ?? [];
+            const [primary, ...secondary] = expertise;
+            const isAvailable = advisor.availabilityHint === "Available";
+            return (
+              <div className="p-6 space-y-5">
+                {/* Hero */}
+                <div className="flex items-start gap-4">
+                  <div className={cn(
+                    "w-16 h-16 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center text-white font-bold text-[18px] shrink-0",
+                    !advisor.profilePhotoURL && "bg-gradient-to-br from-amber-400 to-amber-600"
+                  )}>
+                    {advisor.profilePhotoURL
+                      ? <img src={advisor.profilePhotoURL} alt={advisor.fullName} className="w-full h-full object-cover" />
+                      : <span>{advisor.fullName?.charAt(0)?.toUpperCase()}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h2 className="text-[17px] font-bold text-slate-900">{advisor.fullName}</h2>
+                      {advisor.isVerified && <BadgeCheck className="w-4 h-4 text-teal-500" />}
+                    </div>
+                    <p className="text-[12px] text-slate-500">{[advisor.title, advisor.company].filter(Boolean).join(" · ")}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {primary && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-100">
+                          <Star className="w-2.5 h-2.5" />{EXPERTISE_LABEL[primary] ?? primary}
+                        </span>
+                      )}
+                      {secondary.map((e) => (
+                        <span key={e} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-50 text-slate-600 border border-slate-100">
+                          {EXPERTISE_LABEL[e] ?? e}
+                        </span>
+                      ))}
+                      {advisor.yearsOfExperience != null && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-50 text-slate-500 border border-slate-100">
+                          <Clock className="w-2.5 h-2.5" />{advisor.yearsOfExperience} năm KN
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {/* Tabs */}
+                <div className="flex gap-1 border-b border-slate-100">
+                  {(["overview", "expertise", "contact"] as const).map((t) => (
+                    <button key={t} onClick={() => setTab(t)} className={cn(
+                      "px-3 py-1.5 text-[12px] font-medium rounded-t-lg transition-colors",
+                      tab === t ? "bg-[#0f172a] text-white" : "text-slate-500 hover:text-slate-700"
+                    )}>
+                      {t === "overview" ? "Tổng quan" : t === "expertise" ? "Chuyên môn" : "Liên hệ"}
+                    </button>
+                  ))}
+                </div>
+                {tab === "overview" && (
+                  <div className="space-y-4">
+                    {(advisor.biography || advisor.bio) && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Giới thiệu</p>
+                        <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">{advisor.biography || advisor.bio}</p>
+                      </div>
+                    )}
+                    {(advisor.mentorshipPhilosophy || advisor.philosophy) && (
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Triết lý cố vấn</p>
+                        <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-line">{advisor.mentorshipPhilosophy || advisor.philosophy}</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      {advisor.averageRating > 0 && (
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Đánh giá</p>
+                          <p className="text-[14px] font-bold text-slate-800">{advisor.averageRating.toFixed(1)} <span className="text-[11px] font-normal text-slate-400">({advisor.reviewCount})</span></p>
+                        </div>
+                      )}
+                      {advisor.completedSessions > 0 && (
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Phiên tư vấn</p>
+                          <p className="text-[14px] font-bold text-slate-800">{advisor.completedSessions}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className={cn(
+                      "flex items-center gap-2 p-3 rounded-xl text-[12px] font-medium",
+                      isAvailable ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"
+                    )}>
+                      <span className={cn("w-2 h-2 rounded-full", isAvailable ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+                      {isAvailable ? "Đang nhận mentee" : "Tạm ngưng nhận mentee"}
+                    </div>
+                  </div>
+                )}
+                {tab === "expertise" && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      {expertise.map((e, i) => (
+                        <span key={e} className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border",
+                          i === 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-600 border-slate-200"
+                        )}>
+                          {i === 0 && <Star className="w-3 h-3" />}{EXPERTISE_LABEL[e] ?? e}
+                          {i === 0 && <span className="text-[9px] opacity-60">(Chính)</span>}
+                        </span>
+                      ))}
+                    </div>
+                    {advisor.hourlyRate > 0 && (
+                      <div className="rounded-xl border border-slate-100 overflow-hidden">
+                        <div className="px-4 py-3 bg-slate-50 flex items-center justify-between">
+                          <span className="text-[12px] font-semibold text-slate-700">Mức phí</span>
+                          <span className="text-[15px] font-bold text-slate-900">{advisor.hourlyRate.toLocaleString("vi-VN")}đ/giờ</span>
+                        </div>
+                        <div className="divide-y divide-slate-100">
+                          {(advisor.supportedDurations ?? []).map((d: number) => {
+                            const price = Math.round((advisor.hourlyRate * d) / 60);
+                            return (
+                              <div key={d} className="px-4 py-2.5 flex justify-between text-[12px]">
+                                <span className="text-slate-500">{d} phút</span>
+                                <span className="font-semibold text-slate-800">{price.toLocaleString("vi-VN")}đ</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {tab === "contact" && (
+                  <div className="space-y-3">
+                    {advisor.linkedInURL && (
+                      <a href={advisor.linkedInURL} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-[13px] text-blue-600 hover:underline">
+                        <Linkedin className="w-3.5 h-3.5" />{advisor.linkedInURL}
+                      </a>
+                    )}
+                    {!advisor.linkedInURL && <p className="text-[13px] text-slate-400">Chưa có liên kết.</p>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── STARTUP ── */}
+          {entityType === "STARTUP" && startup && (() => {
+            const p = startup;
+            const displayStage = PROFILE_STAGE_LABELS[String(p.stage)] ?? p.stage ?? "—";
+            const displayIndustry = Array.isArray(p.industry) ? p.industry.join(", ") : (p.industry ?? p.industryName ?? "—");
+            const teamMembers: any[] = Array.isArray(p.teamMembers) ? p.teamMembers : Array.isArray(p.team) ? p.team : [];
+            const currentNeeds: string[] = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
+            const targetFunding = Number(p.fundingAmountSought) || 0;
+            const raisedAmount = Number(p.currentFundingRaised) || 0;
+            const fundingProgress = targetFunding > 0 ? Math.round((raisedAmount / targetFunding) * 100) : 0;
+
+            return (
+              <div className="flex flex-col h-full">
+                {/* Cover + Avatar header */}
+                <div className="relative shrink-0">
+                  <div className="h-40 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900" />
+                  <div className="max-w-5xl mx-auto px-10">
+                    <div className="flex items-end gap-5 -mt-12 pb-5">
+                      <div className={cn(
+                        "w-24 h-24 rounded-2xl border-4 border-white overflow-hidden flex items-center justify-center text-white font-bold text-[26px] shrink-0 shadow-lg",
+                        !p.logoURL && "bg-gradient-to-br from-blue-500 to-blue-600"
+                      )}>
+                        {p.logoURL
+                          ? <img src={p.logoURL} alt={p.companyName} className="w-full h-full object-cover" />
+                          : <span>{p.companyName?.charAt(0)?.toUpperCase()}</span>}
+                      </div>
+                      <div className="pb-2 flex-1 min-w-0">
+                        <h1 className="text-[24px] font-bold text-slate-900 leading-tight">{p.companyName}</h1>
+                        {p.tagline && <p className="text-[14px] text-slate-500 mt-0.5">{p.tagline}</p>}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {displayStage !== "—" && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-semibold bg-[#fdfbe9] text-[#171611] border border-[#e6cc4c]/40">
+                              {displayStage}
+                            </span>
+                          )}
+                          {displayIndustry !== "—" && (
+                            <span className="px-3 py-1 rounded-full text-[12px] font-medium bg-blue-50 text-blue-700 border border-blue-100">{displayIndustry}</span>
+                          )}
+                          {(p.marketScope || p.targetMarket) && (
+                            <span className="px-3 py-1 rounded-full text-[12px] font-medium bg-slate-100 text-slate-600 border border-slate-200">{p.marketScope ?? p.targetMarket}</span>
+                          )}
+                          {(p.location || p.country) && (
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[12px] font-medium bg-slate-50 text-slate-500 border border-slate-200">
+                              <MapPin className="w-3 h-3" />{[p.location, p.country].filter(Boolean).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="border-b border-slate-200 bg-white shrink-0">
+                  <div className="max-w-5xl mx-auto px-10 flex gap-1 overflow-x-auto no-scrollbar">
+                    {STARTUP_PROFILE_TABS.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setStartupTab(t)}
+                        className={cn(
+                          "px-4 py-3.5 text-[14px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors",
+                          startupTab === t ? "border-[#0f172a] text-[#0f172a]" : "border-transparent text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tab content */}
+                <div className="flex-1 overflow-y-auto bg-slate-50">
+                  <div className="max-w-5xl mx-auto px-10 py-7">
+
+                    {/* ── Tổng quan ── */}
+                    {startupTab === "Tổng quan" && (
+                      <div className="grid grid-cols-12 gap-5">
+                        <div className="col-span-12 lg:col-span-8 space-y-5">
+                          <div className="grid grid-cols-2 gap-4">
+                            {[
+                              { icon: AlertTriangle, label: "Vấn đề", text: p.problemStatement || "Chưa cập nhật", color: "text-rose-500" },
+                              { icon: Lightbulb, label: "Giải pháp", text: p.solutionSummary || "Chưa cập nhật", color: "text-amber-500" },
+                            ].map(({ icon: Icon, label, text, color }) => (
+                              <div key={label} className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <Icon className={cn("w-4 h-4", color)} />
+                                  <h3 className="text-[13px] font-semibold text-slate-700">{label}</h3>
+                                </div>
+                                <p className="text-[13px] text-slate-500 leading-relaxed">{text}</p>
+                              </div>
+                            ))}
+                          </div>
+                          {(p.description || p.oneLiner) && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-2">
+                              <h3 className="text-[13px] font-semibold text-slate-700">Mô tả chi tiết</h3>
+                              <p className="text-[13px] text-slate-500 leading-relaxed">{p.description || p.oneLiner}</p>
+                            </div>
+                          )}
+                          {currentNeeds.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Target className="w-4 h-4 text-slate-400" />
+                                <h3 className="text-[13px] font-semibold text-slate-700">Nhu cầu hiện tại</h3>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {currentNeeds.map((n: string) => (
+                                  <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="col-span-12 lg:col-span-4 space-y-4">
+                          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                            <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Thông tin nhanh</h3>
+                            {[
+                              { icon: Layers, label: "Giai đoạn", val: displayStage },
+                              { icon: Building2, label: "Ngành", val: displayIndustry },
+                              { icon: Globe, label: "Thị trường", val: p.marketScope || p.targetMarket || "—" },
+                              { icon: CheckCircle2, label: "Sản phẩm", val: p.productStatus || "—" },
+                              { icon: MapPin, label: "Địa điểm", val: [p.location, p.country].filter(Boolean).join(", ") || "—" },
+                            ].map(({ icon: Icon, label, val }) => (
+                              <div key={label} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                                  <Icon className="w-3.5 h-3.5 text-slate-400" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{label}</p>
+                                  <p className="text-[12px] font-medium text-slate-700 truncate">{val}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Kinh doanh ── */}
+                    {startupTab === "Kinh doanh" && (
+                      <div className="space-y-5">
+                        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                          <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+                            <Lightbulb className="w-4 h-4 text-amber-400" /> Vấn đề & Giải pháp
+                          </h3>
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-widest">Vấn đề</p>
+                            <p className="text-[13px] text-slate-600 leading-relaxed">{p.problemStatement || "—"}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[11px] text-slate-400 font-medium uppercase tracking-widest">Giải pháp</p>
+                            <p className="text-[13px] text-slate-600 leading-relaxed">{p.solutionSummary || "—"}</p>
+                          </div>
+                        </div>
+                        {currentNeeds.length > 0 && (
+                          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-3">
+                            <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+                              <Target className="w-4 h-4 text-slate-400" /> Nhu cầu hiện tại
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                              {currentNeeds.map((n: string) => (
+                                <span key={n} className="px-3 py-1.5 rounded-lg bg-[#fdfbe9] text-[#171611] text-[12px] font-medium border border-[#e6cc4c]/25">{n}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-4">
+                          {p.marketScope && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-1">
+                              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Phạm vi thị trường</p>
+                              <p className="text-[13px] font-medium text-slate-700">{p.marketScope}</p>
+                            </div>
+                          )}
+                          {p.productStatus && (
+                            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-1">
+                              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Trạng thái sản phẩm</p>
+                              <p className="text-[13px] font-medium text-slate-700">{p.productStatus}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Gọi vốn ── */}
+                    {startupTab === "Gọi vốn" && (
+                      <div className="space-y-5">
+                        {targetFunding > 0 || raisedAmount > 0 ? (
+                          <>
+                            <div className="grid grid-cols-3 gap-4">
+                              {[
+                                { label: "Giai đoạn", value: displayStage, icon: TrendingUp },
+                                { label: "Số vốn cần", value: targetFunding > 0 ? `$${targetFunding.toLocaleString()}` : "—", icon: DollarSign },
+                                { label: "Đã huy động", value: raisedAmount > 0 ? `$${raisedAmount.toLocaleString()}` : "—", icon: CheckCircle2 },
+                              ].map(({ label, value, icon: Icon }) => (
+                                <div key={label} className="bg-white rounded-2xl border border-slate-200/80 p-4">
+                                  <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center mb-3 border border-slate-100">
+                                    <Icon className="w-4 h-4 text-slate-400" />
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mb-1">{label}</p>
+                                  <p className="text-[18px] font-bold text-[#0f172a]">{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                            {targetFunding > 0 && (
+                              <div className="bg-white rounded-2xl border border-slate-200/80 p-5">
+                                <p className="text-[12px] font-medium text-slate-500 mb-3">Tiến độ huy động vốn</p>
+                                <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-[#e6cc4c] rounded-full" style={{ width: `${fundingProgress}%` }} />
+                                </div>
+                                <div className="flex justify-between mt-2">
+                                  <span className="text-[11px] text-slate-400">${raisedAmount.toLocaleString()} đã huy động</span>
+                                  <span className="text-[11px] text-slate-400">{fundingProgress}% · Mục tiêu ${targetFunding.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center">
+                            <DollarSign className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-[13px] text-slate-400">Chưa có thông tin gọi vốn.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Đội ngũ ── */}
+                    {startupTab === "Đội ngũ" && (
+                      <div className="space-y-5">
+                        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                          <h3 className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+                            <Users className="w-4 h-4 text-blue-500" /> Thành viên cốt cán ({teamMembers.length})
+                          </h3>
+                          <div className="divide-y divide-slate-100">
+                            {teamMembers.length > 0 ? teamMembers.map((m: any, idx: number) => (
+                              <div key={m.teamMemberID ?? m.id ?? idx} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                                <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                  {(m.photoURL || m.PhotoURL) ? (
+                                    <img src={m.photoURL ?? m.PhotoURL} alt={m.fullName ?? "Member"} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-slate-500 text-[13px] font-bold">
+                                      {(m.fullName ?? m.FullName ?? m.name ?? "?")[0]?.toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                    <p className="text-[14px] font-semibold text-slate-800">{m.fullName ?? m.FullName ?? m.name ?? "Thành viên"}</p>
+                                    {(m.isFounder || m.IsFounder) && (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-100/50 text-amber-700 text-[10px] font-bold border border-amber-200/50">FOUNDER</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[12px] text-slate-500 font-medium">
+                                    {[m.title ?? m.Title, m.role ?? m.Role].filter(Boolean).join(" · ")}
+                                    {Number(m.yearsOfExperience) > 0 ? ` · ${m.yearsOfExperience} năm` : ""}
+                                  </p>
+                                  {(m.bio || m.Bio) && <p className="text-[13px] text-slate-600 mt-1.5 leading-relaxed">{m.bio ?? m.Bio}</p>}
+                                </div>
+                              </div>
+                            )) : <p className="text-[13px] text-slate-400 italic">Chưa có thông tin thành viên.</p>}
+                          </div>
+                        </div>
+                        {p.enterpriseCode && (
+                          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-3">
+                            <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest">Pháp lý</h3>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-[12px] font-medium text-emerald-700">Đã đăng ký doanh nghiệp</span>
+                            </div>
+                            <p className="text-[13px] font-medium text-slate-700">MST: {p.enterpriseCode}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Liên hệ ── */}
+                    {startupTab === "Liên hệ" && (
+                      <div className="grid grid-cols-2 gap-5">
+                        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                          <h3 className="text-[13px] font-semibold text-slate-700">Liên hệ trực tiếp</h3>
+                          {p.contactEmail && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Email</p>
+                              <p className="text-[13px] font-medium text-slate-700">{p.contactEmail}</p>
+                            </div>
+                          )}
+                          {p.contactPhone && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Điện thoại</p>
+                              <p className="text-[13px] font-medium text-slate-700">{p.contactPhone}</p>
+                            </div>
+                          )}
+                          {(p.location || p.country) && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Địa chỉ</p>
+                              <p className="text-[13px] font-medium text-slate-700">{[p.location, p.country].filter(Boolean).join(", ")}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+                          <h3 className="text-[13px] font-semibold text-slate-700">Liên kết</h3>
+                          {p.website && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Website</p>
+                              <a href={p.website} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-blue-600 hover:underline break-all">{p.website}</a>
+                            </div>
+                          )}
+                          {p.linkedInURL && (
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">LinkedIn</p>
+                              <a href={p.linkedInURL} target="_blank" rel="noopener noreferrer" className="text-[13px] font-medium text-blue-600 hover:underline break-all">{p.linkedInURL}</a>
+                            </div>
+                          )}
+                          {!p.website && !p.linkedInURL && (
+                            <p className="text-[13px] text-slate-400">Chưa có liên kết.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── INVESTOR ── */}
+          {entityType === "INVESTOR" && investor && (
+            <StaffInvestorProfileDrawerView investor={investor} />
+          )}
+
+          {false && entityType === "INVESTOR" && investor && (
+            <div className="p-8 max-w-3xl mx-auto space-y-6">
+              {/* Hero */}
+              <div className="flex items-start gap-5">
+                <div className={cn(
+                  "w-20 h-20 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center text-white font-bold text-[22px] shrink-0",
+                  !investor.profilePhotoURL && "bg-gradient-to-br from-violet-500 to-violet-600"
+                )}>
+                  {investor.profilePhotoURL
+                    ? <img src={investor.profilePhotoURL} alt={investor.fullName} className="w-full h-full object-cover" />
+                    : <span>{investor.fullName?.charAt(0)?.toUpperCase()}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-[17px] font-bold text-slate-900">{investor.fullName}</h2>
+                  <p className="text-[12px] text-slate-500">{[investor.title, investor.firmName || investor.organization].filter(Boolean).join(" · ")}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {investor.investorType && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-violet-50 text-violet-700 border border-violet-100">{investor.investorType}</span>
+                    )}
+                    {investor.country && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-50 text-slate-500 border border-slate-100">
+                        <MapPin className="w-2.5 h-2.5" />{investor.country}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {investor.bio && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Giới thiệu</p>
+                  <p className="text-[13px] text-slate-600 leading-relaxed">{investor.bio}</p>
+                </div>
+              )}
+              {investor.investmentThesis && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Định hướng đầu tư</p>
+                  <p className="text-[13px] text-slate-600 leading-relaxed">{investor.investmentThesis}</p>
+                </div>
+              )}
+              {(investor.preferredStages?.length > 0 || investor.preferredIndustries?.length > 0) && (
+                <div className="space-y-3">
+                  {investor.preferredStages?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Giai đoạn ưu tiên</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {investor.preferredStages.map((s: string) => (
+                          <span key={s} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{STAGE_LABEL[s] ?? s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {investor.preferredIndustries?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Ngành ưu tiên</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {investor.preferredIndustries.map((ind: string) => (
+                          <span key={ind} className="px-2 py-0.5 rounded-md text-[11px] bg-slate-50 text-slate-600 border border-slate-100">{ind}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className={cn(
+                "flex items-center gap-2 p-3 rounded-xl text-[12px] font-medium",
+                investor.acceptingConnections ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-500"
+              )}>
+                <span className={cn("w-2 h-2 rounded-full", investor.acceptingConnections ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
+                {investor.acceptingConnections ? "Đang nhận kết nối" : "Tạm ngưng kết nối"}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function KYCDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
+  const router = useRouter();
+  const [profileDrawerOpen, setProfileDrawerOpen] = React.useState(false);
+  const queryClient = useQueryClient();
   const { id } = React.use(params);
   const realId = id.split("-")[1];
   const numericId = parseInt(realId);
 
   const [activeTab, setActiveTab] = useState<"INFO" | "HISTORY">("INFO");
   const [detectedSubtype, setDetectedSubtype] = useState<KYCSubtype>(getSubtypeById(id));
+
+  const historyEntityType = id.startsWith("ADVISOR-") ? "ADVISOR" : id.startsWith("INVESTOR-") ? "INVESTOR" : "STARTUP";
+  const { data: historyData } = useQuery<KycCaseHistoryEntryDto[]>({
+    queryKey: ["kyc-case-history", numericId, historyEntityType],
+    queryFn: async () => {
+      const res = await GetKYCCaseHistory(numericId, historyEntityType);
+      const envelope = res as unknown as IBackendRes<KycCaseHistoryEntryDto[]>;
+      return envelope.data ?? [];
+    },
+    enabled: !isNaN(numericId),
+    staleTime: 30_000,
+  });
 
   // Use React Query for data fetching
   const { data: rawData, isLoading: loading } = useQuery({
@@ -219,7 +1094,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
       } else if (id.startsWith("INVESTOR-")) {
         res = await GetPendingInvestorKycById(numericId);
       }
-      return (res as any)?.data;
+      const data = (res as any)?.data;
+      return data;
     },
     enabled: !!id && !isNaN(numericId),
     staleTime: 0,
@@ -660,12 +1536,17 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
 
   const isPreviewImage = useMemo(() => {
     if (!activePreviewDoc?.url) return false;
-    // Check MIME type first (reliable)
     if (activePreviewDoc.fileType?.startsWith("image/")) return true;
-    // Check filename extension from name field
     if (/\.(png|jpe?g|gif|bmp|svg|webp)$/i.test(activePreviewDoc.name || "")) return true;
-    // Check URL — may not have extension for Cloudinary raw URLs, so this is last resort
     return /\.(png|jpe?g|gif|bmp|svg|webp)(\?|$)/i.test(activePreviewDoc.url);
+  }, [activePreviewDoc]);
+
+  const isPreviewPdf = useMemo(() => {
+    if (!activePreviewDoc?.url) return false;
+    if (activePreviewDoc.fileType?.toLowerCase().includes("pdf")) return true;
+    if (/\.pdf(\?|$|\/)/i.test(activePreviewDoc.url)) return true;
+    if (/\.pdf$/i.test(activePreviewDoc.name || "")) return true;
+    return false;
   }, [activePreviewDoc]);
 
   if (loading) return (
@@ -706,7 +1587,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-400">
+    <div className="px-8 py-7 pb-16 space-y-5 animate-in fade-in duration-400">
       {/* Top Navigation */}
       <div className="flex items-center justify-between">
         <Link 
@@ -717,6 +1598,22 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
           Quay lại danh sách
         </Link>
         <div className="flex items-center gap-2">
+          {(id.startsWith("ADVISOR-") || id.startsWith("STARTUP-") || id.startsWith("INVESTOR-")) && (
+            <button
+              onClick={() => {
+                if (id.startsWith("STARTUP-")) {
+                  const profileId = rawData?.startupID ?? rawData?.startupId ?? numericId;
+                  router.push(`/staff/profiles/startup/${profileId}`);
+                } else {
+                  setProfileDrawerOpen(true);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[12px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Xem hồ sơ
+            </button>
+          )}
           <button className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 transition-all">
             <MoreVertical className="w-4 h-4" />
           </button>
@@ -745,7 +1642,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                 {result.hasHardFail && (
                   <span className="text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-md flex items-center gap-1">
                     <ShieldAlert className="w-3 h-3" />
-                    HARD FAIL
+                    Vi phạm nghiêm trọng
                   </span>
                 )}
               </div>
@@ -1205,14 +2102,16 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         alt={activePreviewDoc.name}
                         className="w-full h-full object-contain bg-white"
                       />
-                    ) : /\.(pdf)(\?|$)/i.test(activePreviewDoc.url) || activePreviewDoc.fileType === "application/pdf" ? (
+                    ) : isPreviewPdf ? (
                       <iframe
+                        key={activePreviewDoc.url}
                         title={activePreviewDoc.name}
                         src={activePreviewDoc.url}
                         className="w-full h-full bg-white"
                       />
                     ) : (
                       <iframe
+                        key={activePreviewDoc.url}
                         title={activePreviewDoc.name}
                         src={`https://docs.google.com/viewer?url=${encodeURIComponent(activePreviewDoc.url)}&embedded=true`}
                         className="w-full h-full bg-white"
@@ -1342,26 +2241,29 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                 Lịch sử xử lý
               </h3>
               <div className="relative">
-                {[
-                  { time: "2 giờ trước", action: "Người dùng nộp hồ sơ", actor: "Cá nhân/Tổ chức", isLatest: false },
-                  { time: "1 giờ trước", action: "AI Engine tự động chấm điểm", actor: "Hệ thống", isLatest: true },
-                ].map((entry, idx, arr) => {
-                  const isLast = idx === arr.length - 1;
-                  return (
-                    <div key={idx} className="flex gap-3 pb-5 last:pb-0">
-                      <div className="flex flex-col items-center">
-                        <div className={cn("w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 z-10",
-                          entry.isLatest ? "bg-[#eec54e]" : "bg-slate-300"
-                        )} />
-                        {!isLast && <div className="w-px flex-1 bg-slate-100 mt-1.5" />}
+                {!historyData || historyData.length === 0 ? (
+                  <p className="text-[12px] text-slate-400">Chưa có lịch sử xử lý.</p>
+                ) : (
+                  historyData.map((entry, idx) => {
+                    const isLast = idx === historyData.length - 1;
+                    const cfg = ACTION_CFG[entry.action] ?? ACTION_CFG.UNDER_REVIEW;
+                    return (
+                      <div key={idx} className="flex gap-3 pb-5 last:pb-0">
+                        <div className="flex flex-col items-center">
+                          <div className={cn("w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 z-10", cfg.dot)} />
+                          {!isLast && <div className="w-px flex-1 bg-slate-100 mt-1.5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] text-slate-700 font-medium leading-tight">{cfg.label}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {entry.reviewedByEmail || "Hệ thống"}
+                            {entry.reviewedAt ? ` · ${formatHistoryDate(entry.reviewedAt)}` : entry.submittedAt ? ` · ${formatHistoryDate(entry.submittedAt)}` : ""}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[13px] text-slate-700 font-medium leading-tight">{entry.action}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{entry.actor} · {entry.time}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -1391,23 +2293,21 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-16 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto transition-all group-hover:scale-110">
-            <History className="w-6 h-6 text-slate-300" />
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold text-slate-500">Dữ liệu lịch sử đang được tải...</p>
-            <p className="text-[13px] text-slate-400">Bạn sẽ thấy chi tiết các bước xử lý tại đây.</p>
-          </div>
-        </div>
+        <HistoryTab entityId={numericId} entityType={id.startsWith("ADVISOR-") ? "ADVISOR" : id.startsWith("INVESTOR-") ? "INVESTOR" : "STARTUP"} />
       )}
 
       {/* Decision Modal */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden animate-in zoom-in-95 duration-200">
-             <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent
+          showCloseButton={false}
+          className="max-w-md gap-0 overflow-hidden rounded-2xl border-none p-0 shadow-xl"
+        >
+          <div className="p-6 space-y-3">
+                <DialogTitle className="sr-only">Xác nhận phê duyệt</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Xác nhận áp dụng nhãn đánh giá cho hồ sơ hiện tại.
+                </DialogDescription>
+                <div className="flex items-center justify-between">
                   <h3 className="text-[15px] font-semibold text-slate-900">Xác nhận phê duyệt</h3>
                   <button onClick={() => setShowConfirm(false)} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
                     <XCircle className="w-4 h-4 text-slate-400" />
@@ -1418,7 +2318,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                   Bạn đang chuẩn bị áp dụng nhãn <span className="font-bold text-slate-900 border-b border-[#eec54e]">{result.suggestedLabel}</span> cho hồ sơ <span className="font-bold text-slate-900">{entityName}</span>.
                 </p>
 
-                <div className="mt-6 p-4 rounded-xl bg-[#0f172a] text-white flex items-center justify-between shadow-lg shadow-black/5">
+                <div className="p-4 rounded-xl bg-[#0f172a] text-white flex items-center justify-between shadow-lg shadow-black/5">
                    <div>
                      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Điểm số</p>
                      <p className="text-[24px] font-bold mt-0.5 tracking-tight">{result.totalScore}</p>
@@ -1432,9 +2332,8 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                      </span>
                    </div>
                 </div>
-             </div>
-             
-             <div className="px-6 py-4 bg-slate-50 flex items-center justify-end gap-3">
+
+                <div className="flex items-center justify-end gap-3">
                <button onClick={() => setShowConfirm(false)} className="px-4 py-2 text-[13px] font-medium text-slate-500 hover:text-slate-900 transition-colors">
                  Hủy bỏ
                </button>
@@ -1470,7 +2369,7 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                             else await RejectAdvisorRegistration(staffId, numericId, internalNote || "Không đạt", effectiveRequiresNewEvidence);
                         } else if (id.startsWith("INVESTOR-")) {
                             const isInst = subtype === "INSTITUTIONAL_INVESTOR";
-                            if (isApprove) await ApproveInvestorRegistration(staffId, numericId, result.totalScore, isInst);
+                            if (isApprove) await ApproveInvestorRegistration(staffId, numericId, result.totalScore, isInst, internalNote || undefined);
                             else await RejectInvestorRegistration(staffId, numericId, internalNote || "Không đạt", effectiveRequiresNewEvidence);
                         }
 
@@ -1479,6 +2378,18 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                         queryClient.invalidateQueries({ queryKey: ["kyc-pending-startups"] });
                         queryClient.invalidateQueries({ queryKey: ["kyc-pending-advisors"] });
                         queryClient.invalidateQueries({ queryKey: ["kyc-pending-investors"] });
+                        queryClient.invalidateQueries({ queryKey: ["kyc-history"] });
+                        queryClient.invalidateQueries({
+                          queryKey: [
+                            "kyc-case-history",
+                            numericId,
+                            id.startsWith("ADVISOR-")
+                              ? "ADVISOR"
+                              : id.startsWith("INVESTOR-")
+                                ? "INVESTOR"
+                                : "STARTUP",
+                          ],
+                        });
                         setIsSuccess(true);
                         setShowConfirm(false);
                     } catch (err: any) {
@@ -1501,13 +2412,20 @@ export default function KYCDetailPage({ params }: { params: Promise<{ id: string
                >
                  {result.suggestedDecision === "APPROVE" ? "Phê duyệt" : "Từ chối"} hồ sơ
                </button>
-             </div>
+                </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
+      <ProfileDrawer
+        entityId={
+          id.startsWith("STARTUP-") ? (rawData?.startupID ?? rawData?.startupId ?? numericId)
+          : id.startsWith("ADVISOR-") ? (rawData?.advisorID ?? rawData?.advisorId ?? numericId)
+          : (rawData?.investorID ?? rawData?.investorId ?? numericId)
+        }
+        entityType={id.startsWith("ADVISOR-") ? "ADVISOR" : id.startsWith("INVESTOR-") ? "INVESTOR" : "STARTUP"}
+        open={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+      />
     </div>
   );
 }
-
-
-

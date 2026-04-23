@@ -18,6 +18,7 @@ import {
   UpdateAdvisorProfile,
   GetAdvisorProfile,
   UpdateAdvisorAvailability,
+  buildAdvisorProfileFormData,
 } from "@/services/advisor/advisor.api";
 import { GetKYCStatus as GetAdvisorKYCStatus } from "@/services/advisor/advisor-kyc.api";
 
@@ -59,6 +60,20 @@ function calcCompleteness(f: {
     !f.isBookable || (f.supportedDurations.length > 0),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function hasBothMeetingLinks(googleMeetLink?: string | null, msTeamsLink?: string | null) {
+  return Boolean(googleMeetLink?.trim()) && Boolean(msTeamsLink?.trim());
+}
+
+function extractIsAcceptingNewMentees(profile: any, fallback: boolean) {
+  if (typeof profile?.availability?.isAcceptingNewMentees === "boolean") {
+    return profile.availability.isAcceptingNewMentees;
+  }
+  if (typeof profile?.isAcceptingNewMentees === "boolean") {
+    return profile.isAcceptingNewMentees;
+  }
+  return fallback;
 }
 
 /* ─── Sub-components ─────────────────────────────────────────── */
@@ -167,7 +182,7 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
               mentorshipPhilosophy: d.mentorshipPhilosophy || "",
               googleMeetLink: d.googleMeetLink || "",
               msTeamsLink: d.msTeamsLink || "",
-              isBookable: d.hourlyRate ? true : false,
+              isBookable: extractIsAcceptingNewMentees(d, Boolean(d.hourlyRate)),
               hourlyRate: d.hourlyRate ?? null,
               supportedDurations: Array.from(new Set(apiDurations.map((v: any) => Number(v))) as Set<number>).sort((a: number, b: number) => a - b),
             });
@@ -247,11 +262,15 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
     }
 
     setIsSaving(true);
+    const normalizedExperienceYears =
+      typeof form.yearsOfExperience === "number" && Number.isFinite(form.yearsOfExperience)
+        ? Math.min(60, Math.max(0, Math.trunc(form.yearsOfExperience)))
+        : null;
     const payload = {
       title: form.title || undefined,
       company: form.company || undefined,
       bio: form.bio || undefined,
-      experienceYears: form.yearsOfExperience ?? undefined,
+      experienceYears: normalizedExperienceYears ?? undefined,
       website: form.website || undefined,
       linkedInURL: formattedLinkedIn || undefined,
       googleMeetLink: form.googleMeetLink || undefined,
@@ -260,7 +279,7 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
       profilePhotoFile: profilePhoto ?? undefined,
       items: primaryExpertise
         ? [
-            { category: primaryExpertise, yearsOfExperience: form.yearsOfExperience },
+            { category: primaryExpertise, yearsOfExperience: normalizedExperienceYears },
             ...secondaryExpertises.map(c => ({ category: c }))
           ]
         : [],
@@ -272,12 +291,13 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
       },
       advisorIndustryFocus: savedIndustries.map((item: any) => ({ industryId: item.industryId })),
     };
+    const formData = buildAdvisorProfileFormData(form.name, payload);
     try {
       let res: any;
       if (hasProfile) {
-        res = await UpdateAdvisorProfile(form.name, payload);
+        res = await UpdateAdvisorProfile(formData);
       } else {
-        res = await CreateAdvisorProfile(form.name, payload);
+        res = await CreateAdvisorProfile(formData);
       }
 
       if (res && res.isSuccess === false) {
@@ -288,6 +308,13 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
       }
 
       setHasProfile(true);
+      const responseData = res?.data ?? null;
+      if (responseData) {
+        setForm(prev => ({
+          ...prev,
+          isBookable: extractIsAcceptingNewMentees(responseData, prev.isBookable),
+        }));
+      }
       toast.success("Lưu hồ sơ thành công");
       router.push("/advisor/profile");
     } catch (error: any) {
@@ -302,6 +329,10 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
   const isKycVerified = kycWorkflowStatus === "VERIFIED";
   const handleToggleAvailability = async () => {
     if (!isKycVerified) return;
+    if (!form.isBookable && !hasBothMeetingLinks(form.googleMeetLink, form.msTeamsLink)) {
+      toast.error("Bạn cần điền đủ Google Meet link và MS Teams link trước khi bật nhận yêu cầu tư vấn.");
+      return;
+    }
     
     // Optimistic UI
     const prev = form.isBookable;
@@ -316,6 +347,8 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
         if (errorCode === "ADVISOR_KYC_NOT_APPROVED") {
           setKycWorkflowStatus(null); // invalidate local gate
           toast.error("KYC chưa được duyệt — không thể thay đổi trạng thái nhận tư vấn.");
+        } else if (errorCode === "MEETING_LINKS_REQUIRED") {
+          toast.error("Bạn cần điền đủ Google Meet link và MS Teams link trước khi bật nhận yêu cầu tư vấn.");
         } else {
           const errorMsg = res.message || res.data?.[0]?.messages?.[0] || "Không thể bật nhận tư vấn";
           toast.error(`Lỗi: ${errorMsg}`);
@@ -329,6 +362,8 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
       if (errorCode === "ADVISOR_KYC_NOT_APPROVED") {
         setKycWorkflowStatus(null);
         toast.error("KYC chưa được duyệt — không thể thay đổi trạng thái nhận tư vấn.");
+      } else if (errorCode === "MEETING_LINKS_REQUIRED") {
+        toast.error("Bạn cần điền đủ Google Meet link và MS Teams link trước khi bật nhận yêu cầu tư vấn.");
       } else {
         toast.error(e?.response?.data?.message || "Có lỗi xảy ra khi thay đổi trạng thái khả dụng.");
       }
@@ -806,6 +841,9 @@ function AdvisorProfileClientInner({ initialEditing = false }: { initialEditing?
                     value={form.yearsOfExperience ?? ""}
                     onKeyDown={e => {
                       if (["e", "E", "+", "-", "."].includes(e.key)) e.preventDefault();
+                    }}
+                    onWheel={e => {
+                      e.currentTarget.blur();
                     }}
                     onChange={e => {
                       let val = e.target.value === "" ? null : parseInt(e.target.value, 10);

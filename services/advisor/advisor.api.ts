@@ -16,12 +16,13 @@ export interface ServicePricingDto {
   supportedDurations: number[];
 }
 
-interface AdvisorProfileOptionalFields {
+export interface AdvisorProfileOptionalFields {
   title?: string | null;
   company?: string | null;
   bio?: string | null;
   profilePhotoFile?: File | null;
   experienceYears?: number | null;
+  yearsOfExperience?: number | null;
   website?: string | null;
   linkedInURL?: string | null;
   googleMeetLink?: string | null;
@@ -32,11 +33,14 @@ interface AdvisorProfileOptionalFields {
   advisorIndustryFocus?: { industryId: number }[];
 }
 
-const buildAdvisorFormData = (
+export const buildAdvisorProfileFormData = (
   fullName: string,
   options: AdvisorProfileOptionalFields = {},
 ): FormData => {
   const formData = new FormData();
+  const normalizedExperienceYears = normalizeExperienceYears(
+    options.experienceYears ?? options.yearsOfExperience
+  );
 
   // Required
   formData.append("FullName", fullName);
@@ -45,8 +49,8 @@ const buildAdvisorFormData = (
   if (options.title) formData.append("Title", options.title);
   if (options.company) formData.append("Company", options.company);
   if (options.bio) formData.append("Bio", options.bio);
-  if (options.experienceYears !== undefined && options.experienceYears !== null) {
-    formData.append("YearsOfExperience", String(options.experienceYears));
+  if (normalizedExperienceYears !== null) {
+    formData.append("YearsOfExperience", String(normalizedExperienceYears));
   }
   if (options.website) formData.append("Website", options.website);
   if (options.linkedInURL) formData.append("LinkedInURL", options.linkedInURL);
@@ -87,12 +91,30 @@ const buildAdvisorFormData = (
   return formData;
 };
 
+function normalizeExperienceYears(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : Number.NaN;
+
+  if (!Number.isFinite(parsed)) return null;
+
+  const normalized = Math.trunc(parsed);
+  if (normalized < 0) return 0;
+  if (normalized > 60) return 60;
+  return normalized;
+}
+
 // CreateAdvisorRequest (multipart/form-data)
 export const CreateAdvisorProfile = (
   data: string | FormData,
   options: AdvisorProfileOptionalFields = {},
 ) => {
-  const formData = data instanceof FormData ? data : buildAdvisorFormData(data, options);
+  const formData = data instanceof FormData ? data : buildAdvisorProfileFormData(data, options);
 
   return axios.post(`/api/advisors`, formData, {
     headers: {
@@ -110,7 +132,7 @@ export const UpdateAdvisorProfile = (
   data: string | FormData,
   options: AdvisorProfileOptionalFields = {},
 ) => {
-  const formData = data instanceof FormData ? data : buildAdvisorFormData(data, options);
+  const formData = data instanceof FormData ? data : buildAdvisorProfileFormData(data, options);
 
   return axios.put(`/api/advisors/me`, formData, {
     headers: {
@@ -291,4 +313,3 @@ export const AcceptMentorshipSession = (mentorshipId: string | number, sessionId
     `/api/mentorships/${mentorshipId}/sessions/${sessionId}/accept`
   );
 };;
-

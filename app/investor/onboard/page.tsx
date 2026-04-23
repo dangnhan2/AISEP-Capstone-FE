@@ -20,6 +20,7 @@ import {
 import { CreateInvestorProfile, UpdateInvestorPreferences, UploadInvestorPhoto } from "@/services/investor/investor.api";
 import { IInvestorKYCStatus, IInvestorOnboardData } from "@/types/investor-kyc";
 import { normalizeInvestorPreferredStages } from "@/lib/investor-preferred-stages";
+import { writeInvestorKycCategorySession } from "@/lib/investor-kyc-category-session";
 
 const TIMELINE_STEPS = [
   { n: 1, label: "Thông tin cơ bản" },
@@ -77,6 +78,10 @@ export default function InvestorOnboardingPage() {
       // 404 = investor profile chưa tồn tại (expected cho tài khoản mới) → bỏ qua
     });
   }, []);
+
+  useEffect(() => {
+    writeInvestorKycCategorySession(formData.investorCategory);
+  }, [formData.investorCategory]);
 
   const validate = () => {
     const e: Record<string, string> = {};

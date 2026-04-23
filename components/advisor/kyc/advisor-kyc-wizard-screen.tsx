@@ -8,10 +8,16 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { KYCWizard } from "@/components/advisor/kyc/kyc-wizard";
-import { GetAdvisorKYCStatus, SaveAdvisorKYCDraft, SubmitAdvisorKYC } from "@/services/advisor/advisor.api";
+import { GetAdvisorKYCStatus, GetAdvisorProfile, SaveAdvisorKYCDraft, SubmitAdvisorKYC } from "@/services/advisor/advisor.api";
 import { IAdvisorKYCStatus, IAdvisorKYCSubmission } from "@/types/advisor-kyc";
 
 type AdvisorKycWizardMode = "submit" | "resubmit";
+type AdvisorKycPrefillProfile = Partial<IAdvisorProfile> & {
+  company?: string;
+  yearsOfExperience?: number | null;
+  expertise?: string[];
+  linkedInURL?: string;
+};
 
 async function fetchAdvisorKycStatus(): Promise<IAdvisorKYCStatus> {
   const res = await GetAdvisorKYCStatus();
@@ -20,6 +26,19 @@ async function fetchAdvisorKycStatus(): Promise<IAdvisorKYCStatus> {
     return data.data;
   }
   throw new Error("Failed to fetch advisor KYC status");
+}
+
+async function fetchAdvisorProfile(): Promise<AdvisorKycPrefillProfile | null> {
+  try {
+    const res = await GetAdvisorProfile();
+    if ((res.success || res.isSuccess) && res.data) {
+      return res.data as AdvisorKycPrefillProfile;
+    }
+  } catch {
+    // KYC form should still work without profile prefill.
+  }
+
+  return null;
 }
 
 function mapAdvisorDraftPayload(data: Partial<IAdvisorKYCSubmission>) {
@@ -44,6 +63,11 @@ export function AdvisorKycWizardScreen({ mode }: { mode: AdvisorKycWizardMode })
     queryFn: fetchAdvisorKycStatus,
     staleTime: 0,
     refetchInterval: 10000,
+  });
+  const { data: profile, isLoading: isProfileLoading } = useQuery({
+    queryKey: ["advisor-profile", "kyc-prefill"],
+    queryFn: fetchAdvisorProfile,
+    staleTime: 0,
   });
 
   const submitMutation = useMutation({
@@ -87,7 +111,7 @@ export function AdvisorKycWizardScreen({ mode }: { mode: AdvisorKycWizardMode })
     router.replace("/advisor/kyc/status");
   }, [mode, router, status]);
 
-  if (isLoading) {
+  if (isLoading || isProfileLoading) {
     return (
       <AdvisorShell>
         <div className="flex items-center justify-center py-32">
@@ -125,6 +149,7 @@ export function AdvisorKycWizardScreen({ mode }: { mode: AdvisorKycWizardMode })
 
         <KYCWizard
           initialStatus={status}
+          initialProfile={profile}
           isResubmit={mode === "resubmit"}
           onCancel={() => router.push(backHref)}
           onSubmit={async (formData) => {

@@ -8,7 +8,7 @@ import {
   ChevronRight, AlertCircle, Check, Loader2,
   AlertTriangle
 } from "lucide-react";
-import { CreateAdvisorProfile, UpdateAdvisorProfile, GetAdvisorProfile } from "@/services/advisor/advisor.api";
+import { CreateAdvisorProfile, UpdateAdvisorProfile, GetAdvisorProfile, buildAdvisorProfileFormData } from "@/services/advisor/advisor.api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AuthGuard } from "@/components/auth-guard";
@@ -48,6 +48,11 @@ type FormState = {
   mentorshipPhilosophy: string;
 };
 
+type BackendValidationItem = {
+  field?: string;
+  messages?: string[];
+};
+
 function calcCompleteness(f: FormState): number {
   const checks = [
     Boolean(f.fullName.trim()),
@@ -60,6 +65,34 @@ function calcCompleteness(f: FormState): number {
     Boolean(f.mentorshipPhilosophy.trim()),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+function isValidPublicUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function mapBackendFieldToFormKey(field?: string): string | null {
+  if (!field) return null;
+
+  const normalized = field.toLowerCase();
+  const fieldMap: Record<string, string> = {
+    fullname: "fullName",
+    title: "title",
+    company: "company",
+    yearsofexperience: "yearsOfExperience",
+    website: "website",
+    linkedinurl: "linkedinUrl",
+    bio: "bio",
+    mentorshipphilosophy: "mentorshipPhilosophy",
+    expertise: "primaryExpertise",
+  };
+
+  return fieldMap[normalized] ?? null;
 }
 
 /* ─── Page ───────────────────────────────────────────────────── */
@@ -120,9 +153,16 @@ export default function AdvisorOnboardingPage() {
       if (res?.isSuccess && res.data) {
         const d = res.data;
         const items: any[] = Array.isArray(d.items) ? d.items : [];
+        const expertise: string[] = Array.isArray(d.expertise) ? d.expertise.filter(Boolean) : [];
+        const primaryExpertise = expertise[0] || items[0]?.category || "";
+        const secondaryExpertises = (expertise.length > 1
+          ? expertise.slice(1, 4)
+          : items.slice(1, 4).map((i: any) => i.category)
+        ).filter(Boolean);
 
-        const filled = [d.fullName, d.title, d.company, items[0]?.category, d.bio, d.mentorshipPhilosophy]
-          .every(Boolean) && (d.website || d.linkedInURL) && items[0]?.yearsOfExperience !== undefined;
+        const yearsOfExperience = d.yearsOfExperience ?? items[0]?.yearsOfExperience ?? null;
+        const filled = [d.fullName, d.title, d.company, primaryExpertise, d.bio, d.mentorshipPhilosophy]
+          .every(Boolean) && (d.website || d.linkedInURL) && yearsOfExperience !== null && yearsOfExperience !== undefined;
         
         // Removal of API-based automatic redirection to allow shell to handle it
         /*
@@ -134,15 +174,21 @@ export default function AdvisorOnboardingPage() {
         */
 
         // INCOMPLETE → pre-fill form
+        if (filled) {
+          localStorage.setItem("aisep_advisor_onboarding_completed", "true");
+          router.replace("/advisor");
+          return;
+        }
+
         setForm({
           fullName: d.fullName || "",
           title: d.title || "",
           company: d.company || "",
-          yearsOfExperience: d.experienceYears ?? items[0]?.yearsOfExperience ?? null,
+          yearsOfExperience,
           website: d.website || "",
           linkedinUrl: d.linkedInURL || "",
-          primaryExpertise: items[0]?.category || "",
-          secondaryExpertises: items.slice(1, 4).map((i: any) => i.category).filter(Boolean),
+          primaryExpertise,
+          secondaryExpertises,
           bio: d.bio || "",
           mentorshipPhilosophy: d.mentorshipPhilosophy || "",
         });
@@ -190,10 +236,10 @@ export default function AdvisorOnboardingPage() {
       e.yearsOfExperience = "Vui lòng nhập số năm kinh nghiệm hợp lệ (0–60)";
     if (!form.website.trim() && !form.linkedinUrl.trim())
       e.publicLink = "Vui lòng cung cấp ít nhất một liên kết công khai";
-    if (form.website.trim() && !form.website.startsWith("http"))
-      e.website = "Website phải bắt đầu bằng https://";
-    if (form.linkedinUrl.trim() && !form.linkedinUrl.startsWith("http"))
-      e.linkedinUrl = "LinkedIn URL phải bắt đầu bằng https://";
+    if (form.website.trim() && !isValidPublicUrl(form.website.trim()))
+      e.website = "Website phải là URL hợp lệ";
+    if (form.linkedinUrl.trim() && !isValidPublicUrl(form.linkedinUrl.trim()))
+      e.linkedinUrl = "LinkedIn URL phải là URL hợp lệ";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -220,12 +266,17 @@ export default function AdvisorOnboardingPage() {
   const handleSubmit = async () => {
     if (!validateStep2()) return;
     setIsSubmitting(true);
+    clearErr("submit");
     try {
       const fullName = form.fullName;
+      const normalizedExperienceYears =
+        typeof form.yearsOfExperience === "number" && Number.isFinite(form.yearsOfExperience)
+          ? Math.min(60, Math.max(0, Math.trunc(form.yearsOfExperience)))
+          : null;
       const options = {
         title: form.title || undefined,
         company: form.company || undefined,
-        experienceYears: form.yearsOfExperience ?? undefined,
+        experienceYears: normalizedExperienceYears ?? undefined,
         website: form.website || undefined,
         bio: form.bio || undefined,
         linkedInURL: form.linkedinUrl || undefined,
@@ -233,14 +284,15 @@ export default function AdvisorOnboardingPage() {
         profilePhotoFile: profilePhoto ?? undefined,
         items: form.primaryExpertise
           ? [
-              { category: form.primaryExpertise, yearsOfExperience: form.yearsOfExperience },
+              { category: form.primaryExpertise, yearsOfExperience: normalizedExperienceYears },
               ...form.secondaryExpertises.map(c => ({ category: c }))
             ]
           : [],
       };
+      const formData = buildAdvisorProfileFormData(fullName, options);
       const res = hasProfile
-        ? await UpdateAdvisorProfile(fullName, options)
-        : await CreateAdvisorProfile(fullName, options);
+        ? await UpdateAdvisorProfile(formData)
+        : await CreateAdvisorProfile(formData);
       if (res.isSuccess !== false) {
         localStorage.setItem("aisep_advisor_onboarding_completed", "true");
         toast.success(hasProfile ? "Hồ sơ đã được cập nhật!" : "Hồ sơ đã được tạo thành công!");
@@ -249,7 +301,42 @@ export default function AdvisorOnboardingPage() {
         toast.error((res as any).message || "Lưu hồ sơ thất bại, vui lòng thử lại.");
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Đã có lỗi xảy ra, vui lòng thử lại.");
+      const backendData = err?.response?.data;
+      const validationItems: BackendValidationItem[] = Array.isArray(backendData?.data)
+        ? backendData.data
+        : [];
+
+      if (validationItems.length > 0) {
+        const nextErrors: Record<string, string> = {};
+        let shouldReturnToStep1 = false;
+
+        validationItems.forEach((item) => {
+          const formKey = mapBackendFieldToFormKey(item.field);
+          const message = item.messages?.[0];
+          if (!formKey || !message || nextErrors[formKey]) return;
+          nextErrors[formKey] = message;
+          if (["fullName", "title", "company", "yearsOfExperience", "website", "linkedinUrl", "publicLink"].includes(formKey)) {
+            shouldReturnToStep1 = true;
+          }
+        });
+
+        if (Object.keys(nextErrors).length > 0) {
+          setErrors((prev) => ({ ...prev, ...nextErrors }));
+          if (shouldReturnToStep1) {
+            setStep(1);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+          toast.error(Object.values(nextErrors)[0]);
+        } else {
+          const fallbackMessage = validationItems[0]?.messages?.[0] || backendData?.message || "Đã có lỗi xảy ra, vui lòng thử lại.";
+          setErrors((prev) => ({ ...prev, submit: fallbackMessage }));
+          toast.error(fallbackMessage);
+        }
+      } else {
+        const fallbackMessage = backendData?.message || "Đã có lỗi xảy ra, vui lòng thử lại.";
+        setErrors((prev) => ({ ...prev, submit: fallbackMessage }));
+        toast.error(fallbackMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -459,6 +546,9 @@ export default function AdvisorOnboardingPage() {
                   <input
                     type="number"
                     value={form.yearsOfExperience ?? ""}
+                    onWheel={e => {
+                      e.currentTarget.blur();
+                    }}
                     onChange={e => { set("yearsOfExperience", e.target.value === "" ? null : parseInt(e.target.value)); clearErr("yearsOfExperience"); }}
                     placeholder="8"
                     min="0" max="60"

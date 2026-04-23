@@ -23,13 +23,26 @@ const EXPERTISE_OPTIONS = [
   { value: "HR_OR_TEAM_BUILDING", label: "Nhân sự" },
 ];
 
-const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"];
-const MAX_MB = 5;
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+const MAX_MB = 10;
 
 /* ─── Props ──────────────────────────────────────────────────── */
 
 interface KYCWizardProps {
   initialStatus: IAdvisorKYCStatus;
+  initialProfile?: Partial<IAdvisorProfile> & {
+    company?: string;
+    expertise?: string[];
+    linkedInURL?: string;
+  } | null;
   isResubmit?: boolean;
   onCancel: () => void;
   onSubmit: (data: FormData) => Promise<void>;
@@ -38,30 +51,67 @@ interface KYCWizardProps {
 
 /* ─── Helper ─────────────────────────────────────────────────── */
 
-function buildInitialForm(status: IAdvisorKYCStatus, isResubmit: boolean): Partial<IAdvisorKYCSubmission> {
+function buildInitialForm(
+  status: IAdvisorKYCStatus,
+  isResubmit: boolean,
+  profile?: (Partial<IAdvisorProfile> & {
+    company?: string;
+    expertise?: string[];
+    linkedInURL?: string;
+  }) | null,
+): Partial<IAdvisorKYCSubmission> {
   // Khi resubmit: ưu tiên currentSubmission (mới nhất) > previousSubmission (cũ) > draftData
   const src = isResubmit 
     ? (status.currentSubmission || status.previousSubmission) 
     : (status.draftData || status.currentSubmission);
+  const pickText = (...values: Array<string | undefined | null>) => {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    return "";
+  };
+  const pickStringArray = (...values: Array<string[] | undefined | null>) => {
+    for (const value of values) {
+      if (Array.isArray(value) && value.length > 0) return value;
+    }
+    return [];
+  };
+  const splitExpertise = (value?: string | null) =>
+    typeof value === "string"
+      ? value.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+  const expertise = Array.isArray(profile?.expertise) ? profile.expertise.filter(Boolean) : [];
+  const profilePrimaryExpertise = expertise[0] ?? "";
+  const profileSecondaryExpertise = expertise.slice(1, 4);
+  const normalizedPrimaryExpertiseParts = splitExpertise(src?.primaryExpertise);
+  const normalizedPrimaryExpertise = normalizedPrimaryExpertiseParts[0] ?? "";
+  const normalizedSecondaryFromPrimary = normalizedPrimaryExpertiseParts.slice(1, 4);
   return {
-    fullName: src?.fullName ?? status.submissionSummary?.fullName ?? "",
+    fullName: pickText(src?.fullName, status.submissionSummary?.fullName, profile?.fullName),
     contactEmail: src?.contactEmail ?? "",
     declarationAccepted: src?.declarationAccepted ?? false,
-    currentRoleTitle: src?.currentRoleTitle ?? "",
-    currentOrganization: src?.currentOrganization ?? "",
-    primaryExpertise: src?.primaryExpertise ?? "",
-    secondaryExpertise: src?.secondaryExpertise ?? [],
-    professionalProfileLink: src?.professionalProfileLink ?? "",
+    currentRoleTitle: pickText(src?.currentRoleTitle, profile?.title),
+    currentOrganization: pickText(src?.currentOrganization, profile?.company),
+    primaryExpertise: pickText(normalizedPrimaryExpertise, profilePrimaryExpertise),
+    secondaryExpertise: pickStringArray(src?.secondaryExpertise, normalizedSecondaryFromPrimary, profileSecondaryExpertise),
+    professionalProfileLink: pickText(src?.professionalProfileLink, profile?.linkedInURL),
   };
 }
 
 /* ─── Component ──────────────────────────────────────────────── */
 
-export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmit, onSaveStep }: KYCWizardProps) {
+export function KYCWizard({
+  initialStatus,
+  initialProfile,
+  isResubmit = false,
+  onCancel,
+  onSubmit,
+  onSaveStep,
+}: KYCWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [formData, setFormData] = useState<Partial<IAdvisorKYCSubmission>>(() => buildInitialForm(initialStatus, isResubmit));
+  const [formData, setFormData] = useState<Partial<IAdvisorKYCSubmission>>(() => buildInitialForm(initialStatus, isResubmit, initialProfile));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -75,6 +125,10 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
   const evidenceFieldFlagged = isResubmit && flagged.includes("basicExpertiseProofFile");
   const existingEvidenceFiles = initialStatus.submissionSummary?.evidenceFiles || [];
   const hasExistingEvidence = existingEvidenceFiles.length > 0;
+
+  useEffect(() => {
+    setFormData(buildInitialForm(initialStatus, isResubmit, initialProfile));
+  }, [initialStatus, initialProfile, isResubmit]);
 
   /* ── Auto-save ─────────────────────────────────────────────── */
   useEffect(() => {
@@ -137,7 +191,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
 
   /* ── File ──────────────────────────────────────────────────── */
   const handleFile = (file: File) => {
-    if (!ACCEPTED_TYPES.includes(file.type)) { toast.error("Chỉ chấp nhận PDF, JPG, PNG"); return; }
+    if (!ACCEPTED_TYPES.includes(file.type)) { toast.error("Chỉ chấp nhận PDF, JPG, PNG, DOC, DOCX, PPT, PPTX"); return; }
     if (file.size > MAX_MB * 1024 * 1024) { toast.error(`File không được vượt quá ${MAX_MB}MB`); return; }
     setProofFile(file);
     clearErr("basicExpertiseProofFile");
@@ -467,7 +521,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                 onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]); }}
                 onClick={() => document.getElementById("kyc-file-input")?.click()}
               >
-                <input id="kyc-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                <input id="kyc-file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.ppt,.pptx" className="hidden"
                   onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); e.target.value = ""; }} />
 
                 {proofFile ? (
@@ -488,7 +542,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, onCancel, onSubmi
                       <Upload className="w-6 h-6 text-slate-400" />
                     </div>
                     <p className="text-[13px] font-semibold text-slate-600 mb-1">Click hoặc kéo thả file vào đây</p>
-                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG — tối đa {MAX_MB}MB</p>
+                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG, DOC, DOCX, PPT, PPTX — tối đa {MAX_MB}MB</p>
                   </div>
                 )}
               </div>

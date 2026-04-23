@@ -6,6 +6,11 @@ import {
   AlertCircle, ShieldCheck, X, FileText, CheckCircle2, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  sanitizeInvestorCategory,
+  writeInvestorKycCategorySession,
+  type InvestorCategory,
+} from "@/lib/investor-kyc-category-session";
 import { toast } from "sonner";
 import { IInvestorKYCStatus, IInvestorKYCSubmission } from "@/types/investor-kyc";
 
@@ -35,7 +40,8 @@ const MAX_MB = 20;
 interface KYCWizardProps {
   initialStatus: IInvestorKYCStatus;
   isResubmit?: boolean;
-  profileInvestorType?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null;
+  initialInvestorType?: InvestorCategory | null;
+  lockedInvestorType?: InvestorCategory | null;
   onCancel: () => void;
   onSubmit: (data: FormData) => Promise<void>;
   onSaveStep: (data: Partial<IInvestorKYCSubmission>) => Promise<void>;
@@ -43,21 +49,16 @@ interface KYCWizardProps {
 
 /* ─── Helper ─────────────────────────────────────────────────── */
 
-const VALID_INVESTOR_CATEGORIES = ["INSTITUTIONAL", "INDIVIDUAL_ANGEL"] as const;
-type ValidInvestorCategory = typeof VALID_INVESTOR_CATEGORIES[number];
-
-function sanitizeInvestorCategory(value: string | null | undefined): ValidInvestorCategory | null {
-  if (value === "INSTITUTIONAL" || value === "INDIVIDUAL_ANGEL") return value;
-  return null;
-}
-
-function buildInitialForm(status: IInvestorKYCStatus, profileInvestorType?: "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null): Partial<IInvestorKYCSubmission> {
+function buildInitialForm(
+  status: IInvestorKYCStatus,
+  initialInvestorType?: InvestorCategory | null,
+): Partial<IInvestorKYCSubmission> {
   const s = status.submissionSummary;
   return {
     fullName: s?.fullName ?? "",
     contactEmail: s?.contactEmail ?? "",
     declarationAccepted: false,
-    investorCategory: sanitizeInvestorCategory(s?.investorCategory) ?? profileInvestorType ?? "INDIVIDUAL_ANGEL",
+    investorCategory: sanitizeInvestorCategory(s?.investorCategory) ?? initialInvestorType ?? undefined,
     currentRoleTitle: s?.currentRoleTitle ?? "",
     organizationName: s?.organizationName ?? "",
     location: s?.location ?? "",
@@ -70,11 +71,19 @@ function buildInitialForm(status: IInvestorKYCStatus, profileInvestorType?: "INS
 
 /* ─── Component ──────────────────────────────────────────────── */
 
-export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorType, onCancel, onSubmit, onSaveStep }: KYCWizardProps) {
+export function KYCWizard({
+  initialStatus,
+  isResubmit = false,
+  initialInvestorType,
+  lockedInvestorType,
+  onCancel,
+  onSubmit,
+  onSaveStep,
+}: KYCWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission>>(() => buildInitialForm(initialStatus, profileInvestorType));
+  const [formData, setFormData] = useState<Partial<IInvestorKYCSubmission>>(() => buildInitialForm(initialStatus, initialInvestorType));
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Files
@@ -90,6 +99,16 @@ export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorTy
   const existingFiles = initialStatus.submissionSummary?.evidenceFiles ?? [];
   const hasExistingEvidence = existingFiles.length > 0;
   const isInstitutional = formData.investorCategory === "INSTITUTIONAL";
+
+  useEffect(() => {
+    if (!formData.investorCategory && initialInvestorType) {
+      setFormData((prev) => ({ ...prev, investorCategory: initialInvestorType }));
+    }
+  }, [formData.investorCategory, initialInvestorType]);
+
+  useEffect(() => {
+    writeInvestorKycCategorySession(formData.investorCategory);
+  }, [formData.investorCategory]);
 
   /* ── Auto-save ─────────────────────────────────────────────── */
   useEffect(() => {
@@ -330,14 +349,14 @@ export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorTy
                   <button
                     key={opt.value}
                     type="button"
-                    disabled={isResubmit || !!profileInvestorType}
+                    disabled={isResubmit || !!lockedInvestorType}
                     onClick={() => { set("investorCategory", opt.value); clearErr("investorCategory"); }}
                     className={cn(
                       "flex flex-col items-start px-4 py-3.5 rounded-xl border-2 text-left transition-all",
                       formData.investorCategory === opt.value
                         ? "border-[#171611] bg-[#171611]/5 ring-1 ring-[#171611]/10"
                         : "border-slate-200 bg-white hover:border-slate-300",
-                      (isResubmit || !!profileInvestorType) && "cursor-not-allowed opacity-70"
+                      (isResubmit || !!lockedInvestorType) && "cursor-not-allowed opacity-70"
                     )}
                   >
                     <span className={cn("text-[13px] font-bold", formData.investorCategory === opt.value ? "text-slate-900" : "text-slate-600")}>
@@ -347,7 +366,7 @@ export function KYCWizard({ initialStatus, isResubmit = false, profileInvestorTy
                   </button>
                 ))}
               </div>
-              {(isResubmit || !!profileInvestorType) && (
+              {(isResubmit || !!lockedInvestorType) && (
                 <p className="text-[11px] text-slate-400 mt-1.5">Loại nhà đầu tư được xác định từ hồ sơ đã tạo và không thể thay đổi.</p>
               )}
               <ErrNote name="investorCategory" />
