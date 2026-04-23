@@ -20,6 +20,10 @@ const routeLabels: Record<string, string> = {
   "payment-ops": "Vận hành thanh toán",
   profile: "Hồ sơ cá nhân",
   history: "Lịch sử thẩm định",
+  profiles: "Hồ sơ",
+  startup: "Startup",
+  advisor: "Advisor",
+  investor: "Nhà đầu tư",
 };
 
 function StaffBreadcrumb() {
@@ -37,7 +41,13 @@ function StaffBreadcrumb() {
     return { href, label, isLast };
   });
 
-  if (crumbs.length <= 1 || pathname === "/staff/profile" || pathname === "/staff/settings" || pathname === "/staff/notifications") return null;
+  if (
+    crumbs.length <= 1 ||
+    pathname === "/staff/profile" ||
+    pathname === "/staff/settings" ||
+    pathname === "/staff/notifications" ||
+    /^\/staff\/profiles\//.test(pathname)
+  ) return null;
 
   return (
     <nav className="flex items-center gap-1.5 px-8 pt-6 pb-4 text-[12px] font-plus-jakarta-sans">
@@ -75,7 +85,7 @@ export function StaffShell({ children }: StaffShellProps) {
         <button
           onClick={() => setCollapsed(c => !c)}
           className={cn(
-            "fixed top-[18px] z-[60] p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all duration-300 shadow-sm",
+            "fixed top-[18px] z-[49] p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all duration-300 shadow-sm",
             collapsed ? "left-[72px]" : "left-[248px]"
           )}
           title={collapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}

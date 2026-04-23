@@ -12,6 +12,7 @@ import { SupportModal } from "@/components/investor/support-modal";
 import { GetInvestorProfile, UpdateInvestorAcceptingConnections } from "@/services/investor/investor.api";
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import { ChangePassword } from "@/services/auth/auth.api";
+import { GetMe } from "@/services/user/user.api";
 
 /* ─── Sub-components ─────────────────────────────────────────── */
 
@@ -134,6 +135,8 @@ export default function InvestorSettingsPage() {
     const [isTogglingConnections, setIsTogglingConnections] = useState(false);
     const [connectionSettingError, setConnectionSettingError] = useState<string | null>(null);
     const [blockedByApprovalError, setBlockedByApprovalError] = useState(false);
+    const [userInfo, setUserInfo] = useState<IUser | null>(null);
+    const [isLoadingUserInfo, setIsLoadingUserInfo] = useState(true);
 
     const isDirty = JSON.stringify(prefs) !== JSON.stringify(originalPrefs.current);
     const isKycVerified = kycWorkflowStatus === "VERIFIED" && !blockedByApprovalError;
@@ -145,6 +148,19 @@ export default function InvestorSettingsPage() {
 
     useEffect(() => {
         let isDisposed = false;
+
+        GetMe()
+            .then((res) => {
+                if (!isDisposed && res && (res.success || res.isSuccess) && res.data) {
+                    setUserInfo(res.data);
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!isDisposed) {
+                    setIsLoadingUserInfo(false);
+                }
+            });
 
         const loadConnectionSetting = async () => {
             setIsLoadingConnectionSetting(true);
@@ -496,24 +512,41 @@ export default function InvestorSettingsPage() {
                     <div className="space-y-1">
                         <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Địa chỉ Email</p>
                         <div className="flex items-center gap-2">
-                            <p className="text-[14px] font-semibold text-slate-700">investor@aisep.vn</p>
+                            <p className="text-[14px] font-semibold text-slate-700">{userInfo?.email ?? "—"}</p>
+                            {userInfo?.emailVerified && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
                                 <CheckCircle2 className="w-2.5 h-2.5" />
                                 Đã xác minh
                             </span>
+                            )}
                         </div>
                     </div>
                     <div className="space-y-1">
                         <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Vai trò tài khoản</p>
                         <p className="text-[14px] font-semibold text-slate-700 flex items-center gap-1.5">
                             <ShieldCheck className="w-4 h-4 text-blue-500" />
-                            Investor (Nhà đầu tư)
+                            {userInfo?.userType ? `${userInfo.userType} (Nhà đầu tư)` : "Investor (Nhà đầu tư)"}
                         </p>
                     </div>
                     <div className="space-y-1">
                         <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Trạng thái</p>
-                        <span className="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                            Đang hoạt động (Active)
+                        <span className={cn(
+                            "inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-bold",
+                            isLoadingUserInfo
+                                ? "bg-slate-100 text-slate-500"
+                                : !userInfo
+                                    ? "bg-slate-100 text-slate-500"
+                                    : userInfo.isActive
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-red-50 text-red-700"
+                        )}>
+                            {isLoadingUserInfo
+                                ? "Đang tải..."
+                                : !userInfo
+                                    ? "Chưa xác định"
+                                    : userInfo.isActive
+                                        ? "Đang hoạt động (Active)"
+                                        : "Không hoạt động (Inactive)"}
                         </span>
                     </div>
                 </div>

@@ -120,38 +120,49 @@ export function AdvisorShell({ children }: AdvisorShellProps) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Only guard if NOT already on the onboard page
-    if (pathname === "/advisor/onboard") {
-      setChecking(false);
-      return;
-    }
+    const isOnboardingRoute = pathname === "/advisor/onboard";
 
-    // Bypass API check if user already completed or skipped the onboarding flow locally
     const skipped = localStorage.getItem("aisep_advisor_onboarding_skipped") === "true";
-    const completed = localStorage.getItem("aisep_advisor_onboarding_completed") === "true";
-    
-    if (skipped || completed) {
-      setChecking(false);
-      return;
-    }
 
     GetAdvisorProfile()
       .then((res: any) => {
         const data = res as unknown as IBackendRes<any>;
-        if (!data.success && !data.isSuccess) {
-           router.replace("/advisor/onboard");
-        } else if (!data.data || data.data.profileStatus === "Draft") {
-           router.replace("/advisor/onboard");
-        } else {
+        const hasProfile = Boolean((data.success || data.isSuccess) && data.data);
+
+        if (isOnboardingRoute) {
+          if (hasProfile) {
+            router.replace("/advisor");
+            return;
+          }
+
           setChecking(false);
+          return;
         }
+
+        if (hasProfile || skipped) {
+          setChecking(false);
+          return;
+        }
+
+        router.replace("/advisor/onboard");
       })
       .catch((err: any) => {
         const status = err?.response?.status;
+
+        if (isOnboardingRoute) {
+          setChecking(false);
+          return;
+        }
+
+        if (skipped) {
+          setChecking(false);
+          return;
+        }
+
         if (status === 404 || status === 400) {
           router.replace("/advisor/onboard");
         } else {
-          setChecking(false); 
+          setChecking(false);
         }
       });
   }, [pathname, router]);

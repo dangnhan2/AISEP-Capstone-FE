@@ -29,6 +29,16 @@ const RESULT_LABEL_MAP: Record<string, string> = {
   NONE: "",
 };
 
+const KIND_LABEL: Record<string, string> = {
+  BUSINESS_REGISTRATION_CERTIFICATE: "Giấy chứng nhận đăng ký kinh doanh",
+  BASIC_ACTIVITY_PROOF: "Bằng chứng hoạt động",
+  OTHER: "Tài liệu khác",
+};
+
+function getKindLabel(kind: string) {
+  return KIND_LABEL[kind] ?? kind;
+}
+
 const EXPLANATION_MAP: Record<string, string> = {
   "KYC has not been submitted.": "Bạn chưa gửi hồ sơ xác minh KYC.",
   "KYC submission is under review.": "Hồ sơ KYC của bạn đang được đội ngũ AISEP thẩm định.",
@@ -122,37 +132,14 @@ function getEvidenceUrl(file: KycEvidenceFile) {
   return normalizeCandidate(file.url);
 }
 
-function createPendingTab() {
-  const popup = window.open("about:blank", "_blank");
-  if (popup) {
-    popup.opener = null;
-  }
-  return popup;
-}
-
-function openUrlInNewTab(url: string, popup?: Window | null) {
-  if (popup && !popup.closed) {
-    try {
-      popup.location.replace(url);
-      popup.focus?.();
-      return;
-    } catch {
-      popup.close();
-    }
-  }
-  const nextPopup = window.open(url, "_blank");
-  if (nextPopup) {
-    nextPopup.opener = null;
-  }
-}
-
-async function getUrlStatus(url: string): Promise<number | null> {
-  try {
-    const response = await fetch(url, { method: "HEAD" });
-    return response.status;
-  } catch {
-    return null;
-  }
+function triggerFileOpen(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 export default function KycStatusPage() {
@@ -244,43 +231,30 @@ export default function KycStatusPage() {
       ];
 
   const handleOpenEvidence = async (file: KycEvidenceFile) => {
-    const popup = createPendingTab();
     const candidateUrl = getEvidenceUrl(file);
 
     if (!candidateUrl) {
-      popup?.close();
+      // URL không có sẵn — thử refresh KYC status để lấy URL mới
+      try {
+        const res = await GetStartupKYCStatus();
+        const data = res as unknown as IBackendRes<StartupKycCase>;
+        if ((data.success || data.isSuccess) && data.data) {
+          setKycCase(data.data);
+          const refreshedFile = data.data.submissionSummary?.evidenceFiles?.find((item) => item.id === file.id);
+          const refreshedUrl = refreshedFile ? getEvidenceUrl(refreshedFile) : "";
+          if (refreshedUrl) {
+            triggerFileOpen(refreshedUrl);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
       toast.error("Không tìm thấy link xem tài liệu.");
       return;
     }
 
-    openUrlInNewTab(candidateUrl, popup);
-
-    const initialStatus = await getUrlStatus(candidateUrl);
-    if (initialStatus !== 401 && initialStatus !== 403) {
-      return;
-    }
-
-    try {
-      const res = await GetStartupKYCStatus();
-      const data = res as unknown as IBackendRes<StartupKycCase>;
-      if ((data.success || data.isSuccess) && data.data) {
-        setKycCase(data.data);
-        const refreshedFile = data.data.submissionSummary?.evidenceFiles?.find((item) => item.id === file.id);
-        const refreshedUrl = refreshedFile ? getEvidenceUrl(refreshedFile) : "";
-        const refreshedStatus = refreshedUrl ? await getUrlStatus(refreshedUrl) : null;
-
-        if (refreshedUrl && refreshedStatus !== 401 && refreshedStatus !== 403) {
-          openUrlInNewTab(refreshedUrl, popup);
-          return;
-        }
-      }
-
-      popup?.close();
-      toast.error("Link xem tài liệu đã hết hạn hoặc không còn khả dụng.");
-    } catch {
-      popup?.close();
-      toast.error("Không thể làm mới link xem tài liệu. Vui lòng thử lại.");
-    }
+    triggerFileOpen(candidateUrl);
   };
 
   return (
@@ -395,7 +369,7 @@ export default function KycStatusPage() {
                               <div className="min-w-0">
                                 <p className="truncate text-[13px] font-medium text-slate-700">{file.fileName}</p>
                                 <p className="mt-1 text-[11px] text-slate-400">
-                                  {file.kind}
+                                  {getKindLabel(file.kind)}
                                   {file.uploadedAt ? ` · ${new Date(file.uploadedAt).toLocaleDateString("vi-VN")}` : ""}
                                 </p>
                               </div>
@@ -440,10 +414,6 @@ export default function KycStatusPage() {
                 <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
                   <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Phiên bản</p>
                   <p className="text-[13px] font-medium text-slate-700">{kycCase.version ?? "N/A"}</p>
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Submission ID</p>
-                  <p className="text-[13px] font-medium text-slate-700">{kycCase.submissionId ?? kycCase.id ?? "N/A"}</p>
                 </div>
               </div>
             </div>

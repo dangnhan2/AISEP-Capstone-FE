@@ -18,7 +18,7 @@ interface KycFileUploaderProps {
 export function KycFileUploader({
   label = "Tải tài liệu lên",
   description,
-  accept = ".pdf,.jpg,.jpeg,.png",
+  accept = ".pdf,.jpg,.jpeg,.png,.webp",
   maxSizeMB = 10,
   limit = 1,
   onChange,

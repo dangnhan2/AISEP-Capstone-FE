@@ -81,9 +81,31 @@ export interface IKYCHistoryItem {
     roleType: "STARTUP" | "ADVISOR" | "INVESTOR";
     result: "APPROVED" | "REJECTED" | "PENDING_MORE_INFO";
     processedAt: string;
-    reviewedBy: string;
+    reviewedBy: string | null;
     remarks: string | null;
 }
+
+export type KycHistoryAction = "APPROVED" | "REJECTED" | "REQUESTED_MORE_INFO" | "UNDER_REVIEW" | "SUPERSEDED";
+
+export interface KycCaseHistoryEntryDto {
+    version: number;
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    reviewedByEmail: string | null;
+    action: KycHistoryAction;
+    resultLabel: string | null;
+    remarks: string | null;
+    requiresNewEvidence: boolean;
+}
+
+export const GetKYCCaseHistory = (
+    entityId: number | string,
+    entityType: "STARTUP" | "ADVISOR" | "INVESTOR"
+) => {
+    return axios.get<IBackendRes<KycCaseHistoryEntryDto[]>>(
+        `/api/registration/${entityId}/history?entityType=${entityType}`
+    );
+};
 
 export interface IKYCHistoryParams {
     page?: number;
@@ -171,11 +193,18 @@ export const ApproveAdvisorRegistration = (staffId: number | string, advisorId: 
     });
 };
 
-export const ApproveInvestorRegistration = (staffId: number | string, investorId: number | string, score: number = 10, isInstitutional: boolean = false) => {
+export const ApproveInvestorRegistration = (
+    staffId: number | string,
+    investorId: number | string,
+    score: number = 10,
+    isInstitutional: boolean = false,
+    remarks?: string
+) => {
     return axios.post<IBackendRes<unknown>>(`/api/registration/approve/investors/${staffId}`, {
         investorId,
         score,
-        isInstitutional
+        isInstitutional,
+        remarks
     });
 };
 

@@ -75,7 +75,7 @@ function translateUploadErrorMessage(message?: string | null) {
     normalized.includes("only these document extensions are allowed") ||
     normalized.includes("document extensions are allowed")
   ) {
-    return "Chỉ cho phép các định dạng tài liệu: .pdf, .ppt, .pptx, .doc, .docx";
+    return "Chỉ cho phép các định dạng tài liệu: .pdf, .ppt, .pptx, .doc, .docx, .jpg, .jpeg, .png, .webp";
   }
 
   if (normalized.includes("file too large") || normalized.includes("exceeds")) {
@@ -528,7 +528,7 @@ export function KycSubmitForm({
               <p className="text-[13px] text-slate-500 leading-relaxed">
                 {mode === "WITH_LEGAL_ENTITY"
                   ? "Tải lên giấy phép kinh doanh hoặc tài liệu chứng minh pháp nhân của startup."
-                  : "Tải lên tài liệu chứng minh dự án đang hoạt động như pitch deck, business plan, tài liệu demo (định dạng .pdf, .doc, .docx, .ppt, .pptx)."}
+                  : "Tải lên tài liệu chứng minh dự án đang hoạt động như pitch deck, business plan, tài liệu demo (định dạng .pdf, .doc, .docx, .ppt, .pptx, .jpg, .png, .jpeg)."}
               </p>
 
               {isResubmit && (
@@ -548,7 +548,7 @@ export function KycSubmitForm({
 
               <KycFileUploader
                 key={uploaderResetKey}
-                accept=".pdf,.ppt,.pptx,.doc,.docx"
+                accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png,.webp"
                 label={
                   isResubmit
                     ? mode === "WITH_LEGAL_ENTITY"

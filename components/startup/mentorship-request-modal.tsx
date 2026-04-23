@@ -73,6 +73,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     const [submitted, setSubmitted]             = useState(false);
 
     const today = typeof window !== "undefined" ? new Date().toISOString().split("T")[0] : "";
+    const isAdvisorAvailable = mentor?.availabilityHint === "Available";
 
     useEffect(() => {
         if (!isOpen) {
@@ -98,6 +99,10 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
     const canSubmit = objective.trim() && problemContext.trim() && scope.length > 0;
 
     const handleSubmit = async () => {
+        if (!isAdvisorAvailable) {
+            toast.error("Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn.");
+            return;
+        }
         setSubmitted(true);
         const errs: FormErrors = {};
         if (!objective.trim())     errs.objective     = "Vui lòng nhập mục tiêu buổi tư vấn";
@@ -427,12 +432,12 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                             <button
                                 type="button"
                                 onClick={handleSubmit}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || !canSubmit || !isAdvisorAvailable}
                                 className={cn(
                                     "inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all",
                                     isSubmitting
                                         ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                                        : canSubmit
+                                        : canSubmit && isAdvisorAvailable
                                             ? "bg-[#0f172a] text-white hover:bg-slate-800 shadow-[0_2px_10px_rgba(15,23,42,0.25)]"
                                             : "bg-slate-100 text-slate-400"
                                 )}
@@ -486,4 +491,3 @@ function Field({
         </div>
     );
 }
-

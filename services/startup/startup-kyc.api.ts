@@ -36,7 +36,7 @@ export interface KycEvidenceFile {
     fileType?: string;
     fileSize?: number;
     uploadedAt: string;
-    kind: "BUSINESS_REGISTRATION_CERTIFICATE" | "BASIC_ACTIVITY_PROOF";
+    kind: "BUSINESS_REGISTRATION_CERTIFICATE" | "BASIC_ACTIVITY_PROOF" | "OTHER" | string;
     url?: string;
     storageKey?: string;
 }

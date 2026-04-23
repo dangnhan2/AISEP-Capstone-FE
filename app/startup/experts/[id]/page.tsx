@@ -39,6 +39,8 @@ const EXPERTISE_DICT: Record<string, string> = {
 
 const formatExpertise = (val: string) => EXPERTISE_DICT[val] || val;
 
+const isAdvisorAvailable = (availabilityHint?: string | null) => availabilityHint === "Available";
+
 const DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
 
 function groupSlotsByDay(slots: IAdvisorTimeSlot[]): { day: number; label: string; ranges: string[] }[] {
@@ -212,6 +214,14 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
     fetchAdvisor();
   }, [id]);
 
+  const handleOpenRequest = () => {
+    if (!isAdvisorAvailable(advisor?.availabilityHint)) {
+      setToast("Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn.");
+      return;
+    }
+    setIsRequestModalOpen(true);
+  };
+
   if (loading) return <ProfileSkeleton />;
   if (error || !advisor) return <ErrorState onRetry={fetchAdvisor} />;
 
@@ -305,8 +315,15 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
               {/* CTAs */}
               <div className="flex items-center justify-center md:justify-start gap-3 pt-1">
                 <Button
-                  onClick={() => setIsRequestModalOpen(true)}
-                  className="h-11 px-6 rounded-xl bg-[#fdf8e6] text-slate-900 border border-[#eec54e]/30 hover:bg-[#eec54e] transition-all font-semibold text-[13px] shadow-sm"
+                  onClick={handleOpenRequest}
+                  disabled={!isAdvisorAvailable(advisor.availabilityHint)}
+                  title={!isAdvisorAvailable(advisor.availabilityHint) ? "Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn." : undefined}
+                  className={cn(
+                    "h-11 px-6 rounded-xl border font-semibold text-[13px] shadow-sm transition-all",
+                    isAdvisorAvailable(advisor.availabilityHint)
+                      ? "bg-[#fdf8e6] text-slate-900 border-[#eec54e]/30 hover:bg-[#eec54e]"
+                      : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed hover:bg-slate-100"
+                  )}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
@@ -536,8 +553,15 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                   </div>
 
                   <button
-                    onClick={() => setIsRequestModalOpen(true)}
-                    className="w-full h-11 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-slate-700 transition-all"
+                    onClick={handleOpenRequest}
+                    disabled={!isAdvisorAvailable(advisor.availabilityHint)}
+                    title={!isAdvisorAvailable(advisor.availabilityHint) ? "Cố vấn hiện chưa sẵn sàng nhận yêu cầu tư vấn." : undefined}
+                    className={cn(
+                      "w-full h-11 rounded-xl text-[13px] font-bold transition-all",
+                      isAdvisorAvailable(advisor.availabilityHint)
+                        ? "bg-[#0f172a] text-white hover:bg-slate-700"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                    )}
                   >
                     Đặt lịch tư vấn
                   </button>
@@ -657,6 +681,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
             fullName: advisor.fullName,
             profilePhotoURL: advisor.profilePhotoURL,
             title: advisor.title,
+            availabilityHint: advisor.availabilityHint,
             hourlyRate: advisor.hourlyRate,
             supportedDurations: advisor.supportedDurations,
             expertise: advisor.expertise,
@@ -669,4 +694,3 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
     </StartupShell>
   );
 }
-
