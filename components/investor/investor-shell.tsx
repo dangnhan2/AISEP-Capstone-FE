@@ -45,7 +45,7 @@ function InvestorBreadcrumb() {
       return { href, label, isLast };
     });
 
-  if (crumbs.length <= 1 || pathname.includes("/onboard")) return null;
+  if (crumbs.length <= 1 || pathname.includes("/onboard") || pathname.includes("/ai-chatbot")) return null;
 
   return (
     <nav className="flex items-center gap-1 mb-6 text-[13px]">
