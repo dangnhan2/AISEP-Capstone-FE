@@ -85,9 +85,13 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
 
   const isVerified = workflowStatus === "VERIFIED";
   const needsAction = ["NOT_STARTED", "DRAFT", "PENDING_MORE_INFO", "VERIFICATION_FAILED"].includes(workflowStatus);
-  const hasRemarks = !!remarks && (workflowStatus === "PENDING_MORE_INFO" || workflowStatus === "VERIFICATION_FAILED");
   const submitted = ["PENDING_REVIEW", "VERIFIED", "VERIFICATION_FAILED", "PENDING_MORE_INFO"].includes(workflowStatus);
   const shouldShowDetails = isDetailsRoute && !!submissionSummary && submitted;
+  const reviewRemark =
+    remarks?.trim() ||
+    history?.find((item) => item.remarks?.trim())?.remarks?.trim() ||
+    null;
+  const hasRemarks = !!reviewRemark && submitted;
 
   const HISTORY_ACTION_MAP: Record<string, string> = {
     PENDING_REVIEW: "Hồ sơ đang được xem xét",
@@ -367,20 +371,42 @@ export function KYCHub({ status, onStart, onContinue, onResubmit, onViewStatus, 
       {hasRemarks && (
         <div className={cn(
           "bg-white rounded-2xl border shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden",
-          workflowStatus === "PENDING_MORE_INFO" ? "border-orange-200" : "border-red-200"
+          workflowStatus === "PENDING_MORE_INFO"
+            ? "border-orange-200"
+            : workflowStatus === "VERIFICATION_FAILED"
+              ? "border-red-200"
+              : "border-emerald-200"
         )}>
           <div className={cn(
             "flex items-center gap-2.5 px-6 py-3.5 border-b shadow-sm",
-            workflowStatus === "PENDING_MORE_INFO" ? "bg-orange-50/60 border-orange-100" : "bg-red-50/60 border-red-100"
+            workflowStatus === "PENDING_MORE_INFO"
+              ? "bg-orange-50/60 border-orange-100"
+              : workflowStatus === "VERIFICATION_FAILED"
+                ? "bg-red-50/60 border-red-100"
+                : "bg-emerald-50/60 border-emerald-100"
           )}>
-            <AlertCircle className={cn("w-4 h-4", workflowStatus === "PENDING_MORE_INFO" ? "text-orange-500" : "text-red-500")} />
-            <p className={cn("text-[13px] font-bold", workflowStatus === "PENDING_MORE_INFO" ? "text-orange-700" : "text-red-600")}>
+            <AlertCircle className={cn(
+              "w-4 h-4",
+              workflowStatus === "PENDING_MORE_INFO"
+                ? "text-orange-500"
+                : workflowStatus === "VERIFICATION_FAILED"
+                  ? "text-red-500"
+                  : "text-emerald-500"
+            )} />
+            <p className={cn(
+              "text-[13px] font-bold",
+              workflowStatus === "PENDING_MORE_INFO"
+                ? "text-orange-700"
+                : workflowStatus === "VERIFICATION_FAILED"
+                  ? "text-red-600"
+                  : "text-emerald-700"
+            )}>
               Ghi chú từ Ban thâm định
             </p>
           </div>
           <div className="px-6 py-4 space-y-3">
-            <p className="text-[13px] text-slate-600 leading-relaxed font-normal">{remarks}</p>
-            {flaggedFields && flaggedFields.length > 0 && (
+            <p className="text-[13px] text-slate-600 leading-relaxed font-normal">{reviewRemark}</p>
+            {flaggedFields && flaggedFields.length > 0 && workflowStatus !== "VERIFIED" && (
               <div>
                 <p className="text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-wider">Trường cần cập nhật:</p>
                 <div className="flex flex-wrap gap-2">

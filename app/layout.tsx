@@ -15,9 +15,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
+    <html lang="vi" className="overflow-x-hidden">
       <head />
-      <body className="antialiased" spellCheck={false}>
+      <body className="antialiased overflow-x-hidden" spellCheck={false}>
         <Script
           src="https://cdn.payos.vn/payos-checkout/v1/stable/payos-initialize.js"
           strategy="beforeInteractive"

@@ -63,7 +63,7 @@ export default function KYCHistoryPage() {
   const filtered = search
     ? items.filter((i) =>
         i.applicantName.toLowerCase().includes(search.toLowerCase()) ||
-        i.reviewedBy.toLowerCase().includes(search.toLowerCase())
+        (i.reviewedBy ?? "").toLowerCase().includes(search.toLowerCase())
       )
     : items;
 
@@ -175,6 +175,7 @@ export default function KYCHistoryPage() {
               {filtered.map((item, i) => {
                 const resCfg = RESULT_CONFIG[item.result] ?? RESULT_CONFIG.APPROVED;
                 const ResIcon = resCfg.icon;
+                const reviewedByLabel = item.reviewedBy || "—";
                 return (
                   <tr key={`${item.applicantId}-${i}`} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 text-[13px] font-bold text-slate-900">{item.applicantName}</td>
@@ -189,7 +190,9 @@ export default function KYCHistoryPage() {
                         {resCfg.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">{item.reviewedBy}</td>
+                    <td className="px-6 py-4 text-[13px] text-slate-600 font-medium">
+                      {item.reviewedBy ? reviewedByLabel : <span className="italic text-slate-400">{reviewedByLabel}</span>}
+                    </td>
                     <td className="px-6 py-4 text-[12px] text-slate-400 max-w-[200px] truncate" title={item.remarks ?? ""}>
                       {item.remarks || <span className="italic">—</span>}
                     </td>
@@ -237,4 +240,3 @@ export default function KYCHistoryPage() {
     </div>
   );
 }
-

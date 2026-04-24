@@ -10,6 +10,7 @@ import { AdvisorShell } from "@/components/advisor/advisor-shell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Logout, RevokeAll } from "@/services/auth/auth.api";
+import { GetMe } from "@/services/user/user.api";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,8 @@ const inputClass = (hasError = false) => cn(
 export default function AdvisorSettingsPage() {
   const [settings, setSettings] = useState<IAdvisorSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userInfo, setUserInfo] = useState<IUser | null>(null);
+  const [isLoadingUserInfo, setIsLoadingUserInfo] = useState(true);
 
   // Confirm Modal
   const [confirmModal, setConfirmModal] = useState<{
@@ -77,6 +80,7 @@ export default function AdvisorSettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    loadUserInfo();
   }, []);
 
   const loadSettings = async () => {
@@ -86,6 +90,22 @@ export default function AdvisorSettingsPage() {
       setSettings(data);
 } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUserInfo = async () => {
+    setIsLoadingUserInfo(true);
+    try {
+      const res = await GetMe();
+      if (res && (res.success || res.isSuccess) && res.data) {
+        setUserInfo(res.data);
+      } else {
+        setUserInfo(null);
+      }
+    } catch {
+      setUserInfo(null);
+    } finally {
+      setIsLoadingUserInfo(false);
     }
   };
 
@@ -194,31 +214,46 @@ export default function AdvisorSettingsPage() {
             <div className="space-y-1">
               <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Địa chỉ Email</p>
               <div className="flex items-center gap-2">
-                <p className="text-[14px] font-semibold text-slate-700">{settings?.account.email}</p>
-                {settings?.account.emailVerified ? (
+                <p className="text-[14px] font-semibold text-slate-700">{userInfo?.email ?? "—"}</p>
+                {userInfo?.emailVerified ? (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
                     <CheckCircle2 className="w-2.5 h-2.5" />
                     Đã xác minh
                   </span>
-                ) : (
+                ) : !isLoadingUserInfo ? (
                   <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-200">
                     <Mail className="w-2.5 h-2.5" />
-                    Chưa xác minh
+                    {!userInfo ? "Chưa xác định" : "Chưa xác minh"}
                   </span>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="space-y-1">
               <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Vai trò tài khoản</p>
               <p className="text-[14px] font-semibold text-slate-700 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-blue-500" />
-                Advisor (Cố vấn)
+                {userInfo?.userType ? `${userInfo.userType} (Cố vấn)` : "Advisor (Cố vấn)"}
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Trạng thái</p>
-              <span className="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold">
-                Đang hoạt động (Active)
+              <span className={cn(
+                "inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-bold",
+                isLoadingUserInfo
+                  ? "bg-slate-100 text-slate-500"
+                  : !userInfo
+                    ? "bg-slate-100 text-slate-500"
+                    : userInfo.isActive
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-red-50 text-red-700"
+              )}>
+                {isLoadingUserInfo
+                  ? "Đang tải..."
+                  : !userInfo
+                    ? "Chưa xác định"
+                    : userInfo.isActive
+                      ? "Đang hoạt động (Active)"
+                      : "Không hoạt động (Inactive)"}
               </span>
             </div>
           </div>

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StartupShell } from "@/components/startup/startup-shell";
-import { Shield, Lock, ChevronRight } from "lucide-react";
+import { CheckCircle2, Lock, Shield, ShieldCheck, User, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChangePasswordModal } from "@/components/startup/change-password-modal";
+import { GetMe } from "@/services/user/user.api";
 
 /* ─── SectionCard component (consistent with investor/advisor) ── */
 function SectionCard({ title, icon: Icon, description, children, id }: {
@@ -33,6 +35,29 @@ function SectionCard({ title, icon: Icon, description, children, id }: {
 /* ─── Main Page ─────────────────────────────────────────────── */
 export default function StartupSettingsPage() {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [userInfo, setUserInfo] = useState<IUser | null>(null);
+    const [isLoadingUserInfo, setIsLoadingUserInfo] = useState(true);
+
+    useEffect(() => {
+        let isDisposed = false;
+
+        GetMe()
+            .then((res) => {
+                if (!isDisposed && res && (res.success || res.isSuccess) && res.data) {
+                    setUserInfo(res.data);
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                if (!isDisposed) {
+                    setIsLoadingUserInfo(false);
+                }
+            });
+
+        return () => {
+            isDisposed = true;
+        };
+    }, []);
 
     return (
         <StartupShell>
@@ -43,6 +68,52 @@ export default function StartupSettingsPage() {
                     <h1 className="text-[22px] font-semibold text-slate-800 tracking-[-0.02em]">Cài đặt tài khoản</h1>
                     <p className="text-[13px] text-slate-500 mt-1">Quản lý mật khẩu và bảo mật tài khoản startup của bạn.</p>
                 </div>
+
+                {/* ── Account Info card ── */}
+                <SectionCard title="Thông tin tài khoản" icon={User} description="Trạng thái tài khoản và thông tin đăng nhập hệ thống.">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-1">
+                            <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Địa chỉ Email</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-[14px] font-semibold text-slate-700">{userInfo?.email ?? "—"}</p>
+                                {userInfo?.emailVerified && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                                        <CheckCircle2 className="w-2.5 h-2.5" />
+                                        Đã xác minh
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Vai trò tài khoản</p>
+                            <p className="text-[14px] font-semibold text-slate-700 flex items-center gap-1.5">
+                                <ShieldCheck className="w-4 h-4 text-blue-500" />
+                                {userInfo?.userType ? `${userInfo.userType} (Startup)` : "Startup"}
+                            </p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[12px] font-medium text-slate-400 uppercase tracking-wider">Trạng thái</p>
+                            <span className={cn(
+                                "inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-bold",
+                                isLoadingUserInfo
+                                    ? "bg-slate-100 text-slate-500"
+                                    : !userInfo
+                                        ? "bg-slate-100 text-slate-500"
+                                        : userInfo.isActive
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : "bg-red-50 text-red-700"
+                            )}>
+                                {isLoadingUserInfo
+                                    ? "Đang tải..."
+                                    : !userInfo
+                                        ? "Chưa xác định"
+                                        : userInfo.isActive
+                                            ? "Đang hoạt động (Active)"
+                                            : "Không hoạt động (Inactive)"}
+                            </span>
+                        </div>
+                    </div>
+                </SectionCard>
 
                 {/* ── Security card ── */}
                 <SectionCard title="Bảo mật" icon={Shield} description="Quản lý mật khẩu và bảo vệ tài khoản.">

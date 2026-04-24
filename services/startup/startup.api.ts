@@ -241,5 +241,5 @@ export const SearchInvestors = (params: SearchInvestorsParams = {}) => {
 }
 
 export const GetInvestorById = (id: number) => {
-    return axios.get<IBackendRes<IInvestorProfile>>(`/api/startups/investors/${id}`);
+    return axios.get<IBackendRes<IInvestorProfile>>(`/api/staff/investors/${id}`);
 }

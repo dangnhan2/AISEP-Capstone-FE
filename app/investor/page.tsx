@@ -327,10 +327,10 @@ export default function InvestorDashboardPage() {
         const profileRes = profileResult.value;
         if (profileRes?.isSuccess && profileRes.data) {
           setProfile(profileRes.data);
-          if (profileRes.data.profileStatus === "Draft") {
-            router.push("/investor/onboard");
-            return;
-          }
+        } else if (profileRes?.isSuccess && !profileRes.data) {
+          // data === null → chưa có profile → redirect to onboarding
+          router.push("/investor/onboard");
+          return;
         }
       }
 

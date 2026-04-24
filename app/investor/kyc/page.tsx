@@ -6,8 +6,12 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { KYCHub } from "@/components/investor/kyc/kyc-hub";
 import { KYCWizard } from "@/components/investor/kyc/kyc-wizard";
-import { resolveInvestorCategory } from "@/lib/investor-profile-presenter";
-import { GetInvestorProfile } from "@/services/investor/investor.api";
+import {
+  clearInvestorKycCategorySession,
+  readInvestorKycCategorySession,
+  sanitizeInvestorCategory,
+  type InvestorCategory,
+} from "@/lib/investor-kyc-category-session";
 import {
   GetInvestorKYCStatus,
   ResubmitInvestorKYC,
@@ -21,9 +25,8 @@ export default function InvestorKYCPage() {
   const searchParams = useSearchParams();
   const [view, setView] = useState<"HUB" | "WIZARD" | "RESUBMIT">("HUB");
   const [status, setStatus] = useState<IInvestorKYCStatus | null>(null);
-  const [profileInvestorType, setProfileInvestorType] = useState<
-    "INSTITUTIONAL" | "INDIVIDUAL_ANGEL" | null
-  >(null);
+  const [lockedInvestorType, setLockedInvestorType] = useState<InvestorCategory | null>(null);
+  const [sessionInvestorType, setSessionInvestorType] = useState<InvestorCategory | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchStatus = useCallback(
@@ -34,9 +37,13 @@ export default function InvestorKYCPage() {
         const res = await GetInvestorKYCStatus();
         if (res.isSuccess && res.data) {
           setStatus(res.data);
-          const resolvedCategory = resolveInvestorCategory(undefined, res.data);
-          if (resolvedCategory) {
-            setProfileInvestorType(resolvedCategory);
+          const persistedCategory = sanitizeInvestorCategory(
+            res.data.submissionSummary?.investorCategory,
+          );
+          setLockedInvestorType(persistedCategory);
+          if (persistedCategory) {
+            setSessionInvestorType(persistedCategory);
+            clearInvestorKycCategorySession();
           }
         } else if (
           !res.isSuccess &&
@@ -61,17 +68,8 @@ export default function InvestorKYCPage() {
   );
 
   useEffect(() => {
+    setSessionInvestorType(readInvestorKycCategorySession());
     void fetchStatus();
-
-    void GetInvestorProfile().then((res) => {
-      const data = res as unknown as IBackendRes<IInvestorProfile>;
-      if (data.isSuccess && data.data) {
-        const resolvedCategory = resolveInvestorCategory(data.data, undefined);
-        if (resolvedCategory) {
-          setProfileInvestorType((prev) => prev || resolvedCategory);
-        }
-      }
-    });
   }, [fetchStatus]);
 
   useEffect(() => {
@@ -161,7 +159,8 @@ export default function InvestorKYCPage() {
         <KYCWizard
           initialStatus={status}
           isResubmit={view === "RESUBMIT"}
-          profileInvestorType={profileInvestorType}
+          initialInvestorType={lockedInvestorType ?? sessionInvestorType}
+          lockedInvestorType={lockedInvestorType}
           onCancel={() => setView("HUB")}
           onSubmit={handleSubmit}
           onSaveStep={handleSaveDraft}
