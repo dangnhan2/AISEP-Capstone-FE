@@ -122,7 +122,7 @@ function StatusPill({ active }: { active?: boolean }) {
       )}
     >
       {enabled ? <CheckCircle2 className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-      {enabled ? "Đang dùng" : "Đã ẩn"}
+      {enabled ? "Đang dùng" : "Đã ẩn khỏi public"}
     </span>
   );
 }
@@ -399,6 +399,12 @@ export default function StaffMasterDataPage() {
         toast.success("Đã tạo ngành mới.");
       }
 
+      // Ensure UI reflects backend ordering and immediately highlights created/updated item.
+      await loadData();
+      setSearch("");
+      setStatusFilter("all");
+      setIndustryKindFilter("all");
+
       resetIndustryForm();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Không lưu được ngành.");
@@ -450,17 +456,17 @@ export default function StaffMasterDataPage() {
     const counts = (item.startupCount || item.investorCount) ? ` (${item.startupCount ?? 0} startup, ${item.investorCount ?? 0} investor đang dùng)` : "";
     setConfirmModal({
       open: true,
-      title: "Xác nhận ẩn ngành",
-      message: `Ẩn ngành "${item.industryName}" khỏi master data public?${counts}`,
-      confirmLabel: "Ẩn",
+      title: "Xác nhận ẩn khỏi danh mục public",
+      message: `Ẩn ngành "${item.industryName}" khỏi danh mục public?${counts} Bản ghi vẫn được giữ trong hệ thống và có thể hiển thị lại.`,
+      confirmLabel: "Ẩn khỏi public",
       onConfirm: async () => {
         setBusyKey(`industry-${item.industryId}`);
         try {
           const res = await DeleteStaffIndustry(item.industryId);
-          toast.success((res as any)?.message || "Đã ẩn ngành.");
+          toast.success((res as any)?.message || "Đã ẩn ngành khỏi public.");
           await loadData();
         } catch (error: any) {
-          toast.error(error?.response?.data?.message || "Không ẩn được ngành.");
+          toast.error(error?.response?.data?.message || "Không ẩn ngành khỏi public được.");
         } finally {
           setBusyKey(null);
         }
@@ -477,10 +483,10 @@ export default function StaffMasterDataPage() {
         parentIndustryId: item.parentIndustryId ?? null,
         isActive: true,
       });
-      toast.success("Đã bật lại ngành.");
+      toast.success("Đã hiển thị lại ngành trên danh mục public.");
       await loadData();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Không bật lại được ngành.");
+      toast.error(error?.response?.data?.message || "Không hiển thị lại ngành được.");
     } finally {
       setBusyKey(null);
     }
@@ -489,17 +495,17 @@ export default function StaffMasterDataPage() {
   const hideStage = async (item: IStageMasterItem) => {
     setConfirmModal({
       open: true,
-      title: "Xác nhận ẩn giai đoạn",
-      message: `Ẩn giai đoạn "${item.stageName}" khỏi danh mục public?`,
-      confirmLabel: "Ẩn",
+      title: "Xác nhận ẩn khỏi danh mục public",
+      message: `Ẩn giai đoạn "${item.stageName}" khỏi danh mục public? Bản ghi vẫn được giữ trong hệ thống và có thể hiển thị lại.`,
+      confirmLabel: "Ẩn khỏi public",
       onConfirm: async () => {
         setBusyKey(`stage-${item.stageId}`);
         try {
           const res = await DeleteStaffStage(item.stageId);
-          toast.success((res as any)?.message || "Đã ẩn giai đoạn.");
+          toast.success((res as any)?.message || "Đã ẩn giai đoạn khỏi public.");
           await loadData();
         } catch (error: any) {
-          toast.error(error?.response?.data?.message || "Không ẩn được giai đoạn.");
+          toast.error(error?.response?.data?.message || "Không ẩn giai đoạn khỏi public được.");
         } finally {
           setBusyKey(null);
         }
@@ -516,10 +522,10 @@ export default function StaffMasterDataPage() {
         orderIndex: item.orderIndex,
         isActive: true,
       });
-      toast.success("Đã bật lại giai đoạn.");
+      toast.success("Đã hiển thị lại giai đoạn trên danh mục public.");
       await loadData();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Không bật lại được giai đoạn.");
+      toast.error(error?.response?.data?.message || "Không hiển thị lại giai đoạn được.");
     } finally {
       setBusyKey(null);
     }
@@ -1084,7 +1090,7 @@ export default function StaffMasterDataPage() {
                             ) : (
                               <RotateCcw className="h-4 w-4" />
                             )}
-                            {rowActive ? "Ẩn" : "Bật lại"}
+                            {rowActive ? "Ẩn khỏi public" : "Hiển thị lại"}
                           </button>
                         </div>
                       </td>
@@ -1173,7 +1179,7 @@ export default function StaffMasterDataPage() {
                             ) : (
                               <RotateCcw className="h-4 w-4" />
                             )}
-                            {rowActive ? "Ẩn" : "Bật lại"}
+                            {rowActive ? "Ẩn khỏi public" : "Hiển thị lại"}
                           </button>
                         </div>
                       </td>
