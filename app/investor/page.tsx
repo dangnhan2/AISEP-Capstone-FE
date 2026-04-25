@@ -29,6 +29,8 @@ import { GetInvestorProfile, GetInvestorWatchlist } from "@/services/investor/in
 import { GetInvestorKYCStatus } from "@/services/investor/investor-kyc";
 import type { IInvestorKYCStatus } from "@/types/investor-kyc";
 
+const INVESTOR_DASHBOARD_LOAD_ERROR_TOAST_ID = "investor-dashboard-load-error";
+
 type RawWatchlistItem = Partial<{
   watchlistID: number;
   watchlistId: number;
@@ -394,7 +396,9 @@ export default function InvestorDashboardPage() {
       setConnectionTotal((sentTotal ?? 0) + (receivedTotal ?? 0));
     } catch (error) {
       console.error("fetchDashboardData error:", error);
-      toast.error("Lỗi khi tải dữ liệu Dashboard");
+      toast.error("Lỗi khi tải dữ liệu Dashboard", {
+        id: INVESTOR_DASHBOARD_LOAD_ERROR_TOAST_ID,
+      });
     } finally {
       setIsLoading(false);
     }

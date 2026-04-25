@@ -79,6 +79,7 @@ const fieldClass =
 
 const textareaClass =
   "min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#eec54e] focus:ring-2 focus:ring-[#eec54e]/20";
+const MASTER_DATA_LOAD_ERROR_TOAST_ID = "staff-master-data-load-error";
 
 function isActive(value?: boolean) {
   return value !== false;
@@ -194,7 +195,9 @@ export default function StaffMasterDataPage() {
       setIndustries(industryItems);
       setStages(stageItems);
     } catch {
-      toast.error("Không tải được danh mục master data.");
+      toast.error("Không tải được danh mục master data.", {
+        id: MASTER_DATA_LOAD_ERROR_TOAST_ID,
+      });
     } finally {
       setLoading(false);
     }
