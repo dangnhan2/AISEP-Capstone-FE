@@ -550,6 +550,7 @@ function AIEvaluationHomePageInner() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      let latestScoreNotFound = false;
       try {
         // Load profile and members to compute a consistent completeness percent
         const pr = await GetStartupProfile() as unknown as any;
@@ -599,7 +600,12 @@ function AIEvaluationHomePageInner() {
         } catch (err: any) {
           if (!cancelled) {
             setLatestCompleted(null);
-            if (!err?.response || err?.response?.status !== 404) setApiError(err?.message ?? "Lỗi khi lấy điểm mới");
+            const statusCode = err?.response?.status;
+            if (statusCode === 404) {
+              latestScoreNotFound = true;
+            } else {
+              setApiError(err?.message ?? "Lỗi khi lấy điểm mới");
+            }
           }
         }
 
@@ -630,6 +636,25 @@ function AIEvaluationHomePageInner() {
               // Keep history as auxiliary state and avoid promoting history-only data
               // into latestCompleted when there is no current score yet.
               if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
+
+              // Self-heal for old runs: if latest score is missing but we already have
+              // a completed run, fetch report once to trigger BE sync, then retry latest score.
+              if (latestScoreNotFound && status === "COMPLETED" && sid > 0) {
+                try {
+                  await GetEvaluationReport(sid);
+                  const retryRes = await GetLatestScore() as unknown as any;
+                  const retryPayload = retryRes?.data ?? retryRes;
+                  if (retryPayload && !cancelled) {
+                    const retryRunId = retryPayload?.runId ?? retryPayload?.RunId ?? retryPayload?.id ?? retryPayload?.evaluationId ?? sid;
+                    const retryCanonical = retryPayload?.report ?? retryPayload?.Report ?? retryPayload;
+                    const retryMapped = mapCanonicalToReport(Number(retryRunId) || sid, retryCanonical);
+                    setLatestCompleted(retryMapped);
+                    latestScoreNotFound = false;
+                  }
+                } catch {
+                  // Keep history state visible; BE sync might not be ready yet.
+                }
+              }
             }
           }
         } catch (err: any) {
