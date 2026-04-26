@@ -8,7 +8,7 @@ import {
   Sparkles, ArrowLeft, FileText, History, RefreshCw, BarChart3,
   ShieldCheck, CheckCircle2, AlertTriangle, XCircle, TrendingUp,
   ChevronDown, ChevronUp, Zap, Info, Users, Globe, Layout, Banknote,
-  Clock, Tag, Cpu, BookOpen, Download,
+  Clock, Tag, Cpu, BookOpen, Download, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SubMetric, Recommendation, AIEvaluationReport, AIEvaluationStatus } from "../types";
@@ -243,6 +243,7 @@ export default function AIDetailedReportPage() {
   const hasProductMetrics = Array.isArray(report.subMetrics?.product) && report.subMetrics.product.length > 0;
   const hasTractionMetrics = Array.isArray(report.subMetrics?.traction) && report.subMetrics.traction.length > 0;
   const hasFinancialMetrics = Array.isArray(report.subMetrics?.financial) && report.subMetrics.financial.length > 0;
+  const hasOtherMetrics = Array.isArray(report.subMetrics?.other) && report.subMetrics.other.length > 0;
   const hasStrengths = Array.isArray(report.strengths) && report.strengths.length > 0;
   const hasRisksOrConcerns = (Array.isArray(report.risks) && report.risks.length > 0) || (Array.isArray(report.concerns) && report.concerns.length > 0);
   const hasGaps = Array.isArray(report.gaps) && report.gaps.length > 0;
@@ -436,6 +437,16 @@ export default function AIDetailedReportPage() {
                 iconColor="bg-slate-100"
               >
                 <SubMetricsList metrics={report.subMetrics.financial} />
+              </ExpandableSection>
+            )}
+
+            {hasOtherMetrics && (
+              <ExpandableSection
+                title="Khác — Chi tiết"
+                icon={<Layers className="w-4 h-4 text-slate-500" />}
+                iconColor="bg-slate-100"
+              >
+                <SubMetricsList metrics={report.subMetrics.other} />
               </ExpandableSection>
             )}
 

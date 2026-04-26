@@ -345,9 +345,11 @@ export default function RequestAIEvaluationPage() {
                   { label: "Quy mô đội ngũ", value: profileSnapshot?.teamSize ? `${profileSnapshot.teamSize} thành viên` : "—" },
                   { label: "Cập nhật gần nhất", value: profileSnapshot?.lastUpdated ?? profileSnapshot?.updatedAt ?? "—" },
                 ].map((row: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-[12px] text-slate-400">{row.label}</span>
-                    <span className="text-[12px] font-semibold text-slate-700">{row.value}</span>
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="w-24 shrink-0 text-[12px] text-slate-400 leading-5">{row.label}</span>
+                    <span className="flex-1 min-w-0 text-right text-[12px] font-semibold text-slate-700 leading-5 break-words">
+                      {row.value}
+                    </span>
                   </div>
                 ))}
               </div>

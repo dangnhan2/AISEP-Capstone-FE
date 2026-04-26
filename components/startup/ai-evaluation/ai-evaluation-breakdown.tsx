@@ -12,13 +12,22 @@ interface AIEvaluationBreakdownProps {
 export function AIEvaluationBreakdown({ report }: AIEvaluationBreakdownProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
-  const sections = [
+  const otherMetrics = report.subMetrics.other ?? [];
+  const otherScore =
+    otherMetrics.length > 0
+      ? Math.round(otherMetrics.reduce((a, m) => a + m.score, 0) / otherMetrics.length)
+      : 0;
+
+  const sections: { key: string; label: string; score: number; metrics: SubMetric[] }[] = [
     { key: "team", label: "Đội ngũ sáng lập", score: report.teamScore, metrics: report.subMetrics.team },
     { key: "market", label: "Thị trường & Đối thủ", score: report.marketScore, metrics: report.subMetrics.market },
     { key: "product", label: "Sản phẩm & Công nghệ", score: report.productScore, metrics: report.subMetrics.product },
     { key: "traction", label: "Tăng trưởng & Traction", score: report.tractionScore, metrics: report.subMetrics.traction },
     { key: "financial", label: "Tài chính & Hiệu quả", score: report.financialScore, metrics: report.subMetrics.financial },
   ];
+  if (otherMetrics.length > 0) {
+    sections.push({ key: "other", label: "Khác", score: otherScore, metrics: otherMetrics });
+  }
 
   return (
     <div className="space-y-4 mb-10">
