@@ -3,6 +3,7 @@
 import { History, Eye, ChevronRight } from "lucide-react";
 import { AIEvaluationReport } from "@/app/startup/ai-evaluation/types";
 import { cn } from "@/lib/utils";
+import { formatScore100 } from "@/lib/ai-evaluation-score-ui";
 
 interface AIEvaluationHistoryProps {
   reports: AIEvaluationReport[];
@@ -58,7 +59,7 @@ export function AIEvaluationHistoryList({ reports, currentId, onSelect }: AIEval
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-2">
                       <div className="size-8 rounded-lg bg-slate-900 text-[#eec54e] flex items-center justify-center font-black text-xs">
-                        {report.overallScore}
+                        {formatScore100(report.overallScore)}
                       </div>
                       {report.evaluationId === currentId && (
                         <span className="text-[9px] font-black text-[#eec54e] uppercase bg-[#eec54e]/10 px-1.5 py-0.5 rounded">Đang xem</span>

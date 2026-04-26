@@ -99,7 +99,127 @@ function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
   return 0;
 }
 
-function mapLatestScoreToReport(data: any): AIEvaluationReport {
+/** Đọc điểm phẳng từ payload BE: property có mặt + giá trị null → N/A; không có key → null. */
+function readOptionalFlatScore100(data: any, ...keys: string[]): number | null {
+  const d = data ?? {};
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(d, key)) continue;
+    const value = d[key];
+    if (value === null) return null;
+    return normalizeTo100(value);
+  }
+  return null;
+}
+
+/** BE: subMetrics[].Pillar ∈ TEAM | MARKET | PRODUCT | TRACTION | FINANCIAL | OTHER. metricScore ∈ [0,10]. */
+function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"] {
+  const buckets: AIEvaluationReport["subMetrics"] = {
+    team: [],
+    market: [],
+    product: [],
+    traction: [],
+    financial: [],
+    other: [],
+  };
+  const raw = data?.subMetrics ?? data?.SubMetrics;
+  if (!Array.isArray(raw)) return buckets;
+
+  const rawItemToSubMetric = (item: any): SubMetric | null => {
+    if (!item || typeof item !== "object") return null;
+    const name =
+      (typeof item.metricName === "string" && item.metricName.trim()) ||
+      (typeof item.MetricName === "string" && item.MetricName.trim()) ||
+      (typeof item.category === "string" && item.category.trim()) ||
+      (typeof item.Category === "string" && item.Category.trim()) ||
+      (typeof item.name === "string" && item.name.trim()) ||
+      "Tiêu chí";
+    const rawScore = item.metricScore ?? item.MetricScore ?? item.score ?? item.Score ?? 0;
+    const score = normalizeTo100(rawScore);
+    const comment =
+      (typeof item.explanation === "string" && item.explanation) ||
+      (typeof item.Explanation === "string" && item.Explanation) ||
+      (typeof item.metricValue === "string" && item.metricValue) ||
+      (typeof item.MetricValue === "string" && item.MetricValue) ||
+      "";
+    return { name, score, maxScore: 100, comment };
+  };
+
+  /** Chỉ dùng khi response cũ thiếu Pillar. */
+  const bucketHeuristic = (category: string, metricName: string): keyof AIEvaluationReport["subMetrics"] => {
+    const s = `${String(category)} ${String(metricName)}`.toLowerCase();
+    const financialHits = [
+      "financial", "revenue", "monetiz", "pricing", "margin", "burn", "runway", "funding",
+      "business model", "unit economics", "cash flow", "go-to-market", "go to market", "gtm",
+      "cac", "ltv", "p&l", "profitability",
+    ];
+    for (const k of financialHits) if (s.includes(k)) return "financial";
+    const tractionHits = [
+      "traction", "growth", "customer", "user", "retention", "churn", "validation", "scale", "adoption", "milestone",
+    ];
+    for (const k of tractionHits) if (s.includes(k)) return "traction";
+    const productHits = [
+      "product", "solution", "technology", "tech", "mvp", "roadmap", "platform", "feature", "differentiation", "architecture", "ux",
+    ];
+    for (const k of productHits) if (s.includes(k)) return "product";
+    const marketHits = [
+      "market", "competit", "competitor", "tam", "industry", "sector", "positioning", "demand", "opportunity", "timing",
+    ];
+    for (const k of marketHits) if (s.includes(k)) return "market";
+    const teamHits = ["team", "founder", "leadership", "hiring", "culture", "talent", "execution"];
+    for (const k of teamHits) if (s.includes(k)) return "team";
+    return "team";
+  };
+
+  const pillarToKey = (pillarRaw: unknown): keyof AIEvaluationReport["subMetrics"] | null => {
+    const p = String(pillarRaw ?? "").trim().toUpperCase();
+    if (p === "TEAM") return "team";
+    if (p === "MARKET") return "market";
+    if (p === "PRODUCT") return "product";
+    if (p === "TRACTION") return "traction";
+    if (p === "FINANCIAL") return "financial";
+    if (p === "OTHER") return "other";
+    return null;
+  };
+
+  for (const item of raw) {
+    const category = item?.category ?? item?.Category ?? "";
+    const metricName = item?.metricName ?? item?.MetricName ?? "";
+    const sm = rawItemToSubMetric(item);
+    if (!sm) continue;
+    const fromPillar = pillarToKey(item?.pillar ?? item?.Pillar ?? item?.dimension ?? item?.Dimension);
+    const key = fromPillar ?? bucketHeuristic(category, metricName);
+    buckets[key].push(sm);
+  }
+  return buckets;
+}
+
+/**
+ * Determine pitchDeckScore / businessPlanScore based on the document types
+ * that the backend tells us were actually evaluated.
+ */
+function assignDocScores(
+  overallScore: number | null,
+  evaluatedDocTypes?: string[]
+): { pitchDeckScore: number | null; businessPlanScore: number | null } {
+  const types = (evaluatedDocTypes ?? []).map(t => t.toLowerCase());
+  const hasPD = types.includes("pitch_deck");
+  const hasBP = types.includes("business_plan");
+
+  if (hasPD && hasBP) {
+    // Both evaluated — show overall for both
+    return { pitchDeckScore: overallScore, businessPlanScore: overallScore };
+  }
+  if (hasBP) {
+    return { pitchDeckScore: null, businessPlanScore: overallScore };
+  }
+  if (hasPD) {
+    return { pitchDeckScore: overallScore, businessPlanScore: null };
+  }
+  // Fallback: unknown — show overall in pitchDeck for backward compat
+  return { pitchDeckScore: overallScore, businessPlanScore: null };
+}
+
+function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEvaluationReport {
   const runId = Number(
     data?.evaluationRunId ??
     data?.EvaluationRunId ??
@@ -115,12 +235,12 @@ function mapLatestScoreToReport(data: any): AIEvaluationReport {
   const now = new Date();
   const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  const overallScore = normalizeTo100(data?.overallScore ?? data?.OverallScore ?? data?.overall_score ?? 0);
-  const teamScore = getFlatSubScoreTo100(data, "teamScore", "TeamScore", "team_score");
-  const marketScore = getFlatSubScoreTo100(data, "marketScore", "MarketScore", "market_score");
-  const productScore = getFlatSubScoreTo100(data, "productScore", "ProductScore", "product_score");
-  const tractionScore = getFlatSubScoreTo100(data, "tractionScore", "TractionScore", "traction_score");
-  const financialScore = getFlatSubScoreTo100(data, "financialScore", "FinancialScore", "financial_score");
+  const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score");
+  const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score");
+  const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score");
+  const productScore = readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score");
+  const tractionScore = readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score");
+  const financialScore = readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score");
 
   const recommendationsRaw = data?.recommendations ?? data?.Recommendations ?? data?.improvementRecommendations ?? data?.ImprovementRecommendations ?? [];
   const recommendations: Recommendation[] = Array.isArray(recommendationsRaw)
@@ -140,8 +260,7 @@ function mapLatestScoreToReport(data: any): AIEvaluationReport {
     startupId: String(data?.startupId ?? data?.StartupId ?? data?.startup_id ?? ""),
     status: "COMPLETED",
     overallScore,
-    pitchDeckScore: overallScore,
-    businessPlanScore: 0,
+    ...assignDocScores(overallScore, evaluatedDocTypes),
     teamScore,
     marketScore,
     productScore,
@@ -162,17 +281,11 @@ function mapLatestScoreToReport(data: any): AIEvaluationReport {
     concerns: asStringArray(data?.concerns ?? data?.Concerns ?? []),
     gaps: asStringArray(data?.gaps ?? data?.Gaps ?? []),
     recommendations,
-    subMetrics: {
-      team: [],
-      market: [],
-      product: [],
-      traction: [],
-      financial: [],
-    },
+    subMetrics: parseLatestScoreSubMetrics(data),
   } as AIEvaluationReport;
 }
 
-function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
+function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[]): AIEvaluationReport {
   const criteria: any[] = data?.criteria_results ?? data?.criteria ?? [];
   const overall = data?.overall_result ?? data;
   const narr = data?.narrative ?? data;
@@ -191,39 +304,27 @@ function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
 
   const executiveSummary = narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "";
   const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
-  
-  // Heuristic: Detect source documents from report text since we cannot change BE
-  const fullText = (executiveSummary + " " + (data?.snapshot_label ?? "") + " " + warnings.join(" ")).toLowerCase();
-  
-  const mentionsBP = fullText.includes("business plan") || fullText.includes("kế hoạch kinh doanh");
-  const mentionsPD = fullText.includes("pitch deck") || fullText.includes("bản thuyết trình");
-  const bpMissing = fullText.includes("business plan not provided") || fullText.includes("thiếu business plan") || fullText.includes("không có business plan");
-  const pdMissing = fullText.includes("pitch deck not provided") || fullText.includes("thiếu pitch deck") || fullText.includes("không có pitch deck");
 
-  let pitchDeckScore = 0;
-  let businessPlanScore = 0;
+  // Use explicit document types from backend if available
+  const { pitchDeckScore, businessPlanScore } = evaluatedDocTypes && evaluatedDocTypes.length > 0
+    ? assignDocScores(overallScore, evaluatedDocTypes)
+    : (() => {
+        // Legacy fallback: heuristic text-matching (only for old runs without evaluatedDocumentTypes)
+        const fullText = (executiveSummary + " " + (data?.snapshot_label ?? "") + " " + warnings.join(" ")).toLowerCase();
+        const mentionsBP = fullText.includes("business plan") || fullText.includes("kế hoạch kinh doanh");
+        const mentionsPD = fullText.includes("pitch deck") || fullText.includes("bản thuyết trình");
+        const bpMissing = fullText.includes("business plan not provided") || fullText.includes("thiếu business plan") || fullText.includes("không có business plan");
+        const pdMissing = fullText.includes("pitch deck not provided") || fullText.includes("thiếu pitch deck") || fullText.includes("không có pitch deck");
 
-  // Decision logic
-  if (mentionsBP && mentionsPD && !bpMissing && !pdMissing) {
-    // Looks like a combined evaluation
-    const allScores = (criteria || [])
-      .map((c: any) => normalizeTo100(c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? c.raw_score))
-      .sort((a: number, b: number) => b - a);
-    pitchDeckScore = allScores[0] ?? overallScore;
-    businessPlanScore = allScores[1] ?? overallScore;
-  } else if (mentionsBP && !bpMissing) {
-    // Business Plan only
-    businessPlanScore = overallScore;
-    pitchDeckScore = 0;
-  } else if (mentionsPD && !pdMissing) {
-    // Pitch Deck only
-    pitchDeckScore = overallScore;
-    businessPlanScore = 0;
-  } else {
-    // Fallback: If we can't tell, show overall score in both or use the old high-low logic
-    pitchDeckScore = overallScore;
-    businessPlanScore = 0; 
-  }
+        if (mentionsBP && !bpMissing && mentionsPD && !pdMissing) {
+          return { pitchDeckScore: overallScore, businessPlanScore: overallScore };
+        } else if (mentionsBP && !bpMissing) {
+          return { pitchDeckScore: 0, businessPlanScore: overallScore };
+        } else if (mentionsPD && !pdMissing) {
+          return { pitchDeckScore: overallScore, businessPlanScore: 0 };
+        }
+        return { pitchDeckScore: overallScore, businessPlanScore: null };
+      })();
 
   const strengths: string[] = asStringArray(narr?.strengths ?? narr?.strength ?? narr?.top_strengths ?? narr?.topStrengths ?? data?.strengths ?? []);
   const opportunities: string[] = asStringArray(narr?.opportunities ?? narr?.opportunity ?? narr?.top_opportunities ?? narr?.topOpportunities ?? data?.opportunities ?? []);
@@ -298,6 +399,7 @@ function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
       product: getCriterionSubMetrics(criteria, "solution", "product"),
       traction: getCriterionSubMetrics(criteria, "traction"),
       financial: getCriterionSubMetrics(criteria, "business", "model", "financial"),
+      other: [],
     },
   } as AIEvaluationReport;
 }

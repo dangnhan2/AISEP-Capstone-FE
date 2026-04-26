@@ -3,6 +3,7 @@
 import { TrendingUp, Target, Users, Layout, CircleDollarSign } from "lucide-react";
 import { AIEvaluationReport } from "@/app/startup/ai-evaluation/types";
 import { cn } from "@/lib/utils";
+import { formatScore100 } from "@/lib/ai-evaluation-score-ui";
 
 interface AIEvaluationSummaryProps {
   report: AIEvaluationReport;
@@ -32,7 +33,7 @@ export function AIEvaluationSummary({ report }: AIEvaluationSummaryProps) {
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Pitch Deck Score</p>
               </div>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white">{report.pitchDeckScore}</h2>
+                <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white tabular-nums">{formatScore100(report.pitchDeckScore)}</h2>
                 <span className="text-xl font-bold text-slate-400">/100</span>
               </div>
               <p className="text-[13px] text-slate-500 font-medium leading-relaxed">
@@ -51,7 +52,7 @@ export function AIEvaluationSummary({ report }: AIEvaluationSummaryProps) {
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Business Plan Score</p>
               </div>
               <div className="flex items-baseline gap-2">
-                <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white">{report.businessPlanScore}</h2>
+                <h2 className="text-5xl font-black tracking-tighter text-slate-900 dark:text-white tabular-nums">{formatScore100(report.businessPlanScore)}</h2>
                 <span className="text-xl font-bold text-slate-400">/100</span>
               </div>
               <p className="text-[13px] text-slate-500 font-medium leading-relaxed">
@@ -67,14 +68,14 @@ export function AIEvaluationSummary({ report }: AIEvaluationSummaryProps) {
           <div className="relative z-10 space-y-4 text-center">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#eec54e]">Potential Score (AVG)</p>
             <div className="flex items-baseline justify-center gap-2">
-              <h2 className="text-7xl font-black tracking-tighter text-white">{report.overallScore}</h2>
+              <h2 className="text-7xl font-black tracking-tighter text-white tabular-nums">{formatScore100(report.overallScore)}</h2>
               <span className="text-2xl font-bold text-slate-600">/100</span>
             </div>
             <div className="pt-2">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-slate-400">
-                <span>{report.pitchDeckScore}</span>
+                <span>{formatScore100(report.pitchDeckScore)}</span>
                 <span className="opacity-30">+</span>
-                <span>{report.businessPlanScore}</span>
+                <span>{formatScore100(report.businessPlanScore)}</span>
                 <span className="opacity-30">/ 2</span>
               </div>
             </div>
@@ -91,7 +92,7 @@ export function AIEvaluationSummary({ report }: AIEvaluationSummaryProps) {
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{m.label}</p>
-              <p className="text-xl font-black text-slate-900 dark:text-white">{m.score}</p>
+              <p className="text-xl font-black text-slate-900 dark:text-white tabular-nums">{formatScore100(m.score)}</p>
             </div>
           </div>
         ))}

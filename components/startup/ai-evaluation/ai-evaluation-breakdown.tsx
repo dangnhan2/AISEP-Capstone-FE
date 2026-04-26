@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp, Star, Info } from "lucide-react";
 import { AIEvaluationReport, SubMetric } from "@/app/startup/ai-evaluation/types";
 import { cn } from "@/lib/utils";
+import { formatScore100 } from "@/lib/ai-evaluation-score-ui";
 
 interface AIEvaluationBreakdownProps {
   report: AIEvaluationReport;
@@ -12,13 +13,22 @@ interface AIEvaluationBreakdownProps {
 export function AIEvaluationBreakdown({ report }: AIEvaluationBreakdownProps) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
-  const sections = [
+  const otherMetrics = report.subMetrics.other ?? [];
+  const otherScore: number | null =
+    otherMetrics.length > 0
+      ? Math.round(otherMetrics.reduce((a, m) => a + m.score, 0) / otherMetrics.length)
+      : null;
+
+  const sections: { key: string; label: string; score: number | null; metrics: SubMetric[] }[] = [
     { key: "team", label: "Đội ngũ sáng lập", score: report.teamScore, metrics: report.subMetrics.team },
     { key: "market", label: "Thị trường & Đối thủ", score: report.marketScore, metrics: report.subMetrics.market },
     { key: "product", label: "Sản phẩm & Công nghệ", score: report.productScore, metrics: report.subMetrics.product },
     { key: "traction", label: "Tăng trưởng & Traction", score: report.tractionScore, metrics: report.subMetrics.traction },
     { key: "financial", label: "Tài chính & Hiệu quả", score: report.financialScore, metrics: report.subMetrics.financial },
   ];
+  if (otherMetrics.length > 0) {
+    sections.push({ key: "other", label: "Khác", score: otherScore, metrics: otherMetrics });
+  }
 
   return (
     <div className="space-y-4 mb-10">
@@ -28,6 +38,7 @@ export function AIEvaluationBreakdown({ report }: AIEvaluationBreakdownProps) {
 
       {sections.map((section) => {
         const isExpanded = expandedSection === section.key;
+        const barPct = section.score == null ? 0 : Math.min(100, Math.max(0, section.score));
         return (
           <div 
             key={section.key}
@@ -41,15 +52,18 @@ export function AIEvaluationBreakdown({ report }: AIEvaluationBreakdownProps) {
               className="w-full px-8 py-6 flex items-center justify-between group"
             >
               <div className="flex items-center gap-6 flex-1">
-                <div className="size-12 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center font-black text-slate-900 dark:text-white">
-                  {section.score}
+                <div className={cn(
+                  "size-12 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center font-black tabular-nums",
+                  section.score == null ? "text-slate-400 text-sm" : "text-slate-900 dark:text-white text-lg",
+                )}>
+                  {formatScore100(section.score)}
                 </div>
                 <div className="flex-1 text-left">
                   <h4 className="text-[15px] font-black text-slate-900 dark:text-white tracking-tight">{section.label}</h4>
                   <div className="mt-2 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-[#eec54e] rounded-full transition-all duration-700"
-                      style={{ width: `${section.score}%` }}
+                      style={{ width: `${barPct}%` }}
                     />
                   </div>
                 </div>

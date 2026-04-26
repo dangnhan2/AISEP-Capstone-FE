@@ -9,28 +9,31 @@ import {
   Loader2,
   ShieldCheck, CheckCircle2, AlertTriangle, XCircle, TrendingUp,
   ChevronDown, ChevronUp, Zap, Info, Users, Globe, Layout, Banknote,
-  Clock, Tag, Cpu, BookOpen, Download,
+  Clock, Tag, Cpu, BookOpen, Download, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatScore100, scoreChipColorClass } from "@/lib/ai-evaluation-score-ui";
 import { SubMetric, Recommendation, AIEvaluationReport, AIEvaluationStatus } from "../types";
 import { GetEvaluationReport, GetEvaluationStatus } from "@/services/ai/ai.api";
 import { mapCanonicalToReport, mapStatusToUI } from "../canonical-mapper";
 
 /* ─── Score Bar ────────────────────────────────────────────── */
 
-function ScoreBar({ label, score, icon }: { label: string; score: number; icon: React.ReactNode }) {
-  const color = score >= 75 ? "bg-emerald-400" : score >= 50 ? "bg-amber-400" : "bg-red-400";
-  const textColor = score >= 75 ? "text-emerald-600" : score >= 50 ? "text-amber-600" : "text-red-500";
+function ScoreBar({ label, score, icon }: { label: string; score: number | null; icon: React.ReactNode }) {
+  const n = score == null || Number.isNaN(Number(score)) ? null : Number(score);
+  const color = n == null ? "bg-slate-200" : n >= 75 ? "bg-emerald-400" : n >= 50 ? "bg-amber-400" : "bg-red-400";
+  const textClass = scoreChipColorClass(score);
+  const widthPct = n == null ? 0 : Math.min(100, Math.max(0, n));
   return (
     <div className="flex items-center gap-3">
       <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[12px] font-semibold text-slate-700">{label}</span>
-          <span className={cn("text-[13px] font-black", textColor)}>{score}</span>
+          <span className={cn("text-[13px] font-black tabular-nums", textClass)}>{formatScore100(score)}</span>
         </div>
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-          <div className={cn("h-full rounded-full transition-all duration-700", color)} style={{ width: `${score}%` }} />
+          <div className={cn("h-full rounded-full transition-all duration-700", color)} style={{ width: `${widthPct}%` }} />
         </div>
       </div>
     </div>
@@ -126,16 +129,17 @@ export default function AIDetailedReportPage() {
         if (res && (res.success || res.isSuccess)) {
           const payload = res.data ?? res;
           if (!cancelled) setRawPayload(payload);
+          const evalDocTypes = payload.evaluatedDocumentTypes ?? payload.EvaluatedDocumentTypes ?? [];
           // If backend indicates report valid, map and return
           if (payload.isReportValid || payload.IsReportValid) {
             const canonical = payload.report ?? payload.Report ?? payload;
-            const mapped = mapCanonicalToReport(runId, canonical);
+            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes);
             if (!cancelled) setReport(mapped);
             return true;
           }
           // If payload.Report exists and looks complete, map anyway
           if (payload.report) {
-            const mapped = mapCanonicalToReport(runId, payload.report);
+            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes);
             if (!cancelled) setReport(mapped);
             return true;
           }
@@ -203,9 +207,11 @@ export default function AIDetailedReportPage() {
         setEvalStatus(newStatus);
         if (newStatus === "COMPLETED") {
           const rres = await GetEvaluationReport(runId) as unknown as any;
-          const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
+          const rdata = rres?.data ?? rres ?? {};
+          const reportPayload = rdata?.report ?? rdata;
+          const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
           setRawPayload(reportPayload);
-          const mapped = mapCanonicalToReport(runId, reportPayload);
+          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes);
           setReport(mapped);
         } else if (newStatus === "FAILED") {
           setLoadError("Đánh giá đã thất bại. Vui lòng kiểm tra lịch sử hoặc thử lại.");
@@ -238,12 +244,13 @@ export default function AIDetailedReportPage() {
   // Only show sections if the AI actually returned content for them
   const hasExecutive = !!(report.executiveSummary && String(report.executiveSummary).trim().length > 0);
   const hasAnyScore = [report.overallScore, report.pitchDeckScore, report.businessPlanScore, report.teamScore, report.marketScore, report.productScore, report.tractionScore, report.financialScore]
-    .some((n) => Number(n) > 0);
+    .some((n) => n != null && Number(n) > 0);
   const hasTeamMetrics = Array.isArray(report.subMetrics?.team) && report.subMetrics.team.length > 0;
   const hasMarketMetrics = Array.isArray(report.subMetrics?.market) && report.subMetrics.market.length > 0;
   const hasProductMetrics = Array.isArray(report.subMetrics?.product) && report.subMetrics.product.length > 0;
   const hasTractionMetrics = Array.isArray(report.subMetrics?.traction) && report.subMetrics.traction.length > 0;
   const hasFinancialMetrics = Array.isArray(report.subMetrics?.financial) && report.subMetrics.financial.length > 0;
+  const hasOtherMetrics = Array.isArray(report.subMetrics?.other) && report.subMetrics.other.length > 0;
   const hasStrengths = Array.isArray(report.strengths) && report.strengths.length > 0;
   const hasRisksOrConcerns = (Array.isArray(report.risks) && report.risks.length > 0) || (Array.isArray(report.concerns) && report.concerns.length > 0);
   const hasGaps = Array.isArray(report.gaps) && report.gaps.length > 0;
@@ -296,11 +303,14 @@ export default function AIDetailedReportPage() {
             <div className="flex items-center gap-4 flex-shrink-0">
               <div className={cn(
                 "w-20 h-20 rounded-2xl flex flex-col items-center justify-center",
-                report.overallScore >= 75 ? "bg-emerald-50" : report.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
+                report.overallScore == null ? "bg-slate-100"
+                  : report.overallScore >= 75 ? "bg-emerald-50" : report.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
               )}>
-                <span className={cn("text-[28px] font-black leading-none",
-                  report.overallScore >= 75 ? "text-emerald-600" : report.overallScore >= 50 ? "text-amber-600" : "text-red-500"
-                )}>{report.overallScore}</span>
+                <span className={cn(
+                  "text-[28px] font-black leading-none tabular-nums",
+                  report.overallScore == null ? "text-slate-500"
+                    : report.overallScore >= 75 ? "text-emerald-600" : report.overallScore >= 50 ? "text-amber-600" : "text-red-500"
+                )}>{formatScore100(report.overallScore)}</span>
                 <span className="text-[10px] text-slate-400 font-semibold">/100</span>
               </div>
             </div>
@@ -347,14 +357,14 @@ export default function AIDetailedReportPage() {
                       <Layout className="w-3.5 h-3.5 text-blue-400" />
                       <span className="text-[11px] text-blue-500 font-semibold">Pitch Deck</span>
                     </div>
-                    <span className="text-[22px] font-black text-blue-700">{report.pitchDeckScore}</span>
+                    <span className="text-[22px] font-black text-blue-700 tabular-nums">{formatScore100(report.pitchDeckScore)}</span>
                   </div>
                   <div className="px-4 py-3 bg-violet-50/50 rounded-xl border border-violet-100">
                     <div className="flex items-center gap-2 mb-1">
                       <BookOpen className="w-3.5 h-3.5 text-violet-400" />
                       <span className="text-[11px] text-violet-500 font-semibold">Business Plan</span>
                     </div>
-                    <span className="text-[22px] font-black text-violet-700">{report.businessPlanScore}</span>
+                    <span className="text-[22px] font-black text-violet-700 tabular-nums">{formatScore100(report.businessPlanScore)}</span>
                   </div>
                 </div>
 
@@ -437,6 +447,16 @@ export default function AIDetailedReportPage() {
                 iconColor="bg-slate-100"
               >
                 <SubMetricsList metrics={report.subMetrics.financial} />
+              </ExpandableSection>
+            )}
+
+            {hasOtherMetrics && (
+              <ExpandableSection
+                title="Khác — Chi tiết"
+                icon={<Layers className="w-4 h-4 text-slate-500" />}
+                iconColor="bg-slate-100"
+              >
+                <SubMetricsList metrics={report.subMetrics.other} />
               </ExpandableSection>
             )}
 
