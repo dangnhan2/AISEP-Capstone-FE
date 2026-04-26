@@ -20,17 +20,15 @@ import {
   Users,
 } from "lucide-react";
 import { GetStartupById } from "@/services/investor/investor.api";
+import { GetStages, GetIndustriesFlat, IStageMasterItem, IIndustryFlat } from "@/services/master/master.api";
+import { getStageDisplay } from "@/lib/get-stage-display";
+import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGE_LABELS: Record<string, string> = {
-  "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)",
-  "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
-  Idea: "Hạt giống (Idea)", PreSeed: "Tiền ươm mầm (Pre-Seed)", Seed: "Ươm mầm (Seed)",
-  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
-};
 
 const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
+
 type Tab = typeof TABS[number];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -43,22 +41,30 @@ export default function StaffStartupProfilePage({ params }: { params: Promise<{ 
   const [startup, setStartup] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
+  const [stages, setStages] = useState<IStageMasterItem[]>([]);
+  const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
 
   useEffect(() => {
     if (!Number.isFinite(startupId) || startupId <= 0) { setLoading(false); return; }
     (async () => {
       try {
-        const res = await GetStartupById(startupId) as any;
+        const [res, stageData, indData] = await Promise.all([
+          GetStartupById(startupId) as any,
+          GetStages().catch(() => []),
+          GetIndustriesFlat().catch(() => []),
+        ]);
         if ((res?.isSuccess || res?.success) && res.data) setStartup(res.data);
+        setStages(stageData);
+        setIndustries(indData);
       } catch { /* silent */ }
       finally { setLoading(false); }
     })();
   }, [startupId]);
 
-  const displayStage = STAGE_LABELS[String(startup?.stage)] ?? startup?.stage ?? "—";
-  const displayIndustry = Array.isArray(startup?.industry)
-    ? startup.industry.join(", ")
-    : (startup?.industry ?? startup?.industryName ?? "—");
+  const stageIdValue = startup?.stageId ?? startup?.stageID ?? startup?.StageId ?? startup?.StageID;
+  const stageNameValue = startup?.stageName ?? startup?.StageName ?? startup?.stage ?? startup?.Stage;
+  const displayStage = getStageDisplay(stageIdValue, stageNameValue, stages);
+  const displayIndustry = getStartupIndustryDisplay(startup, industries);
   const teamMembers: any[] = Array.isArray(startup?.teamMembers) ? startup.teamMembers : Array.isArray(startup?.team) ? startup.team : [];
   const currentNeeds: string[] = Array.isArray(startup?.currentNeeds) ? startup.currentNeeds : [];
   const targetFunding = Number(startup?.fundingAmountSought) || 0;

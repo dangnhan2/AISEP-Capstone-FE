@@ -149,8 +149,8 @@ function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"]
     const s = `${String(category)} ${String(metricName)}`.toLowerCase();
     const financialHits = [
       "financial", "revenue", "monetiz", "pricing", "margin", "burn", "runway", "funding",
-      "business model", "unit economics", "cash flow", "go-to-market", "go to market", "gtm",
-      "cac", "ltv", "p&l", "profitability",
+      "business", "model", "unit economics", "cash flow", "go-to-market", "go to market", "gtm",
+      "cac", "ltv", "p&l", "profitability", "commercial", "sales", "projection", "budget", "scalability"
     ];
     for (const k of financialHits) if (s.includes(k)) return "financial";
     const tractionHits = [
