@@ -12,6 +12,9 @@ import {
   type KycCaseHistoryEntryDto,
 } from "@/services/staff/registration.api";
 import axios from "@/services/interceptor";
+import { GetStages, GetIndustriesFlat, IStageMasterItem, IIndustryFlat } from "@/services/master/master.api";
+import { getStageDisplay } from "@/lib/get-stage-display";
+import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 import { useAuth } from "@/context/context";
 import { getIndustryName, getInvestorPreferredStageLabel } from "@/lib/investor-preferred-stages";
 import {
@@ -86,6 +89,9 @@ type PreviewDocument = {
   name: string;
   fileType?: string | null;
 };
+
+const STARTUP_PROFILE_TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
+type StartupProfileTab = typeof STARTUP_PROFILE_TABS[number];
 
 // --- Helper Functions ---
 const AVATAR_COLORS = [
@@ -398,22 +404,8 @@ const EXPERTISE_LABEL: Record<string, string> = {
   HR_OR_TEAM_BUILDING: "Nhân sự",
 };
 
-const STAGE_LABEL: Record<string, string> = {
-  "0": "Idea", "1": "Pre-seed", "2": "Seed",
-  "3": "Series A", "4": "Series B", "5": "Series C", "6": "Growth",
-  Idea: "Idea", PreSeed: "Pre-seed", Seed: "Seed",
-  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C", Growth: "Growth",
-};
 
-const STARTUP_PROFILE_TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ", "Liên hệ"] as const;
-type StartupProfileTab = typeof STARTUP_PROFILE_TABS[number];
 
-const PROFILE_STAGE_LABELS: Record<string, string> = {
-  "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)",
-  "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
-  Idea: "Hạt giống (Idea)", PreSeed: "Tiền ươm mầm (Pre-Seed)", Seed: "Ươm mầm (Seed)",
-  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
-};
 
 function calcAdvisorDrawerCompleteness(advisor: IAdvisorDetail) {
   const checks = [
@@ -439,6 +431,8 @@ function ProfileDrawer({ entityId, entityType, open, onClose }: {
 }) {
   const [tab, setTab] = React.useState<"overview" | "expertise" | "contact">("overview");
   const [startupTab, setStartupTab] = React.useState<StartupProfileTab>("Tổng quan");
+  const [stages, setStages] = React.useState<IStageMasterItem[]>([]);
+  const [industries, setIndustries] = React.useState<IIndustryFlat[]>([]);
 
   const advisorQuery = useQuery({
     queryKey: ["drawer-advisor", entityId],
@@ -462,6 +456,13 @@ function ProfileDrawer({ entityId, entityType, open, onClose }: {
   const advisor = advisorQuery.data;
   const startup = startupQuery.data;
   const investor = investorQuery.data;
+
+  React.useEffect(() => {
+    if (open) {
+      GetStages().then(setStages).catch(() => {});
+      GetIndustriesFlat().then(setIndustries).catch(() => {});
+    }
+  }, [open]);
 
   // Reset tab when entity changes
   React.useEffect(() => {
@@ -655,8 +656,10 @@ function ProfileDrawer({ entityId, entityType, open, onClose }: {
           {/* ── STARTUP ── */}
           {entityType === "STARTUP" && startup && (() => {
             const p = startup;
-            const displayStage = PROFILE_STAGE_LABELS[String(p.stage)] ?? p.stage ?? "—";
-            const displayIndustry = Array.isArray(p.industry) ? p.industry.join(", ") : (p.industry ?? p.industryName ?? "—");
+            const stageIdValue = p.stageId ?? p.stageID ?? p.StageId ?? p.StageID;
+            const stageNameValue = p.stageName ?? p.StageName ?? p.stage ?? p.Stage;
+            const displayStage = getStageDisplay(stageIdValue, stageNameValue, stages);
+            const displayIndustry = getStartupIndustryDisplay(p, industries);
             const teamMembers: any[] = Array.isArray(p.teamMembers) ? p.teamMembers : Array.isArray(p.team) ? p.team : [];
             const currentNeeds: string[] = Array.isArray(p.currentNeeds) ? p.currentNeeds : [];
             const targetFunding = Number(p.fundingAmountSought) || 0;

@@ -12,19 +12,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
-import { GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { GetIndustriesFlat, GetStages, IIndustryFlat, IStageMasterItem } from "@/services/master/master.api";
 import { GetStartupKYCStatus } from "@/services/startup/startup-kyc.api";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
-
-const STAGE_LABELS: Record<string, string> = {
-    "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)", 
-    "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
-    "Idea": "Hạt giống (Idea)", "PreSeed": "Tiền ươm mầm (Pre-Seed)", "Seed": "Ươm mầm (Seed)", 
-    "SeriesA": "Series A", "SeriesB": "Series B", "SeriesC": "Series C+", "Growth": "Tăng trưởng (Growth)"
-};
+import { getStageDisplay } from "@/lib/get-stage-display";
 
 const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Liên hệ"] as const;
+
 type Tab = typeof TABS[number];
 
 function Tag({ children, variant = "default" }: { children: React.ReactNode; variant?: "default" | "green" | "violet" | "amber" | "blue" }) {
@@ -58,6 +53,7 @@ export default function StartupProfileViewPage() {
     const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
     const [p, setP] = useState<any>(null);
     const [members, setMembers] = useState<any[]>([]);
+    const [stages, setStages] = useState<IStageMasterItem[]>([]);
     const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
     const [loading, setLoading] = useState(true);
     const [kycBadge, setKycBadge] = useState<"with_entity" | "no_entity" | null>(null);
@@ -66,10 +62,11 @@ export default function StartupProfileViewPage() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [resProfile, resMembers, indData, resKyc] = await Promise.all([
+                const [resProfile, resMembers, indData, stageData, resKyc] = await Promise.all([
                     GetStartupProfile() as any,
                     GetMembers() as any,
                     GetIndustriesFlat().catch(() => [] as IIndustryFlat[]),
+                    GetStages().catch(() => [] as IStageMasterItem[]),
                     GetStartupKYCStatus().catch(() => null) as any,
                 ]);
                 if ((resProfile.success || resProfile.isSuccess) && resProfile.data) {
@@ -115,6 +112,7 @@ export default function StartupProfileViewPage() {
                     setMembers(resMembers.data);
                 }
                 setIndustries(indData);
+                setStages(stageData);
                 const kycData = resKyc?.data ?? resKyc;
                 if (kycData?.workflowStatus === "APPROVED") {
                     const isLegal =
@@ -169,22 +167,13 @@ export default function StartupProfileViewPage() {
     const foundedYear = p.foundedDate ? new Date(p.foundedDate).getFullYear() : p.foundedYear;
 
     const displayIndustry = getStartupIndustryDisplay(p, industries);
-    const stageIdValue =
-        p.stageId ??
-        p.stageID ??
-        p.StageId ??
-        p.StageID;
-    const stageNameValue =
-        p.stageName ??
-        p.StageName ??
-        p.stage ??
-        p.Stage ??
-        p.fundingStage ??
-        p.FundingStage;
-    const displayStage =
-        STAGE_LABELS[String(stageIdValue ?? "")] ||
-        STAGE_LABELS[String(stageNameValue ?? "")] ||
-        stageNameValue;
+    const stageIdValue = p.stageId ?? p.stageID ?? p.StageId ?? p.StageID;
+    const stageNameValue = p.stageName ?? p.StageName ?? p.stage ?? p.Stage ?? p.fundingStage ?? p.FundingStage;
+    const displayStage = getStageDisplay(stageIdValue, stageNameValue, stages);
+
+
+
+
     const isApproved = !!(p.approvedAt || p.approvedBy);
     const teamSizeValue = p.teamSize ?? p.TeamSize;
     

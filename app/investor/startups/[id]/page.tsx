@@ -46,18 +46,16 @@ import { openDocumentInTab } from "@/lib/document-viewer";
 import { GetEvaluationHistory, GetEvaluationReport } from "@/services/ai/ai.api";
 import { Download, Eye, FileText as FileTextIcon, FolderOpen, RefreshCcw } from "lucide-react";
 import { GetSentConnections, GetReceivedConnections } from "@/services/connection/connection.api";
+import { GetStages, IStageMasterItem, GetIndustriesFlat, IIndustryFlat } from "@/services/master/master.api";
+import { getStageDisplay } from "@/lib/get-stage-display";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
+import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STAGE_LABELS: Record<string, string> = {
-  "0": "Hạt giống (Idea)", "1": "Tiền ươm mầm (Pre-Seed)", "2": "Ươm mầm (Seed)",
-  "3": "Series A", "4": "Series B", "5": "Series C+", "6": "Tăng trưởng (Growth)",
-  Idea: "Hạt giống (Idea)", PreSeed: "Tiền ươm mầm (Pre-Seed)", Seed: "Ươm mầm (Seed)",
-  SeriesA: "Series A", SeriesB: "Series B", SeriesC: "Series C+", Growth: "Tăng trưởng (Growth)",
-};
 
 const TABS = ["Tổng quan", "Kinh doanh", "Gọi vốn", "Đội ngũ & Xác thực", "Tài liệu", "Liên hệ"] as const;
+
 type Tab = typeof TABS[number];
 
 const MONOGRAM_PALETTES = [
@@ -664,6 +662,8 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("Tổng quan");
+  const [stages, setStages] = useState<IStageMasterItem[]>([]);
+  const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -686,6 +686,17 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
       const res = await GetStartupById(startupId) as any;
       if ((res?.isSuccess || res?.success) && res.data) {
         const data = res.data;
+        
+        // Fetch master data for proper labeling
+        try {
+          const [stageData, indData] = await Promise.all([
+            GetStages().catch(() => []),
+            GetIndustriesFlat().catch(() => []),
+          ]);
+          setStages(stageData);
+          setIndustries(indData);
+        } catch { /* non-blocking */ }
+
         let score = extractAiScore(data);
 
         // Fallback: detail endpoint sometimes omits AI score while search endpoint has it.
@@ -865,22 +876,10 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const palette = getMonogramPalette(Number(startup.startupID ?? startupId));
   const companyName = startup.companyName ?? "Startup";
   const initials = companyName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
-  const stageIdValue =
-    startup.stageId ??
-    startup.stageID ??
-    startup.StageId ??
-    startup.StageID;
-  const stageNameValue =
-    startup.stageName ??
-    startup.StageName ??
-    startup.stage ??
-    startup.Stage ??
-    startup.fundingStage ??
-    startup.FundingStage;
-  const displayStage =
-    STAGE_LABELS[String(stageIdValue ?? "")] ||
-    STAGE_LABELS[String(stageNameValue ?? "")] ||
-    stageNameValue;
+  const stageIdValue = startup.stageId ?? startup.stageID ?? startup.StageId ?? startup.StageID;
+  const stageNameValue = startup.stageName ?? startup.StageName ?? startup.stage ?? startup.Stage ?? startup.fundingStage ?? startup.FundingStage;
+  const displayStage = getStageDisplay(stageIdValue, stageNameValue, stages);
+
   const explicitSubIndustry =
     startup.subIndustryName ??
     startup.subIndustry ??
@@ -900,12 +899,8 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
     startup.ParentIndustry ??
     (explicitSubIndustry ? explicitIndustry : "");
   const childIndustryValue = explicitSubIndustry || explicitIndustry;
-  const displayIndustry =
-    parentIndustryValue &&
-    childIndustryValue &&
-    String(parentIndustryValue).trim().toLowerCase() !== String(childIndustryValue).trim().toLowerCase()
-      ? `${parentIndustryValue} / ${childIndustryValue}`
-      : (parentIndustryValue || childIndustryValue);
+  const displayIndustry = getStartupIndustryDisplay(startup, industries);
+
   const teamSizeValue = startup.teamSize ?? startup.TeamSize;
   const isTeamVerified = Boolean(
     startup.approvedAt ||
