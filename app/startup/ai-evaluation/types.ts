@@ -28,14 +28,15 @@ export interface AIEvaluationReport {
   evaluationId: string;
   startupId: string;
   status: AIEvaluationStatus;
-  overallScore: number;
-  pitchDeckScore: number;
-  businessPlanScore: number;
-  teamScore: number;
-  marketScore: number;
-  productScore: number;
-  tractionScore: number;
-  financialScore: number;
+  /** null khi BE trả null (chưa chấm / không áp dụng), không đồng nghĩa với 0 điểm. */
+  overallScore: number | null;
+  pitchDeckScore: number | null;
+  businessPlanScore: number | null;
+  teamScore: number | null;
+  marketScore: number | null;
+  productScore: number | null;
+  tractionScore: number | null;
+  financialScore: number | null;
   calculatedAt: string;
   generatedAt: string;
   isCurrent: boolean;

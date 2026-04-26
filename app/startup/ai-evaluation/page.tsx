@@ -16,6 +16,7 @@ import { GetDocument, GetStartupDocuments } from "@/services/document/document.a
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
 import { mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
+import { formatScore100, scoreChipColorClass, scoreRingVisual } from "@/lib/ai-evaluation-score-ui";
 import { AIEvaluationStatus, AIEvaluationReport } from "./types";
 
 function fileNameFromUrl(url?: string | null): string {
@@ -53,19 +54,21 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string; bor
 
 /* ─── Score Ring ────────────────────────────────────────────── */
 
-function ScoreRing({ score, size = 80 }: { score: number; size?: number }) {
+function ScoreRing({ score, size = 80 }: { score: number | null; size?: number }) {
   const r = (size - 8) / 2;
   const c = 2 * Math.PI * r;
-  const pct = score / 100;
-  const color = score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const { pct, stroke, label } = scoreRingVisual(score);
   return (
     <svg width={size} height={size} className="rotate-[-90deg]">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={6} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={6}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={stroke} strokeWidth={6}
         strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
         className="transition-all duration-1000" />
       <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
-        className="rotate-[90deg] origin-center text-[20px] font-black fill-slate-900">{score}</text>
+        className={cn(
+          "rotate-[90deg] origin-center font-black fill-slate-900",
+          label === "—" ? "text-[15px]" : "text-[20px]",
+        )}>{label}</text>
     </svg>
   );
 }
@@ -440,7 +443,7 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
               ].map(m => (
                 <div key={m.label} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg border border-slate-100">
                   <span className="text-[11px] text-slate-400">{m.label}</span>
-                  <span className={cn("text-[12px] font-bold", m.score >= 75 ? "text-emerald-600" : m.score >= 50 ? "text-amber-600" : "text-red-500")}>{m.score}</span>
+                  <span className={cn("text-[12px] font-bold tabular-nums", scoreChipColorClass(m.score))}>{formatScore100(m.score)}</span>
                 </div>
               ))}
             </div>
@@ -460,10 +463,10 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
                 <div className="mt-4 pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-2 mb-2">
                     <ListChecks className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <p className="text-[11px] font-bold text-slate-600">Chi tiết tiêu chí (subMetrics)</p>
+                    <p className="text-[11px] font-bold text-slate-600">Chi tiết tiêu chí</p>
                   </div>
                   <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
-                    Nhóm theo field Pillar từ BE (TEAM, MARKET, …). Nếu thiếu Pillar (bản cũ), FE fallback theo tên category/metricName.
+                    Điểm theo từng tiêu chí AI (thang 0–100).
                   </p>
                   <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1">
                     {groups.map(g => {
@@ -564,7 +567,7 @@ function PendingRunView({ run, status, onRefresh }: { run: any; status: AIEvalua
             <p className="text-[16px] font-bold text-slate-900">Đang xử lý đánh giá</p>
             <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {run?.calculatedAt ?? ""}</p>
             <p className="text-[13px] text-slate-600 mt-3">Trạng thái hiện tại: <span className={cn("font-semibold ml-1", statusCfg.color)}>{statusCfg.label}</span></p>
-            {run?.overallScore > 0 && (
+            {run?.overallScore != null && run.overallScore > 0 && (
               <p className="text-[20px] font-black text-slate-900 mt-3">{run.overallScore}/100</p>
             )}
           </div>
@@ -650,7 +653,8 @@ function AIEvaluationHomePageInner() {
           const sres = await GetLatestScore() as unknown as any;
           const spayload = sres?.data ?? sres;
           if (spayload) {
-            const mapped = mapLatestScoreToReport(spayload);
+            const evalDocTypes = spayload?.evaluatedDocumentTypes ?? spayload?.EvaluatedDocumentTypes ?? [];
+            const mapped = mapLatestScoreToReport(spayload, evalDocTypes);
             if (!cancelled) setLatestCompleted(mapped);
           } else {
             if (!cancelled) setLatestCompleted(null);
@@ -703,7 +707,8 @@ function AIEvaluationHomePageInner() {
                   const retryRes = await GetLatestScore() as unknown as any;
                   const retryPayload = retryRes?.data ?? retryRes;
                   if (retryPayload && !cancelled) {
-                    const retryMapped = mapLatestScoreToReport(retryPayload);
+                    const retryEvalDocTypes = retryPayload?.evaluatedDocumentTypes ?? retryPayload?.EvaluatedDocumentTypes ?? [];
+                    const retryMapped = mapLatestScoreToReport(retryPayload, retryEvalDocTypes);
                     setLatestCompleted(retryMapped);
                     latestScoreNotFound = false;
                   }
@@ -754,8 +759,10 @@ function AIEvaluationHomePageInner() {
         if (newStatus === "COMPLETED") {
           try {
             const rres = await GetEvaluationReport(sid) as unknown as any;
-            const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
-            const mapped = mapCanonicalToReport(sid, reportPayload);
+            const rdata = rres?.data ?? rres ?? {};
+            const reportPayload = rdata?.report ?? rdata;
+            const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
+            const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes);
             if (!cancelled) {
               setLatestCompleted(mapped);
               setLatestRun(null);
@@ -799,8 +806,10 @@ function AIEvaluationHomePageInner() {
       setRunStatus(newStatus);
       if (newStatus === "COMPLETED") {
         const rres = await GetEvaluationReport(sid) as unknown as any;
-        const reportPayload = rres?.data?.report ?? rres?.data ?? rres;
-        const mapped = mapCanonicalToReport(sid, reportPayload);
+        const rdata = rres?.data ?? rres ?? {};
+        const reportPayload = rdata?.report ?? rdata;
+        const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
+        const mapped = mapCanonicalToReport(sid, reportPayload, evalDocTypes);
         setLatestCompleted(mapped);
         setLatestRun(null);
       }

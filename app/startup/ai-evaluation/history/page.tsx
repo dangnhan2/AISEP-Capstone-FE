@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatScore100, scoreChipColorClass } from "@/lib/ai-evaluation-score-ui";
 import { AIEvaluationReport, AIEvaluationStatus } from "../types";
 import { GetStartupProfile } from "@/services/startup/startup.api";
 import { GetEvaluationHistory } from "@/services/ai/ai.api";
@@ -244,14 +245,17 @@ export default function AIEvaluationHistoryPage() {
                     <div className={cn(
                       "w-14 h-14 rounded-2xl flex flex-col items-center justify-center flex-shrink-0",
                       isCompleted
-                        ? report.overallScore >= 75 ? "bg-emerald-50" : report.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
+                        ? report.overallScore == null ? "bg-slate-100"
+                          : report.overallScore >= 75 ? "bg-emerald-50" : report.overallScore >= 50 ? "bg-amber-50" : "bg-red-50"
                         : "bg-slate-50"
                     )}>
                       {isCompleted ? (
                         <>
-                          <span className={cn("text-[18px] font-black leading-none",
-                            report.overallScore >= 75 ? "text-emerald-600" : report.overallScore >= 50 ? "text-amber-600" : "text-red-500"
-                          )}>{report.overallScore}</span>
+                          <span className={cn(
+                            "text-[18px] font-black leading-none tabular-nums",
+                            report.overallScore == null ? "text-slate-500"
+                              : report.overallScore >= 75 ? "text-emerald-600" : report.overallScore >= 50 ? "text-amber-600" : "text-red-500"
+                          )}>{formatScore100(report.overallScore)}</span>
                           <span className="text-[9px] text-slate-400 font-semibold">/100</span>
                         </>
                       ) : (
@@ -287,9 +291,7 @@ export default function AIEvaluationHistoryPage() {
                           { label: "Product", score: report.productScore },
                         ].map(m => (
                           <div key={m.label} className="text-center px-2">
-                            <p className={cn("text-[13px] font-bold",
-                              m.score >= 75 ? "text-emerald-600" : m.score >= 50 ? "text-amber-600" : "text-red-500"
-                            )}>{m.score}</p>
+                            <p className={cn("text-[13px] font-bold tabular-nums", scoreChipColorClass(m.score))}>{formatScore100(m.score)}</p>
                             <p className="text-[9px] text-slate-400">{m.label}</p>
                           </div>
                         ))}
