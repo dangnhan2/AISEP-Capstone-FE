@@ -90,6 +90,77 @@ function mapStatusToUI(status?: string): AIEvaluationStatus {
   return "NOT_REQUESTED";
 }
 
+function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
+  for (const key of keys) {
+    const value = data?.[key];
+    if (value == null) continue;
+    return normalizeTo100(value);
+  }
+  return 0;
+}
+
+function mapLatestScoreToReport(data: any): AIEvaluationReport {
+  const runId = Number(data?.runId ?? data?.RunId ?? data?.evaluationId ?? data?.EvaluationId ?? data?.id ?? 0) || 0;
+  const now = new Date();
+  const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const overallScore = normalizeTo100(data?.overallScore ?? data?.OverallScore ?? data?.overall_score ?? 0);
+  const teamScore = getFlatSubScoreTo100(data, "teamScore", "TeamScore", "team_score");
+  const marketScore = getFlatSubScoreTo100(data, "marketScore", "MarketScore", "market_score");
+  const productScore = getFlatSubScoreTo100(data, "productScore", "ProductScore", "product_score");
+  const tractionScore = getFlatSubScoreTo100(data, "tractionScore", "TractionScore", "traction_score");
+  const financialScore = getFlatSubScoreTo100(data, "financialScore", "FinancialScore", "financial_score");
+
+  const recommendationsRaw = data?.recommendations ?? data?.Recommendations ?? data?.improvementRecommendations ?? data?.ImprovementRecommendations ?? [];
+  const recommendations: Recommendation[] = Array.isArray(recommendationsRaw)
+    ? recommendationsRaw.map((r: any) => ({
+        category: r?.category ?? r?.Category ?? "",
+        priority: (() => {
+          const p = String(r?.priority ?? r?.Priority ?? "MEDIUM").toUpperCase();
+          return p === "HIGH" || p === "LOW" ? p : "MEDIUM";
+        })() as "HIGH" | "MEDIUM" | "LOW",
+        text: r?.recommendationText ?? r?.RecommendationText ?? r?.text ?? r?.recommendation ?? "",
+        impact: r?.expectedImpact ?? r?.ExpectedImpact ?? r?.impact ?? "",
+      }))
+    : [];
+
+  return {
+    evaluationId: String(runId),
+    startupId: String(data?.startupId ?? data?.StartupId ?? data?.startup_id ?? ""),
+    status: "COMPLETED",
+    overallScore,
+    pitchDeckScore: overallScore,
+    businessPlanScore: 0,
+    teamScore,
+    marketScore,
+    productScore,
+    tractionScore,
+    financialScore,
+    calculatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
+    generatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
+    isCurrent: true,
+    configVersion: data?.configVersion ?? data?.ConfigVersion ?? "",
+    modelVersion: data?.modelVersion ?? data?.ModelVersion ?? "",
+    promptVersion: data?.promptVersion ?? data?.PromptVersion ?? "",
+    snapshotLabel: data?.snapshotLabel ?? data?.SnapshotLabel ?? `Đánh giá ${nowStr}`,
+    warningMessages: asStringArray(data?.warnings ?? data?.Warnings ?? []),
+    executiveSummary: data?.executiveSummary ?? data?.ExecutiveSummary ?? data?.summary ?? data?.Summary ?? "",
+    strengths: asStringArray(data?.strengths ?? data?.Strengths ?? []),
+    opportunities: asStringArray(data?.opportunities ?? data?.Opportunities ?? []),
+    risks: asStringArray(data?.risks ?? data?.Risks ?? []),
+    concerns: asStringArray(data?.concerns ?? data?.Concerns ?? []),
+    gaps: asStringArray(data?.gaps ?? data?.Gaps ?? []),
+    recommendations,
+    subMetrics: {
+      team: [],
+      market: [],
+      product: [],
+      traction: [],
+      financial: [],
+    },
+  } as AIEvaluationReport;
+}
+
 function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
   const criteria: any[] = data?.criteria_results ?? data?.criteria ?? [];
   const overall = data?.overall_result ?? data;
@@ -220,4 +291,4 @@ function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
   } as AIEvaluationReport;
 }
 
-export { normalizeTo100, mapCanonicalToReport, mapStatusToUI };
+export { normalizeTo100, mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI };

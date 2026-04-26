@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
 import { GetDocument, GetStartupDocuments } from "@/services/document/document.api";
 import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
-import { mapCanonicalToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
+import { mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { AIEvaluationStatus, AIEvaluationReport } from "./types";
 
@@ -590,9 +590,7 @@ function AIEvaluationHomePageInner() {
           const sres = await GetLatestScore() as unknown as any;
           const spayload = sres?.data ?? sres;
           if (spayload) {
-            const runId = spayload?.runId ?? spayload?.RunId ?? spayload?.id ?? spayload?.evaluationId ?? 0;
-            const canonical = spayload?.report ?? spayload?.Report ?? spayload;
-            const mapped = mapCanonicalToReport(Number(runId) || 0, canonical);
+            const mapped = mapLatestScoreToReport(spayload);
             if (!cancelled) setLatestCompleted(mapped);
           } else {
             if (!cancelled) setLatestCompleted(null);
@@ -645,9 +643,7 @@ function AIEvaluationHomePageInner() {
                   const retryRes = await GetLatestScore() as unknown as any;
                   const retryPayload = retryRes?.data ?? retryRes;
                   if (retryPayload && !cancelled) {
-                    const retryRunId = retryPayload?.runId ?? retryPayload?.RunId ?? retryPayload?.id ?? retryPayload?.evaluationId ?? sid;
-                    const retryCanonical = retryPayload?.report ?? retryPayload?.Report ?? retryPayload;
-                    const retryMapped = mapCanonicalToReport(Number(retryRunId) || sid, retryCanonical);
+                    const retryMapped = mapLatestScoreToReport(retryPayload);
                     setLatestCompleted(retryMapped);
                     latestScoreNotFound = false;
                   }
