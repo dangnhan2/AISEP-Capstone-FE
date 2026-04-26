@@ -99,6 +99,88 @@ function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
   return 0;
 }
 
+/** BE: subMetrics[].Pillar ∈ TEAM | MARKET | PRODUCT | TRACTION | FINANCIAL | OTHER. metricScore ∈ [0,10]. */
+function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"] {
+  const buckets: AIEvaluationReport["subMetrics"] = {
+    team: [],
+    market: [],
+    product: [],
+    traction: [],
+    financial: [],
+    other: [],
+  };
+  const raw = data?.subMetrics ?? data?.SubMetrics;
+  if (!Array.isArray(raw)) return buckets;
+
+  const rawItemToSubMetric = (item: any): SubMetric | null => {
+    if (!item || typeof item !== "object") return null;
+    const name =
+      (typeof item.metricName === "string" && item.metricName.trim()) ||
+      (typeof item.MetricName === "string" && item.MetricName.trim()) ||
+      (typeof item.category === "string" && item.category.trim()) ||
+      (typeof item.Category === "string" && item.Category.trim()) ||
+      (typeof item.name === "string" && item.name.trim()) ||
+      "Tiêu chí";
+    const rawScore = item.metricScore ?? item.MetricScore ?? item.score ?? item.Score ?? 0;
+    const score = normalizeTo100(rawScore);
+    const comment =
+      (typeof item.explanation === "string" && item.explanation) ||
+      (typeof item.Explanation === "string" && item.Explanation) ||
+      (typeof item.metricValue === "string" && item.metricValue) ||
+      (typeof item.MetricValue === "string" && item.MetricValue) ||
+      "";
+    return { name, score, maxScore: 100, comment };
+  };
+
+  /** Chỉ dùng khi response cũ thiếu Pillar. */
+  const bucketHeuristic = (category: string, metricName: string): keyof AIEvaluationReport["subMetrics"] => {
+    const s = `${String(category)} ${String(metricName)}`.toLowerCase();
+    const financialHits = [
+      "financial", "revenue", "monetiz", "pricing", "margin", "burn", "runway", "funding",
+      "business model", "unit economics", "cash flow", "go-to-market", "go to market", "gtm",
+      "cac", "ltv", "p&l", "profitability",
+    ];
+    for (const k of financialHits) if (s.includes(k)) return "financial";
+    const tractionHits = [
+      "traction", "growth", "customer", "user", "retention", "churn", "validation", "scale", "adoption", "milestone",
+    ];
+    for (const k of tractionHits) if (s.includes(k)) return "traction";
+    const productHits = [
+      "product", "solution", "technology", "tech", "mvp", "roadmap", "platform", "feature", "differentiation", "architecture", "ux",
+    ];
+    for (const k of productHits) if (s.includes(k)) return "product";
+    const marketHits = [
+      "market", "competit", "competitor", "tam", "industry", "sector", "positioning", "demand", "opportunity", "timing",
+    ];
+    for (const k of marketHits) if (s.includes(k)) return "market";
+    const teamHits = ["team", "founder", "leadership", "hiring", "culture", "talent", "execution"];
+    for (const k of teamHits) if (s.includes(k)) return "team";
+    return "team";
+  };
+
+  const pillarToKey = (pillarRaw: unknown): keyof AIEvaluationReport["subMetrics"] | null => {
+    const p = String(pillarRaw ?? "").trim().toUpperCase();
+    if (p === "TEAM") return "team";
+    if (p === "MARKET") return "market";
+    if (p === "PRODUCT") return "product";
+    if (p === "TRACTION") return "traction";
+    if (p === "FINANCIAL") return "financial";
+    if (p === "OTHER") return "other";
+    return null;
+  };
+
+  for (const item of raw) {
+    const category = item?.category ?? item?.Category ?? "";
+    const metricName = item?.metricName ?? item?.MetricName ?? "";
+    const sm = rawItemToSubMetric(item);
+    if (!sm) continue;
+    const fromPillar = pillarToKey(item?.pillar ?? item?.Pillar ?? item?.dimension ?? item?.Dimension);
+    const key = fromPillar ?? bucketHeuristic(category, metricName);
+    buckets[key].push(sm);
+  }
+  return buckets;
+}
+
 function mapLatestScoreToReport(data: any): AIEvaluationReport {
   const runId = Number(
     data?.evaluationRunId ??
@@ -162,13 +244,7 @@ function mapLatestScoreToReport(data: any): AIEvaluationReport {
     concerns: asStringArray(data?.concerns ?? data?.Concerns ?? []),
     gaps: asStringArray(data?.gaps ?? data?.Gaps ?? []),
     recommendations,
-    subMetrics: {
-      team: [],
-      market: [],
-      product: [],
-      traction: [],
-      financial: [],
-    },
+    subMetrics: parseLatestScoreSubMetrics(data),
   } as AIEvaluationReport;
 }
 
@@ -298,6 +374,7 @@ function mapCanonicalToReport(runId: number, data: any): AIEvaluationReport {
       product: getCriterionSubMetrics(criteria, "solution", "product"),
       traction: getCriterionSubMetrics(criteria, "traction"),
       financial: getCriterionSubMetrics(criteria, "business", "model", "financial"),
+      other: [],
     },
   } as AIEvaluationReport;
 }

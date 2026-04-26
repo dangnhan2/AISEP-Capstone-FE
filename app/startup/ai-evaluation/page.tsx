@@ -8,7 +8,7 @@ import {
   Sparkles, CheckCircle2, XCircle, FileText, ChevronRight,
   ArrowRight, Clock, AlertTriangle, RefreshCw, BarChart3,
   History, FileSearch, Info, ShieldCheck, Loader2, Layout, BookOpen,
-  Brain, Target, FileBarChart,
+  Brain, Target, FileBarChart, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
@@ -444,6 +444,53 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
                 </div>
               ))}
             </div>
+            {(() => {
+              const sm = latestCompleted.subMetrics;
+              const groups: { key: string; label: string; items: typeof sm.team }[] = [
+                { key: "team", label: "Team", items: sm.team },
+                { key: "market", label: "Market", items: sm.market },
+                { key: "product", label: "Product", items: sm.product },
+                { key: "traction", label: "Traction", items: sm.traction },
+                { key: "financial", label: "Financial", items: sm.financial },
+                { key: "other", label: "Khác", items: sm.other ?? [] },
+              ];
+              const hasAny = groups.some(g => g.items.length > 0);
+              if (!hasAny) return null;
+              return (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ListChecks className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <p className="text-[11px] font-bold text-slate-600">Chi tiết tiêu chí (subMetrics)</p>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mb-2 leading-relaxed">
+                    Nhóm theo field Pillar từ BE (TEAM, MARKET, …). Nếu thiếu Pillar (bản cũ), FE fallback theo tên category/metricName.
+                  </p>
+                  <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1">
+                    {groups.map(g => {
+                      if (g.items.length === 0) return null;
+                      return (
+                        <div key={g.key}>
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">{g.label}</p>
+                          <div className="space-y-2">
+                            {g.items.map((m, i) => (
+                              <div key={i} className="rounded-lg border border-slate-100 bg-slate-50/90 px-3 py-2">
+                                <div className="flex justify-between gap-2 min-w-0">
+                                  <span className="text-[11px] font-semibold text-slate-700 line-clamp-2">{m.name}</span>
+                                  <span className="text-[11px] font-bold text-slate-600 shrink-0 tabular-nums">{m.score}/{m.maxScore}</span>
+                                </div>
+                                {m.comment ? (
+                                  <p className="text-[10px] text-slate-500 mt-1 line-clamp-3 leading-relaxed">{m.comment}</p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={() => canOpenLatestReport && router.push(`/startup/ai-evaluation/${latestReportId}`)}

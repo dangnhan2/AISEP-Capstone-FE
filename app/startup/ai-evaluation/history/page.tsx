@@ -81,7 +81,7 @@ export default function AIEvaluationHistoryPage() {
             concerns: [],
             gaps: [],
             recommendations: [],
-            subMetrics: { team: [], market: [], product: [], traction: [], financial: [] },
+            subMetrics: { team: [], market: [], product: [], traction: [], financial: [], other: [] },
           } as AIEvaluationReport;
         });
         if (!cancelled) setReports(mapped);

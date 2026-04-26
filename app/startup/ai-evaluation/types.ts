@@ -57,6 +57,8 @@ export interface AIEvaluationReport {
     product: SubMetric[];
     traction: SubMetric[];
     financial: SubMetric[];
+    /** Tiêu chí BE gắn pillar OTHER hoặc không khớp nhóm chính. */
+    other: SubMetric[];
   };
 }
 

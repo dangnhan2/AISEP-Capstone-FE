@@ -126,6 +126,7 @@ export const mockReports: AIEvaluationReport[] = [
         { name: "Revenue model", score: 8, maxScore: 10, comment: "SaaS subscription model rõ ràng." },
         { name: "Financial projections", score: 6, maxScore: 10, comment: "Projections thiếu sensitivity analysis." },
       ],
+      other: [],
     },
   },
   {
@@ -210,6 +211,7 @@ export const mockReports: AIEvaluationReport[] = [
         { name: "Revenue model", score: 7, maxScore: 10, comment: "Mô hình rõ." },
         { name: "Financial projections", score: 4, maxScore: 10, comment: "Thiếu hoàn toàn." },
       ],
+      other: [],
     },
   },
   {
@@ -240,7 +242,7 @@ export const mockReports: AIEvaluationReport[] = [
     gaps: [],
     recommendations: [],
     subMetrics: {
-      team: [], market: [], product: [], traction: [], financial: [],
+      team: [], market: [], product: [], traction: [], financial: [], other: [],
     },
   },
 ];
