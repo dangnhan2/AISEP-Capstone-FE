@@ -312,17 +312,25 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
   const overall = data?.overall_result ?? data;
   const narr = data?.narrative ?? data;
 
-  const teamScore = getCriterionScore(criteria, "team", "team_", "execution");
-  const marketScore = getCriterionScore(criteria, "market", "market_");
-  const productScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_");
-  const tractionScore = getCriterionScore(criteria, "traction", "validation", "validation_");
-  const financialScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_");
-
   const overallScore = normalizeTo100(
     overall?.overall_score ?? overall?.overallScore ??
     data?.overall_score ?? data?.overallScore ?? data?.OverallScore ??
+    data?.score ?? data?.Score ?? data?.aiScore ??
     overall?.score ?? 0
   );
+
+  const tScore = getCriterionScore(criteria, "team", "team_", "execution");
+  const mScore = getCriterionScore(criteria, "market", "market_");
+  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_");
+  const trScore = getCriterionScore(criteria, "traction", "validation", "validation_");
+  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_");
+
+  // Fallback to flat scores if criteria results are missing or 0
+  const teamScore = tScore || readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore") || 0;
+  const marketScore = mScore || readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score", "latestEvaluation.marketScore", "aiEvaluation.marketScore") || 0;
+  const productScore = pScore || readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score", "latestEvaluation.productScore", "aiEvaluation.productScore") || 0;
+  const tractionScore = trScore || readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score", "latestEvaluation.tractionScore", "aiEvaluation.tractionScore") || 0;
+  const financialScore = fScore || readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score", "latestEvaluation.financialScore", "aiEvaluation.financialScore") || 0;
 
   const executiveSummary = cleanAiText(narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "");
   const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
