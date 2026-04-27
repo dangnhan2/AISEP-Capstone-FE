@@ -284,7 +284,12 @@ function OnboardingView({ allReady, profile, documents }: { allReady: boolean; p
 
 /* ─── Dashboard (has evaluation results) ───────────────────── */
 
-function DashboardView({ latestCompleted, profile, documents }: { latestCompleted: NonNullable<AIEvaluationReport>; profile?: any; documents?: any }) {
+function DashboardView({ latestCompleted, profile, documents, historyCount }: { 
+  latestCompleted: NonNullable<AIEvaluationReport>; 
+  profile?: any; 
+  documents?: any;
+  historyCount: number;
+}) {
   const router = useRouter();
   const p = profile ?? { ready: true, completionPercent: 100, items: [] };
   const d = documents ?? { ready: true, items: [], eligibleDocs: [] };
@@ -869,7 +874,7 @@ function AIEvaluationHomePageInner() {
 
             {/* Main content stays mounted to reduce layout shifts */}
             {hasResult && latestCompleted ? (
-              <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} />
+              <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} historyCount={historyCount} />
             ) : (
               <OnboardingView allReady={allReady} profile={profile} documents={documents} />
             )}
