@@ -82,5 +82,10 @@ export const resolveNotificationActionUrl = (
     return `/${targetRole}/messaging${search}`;
   }
 
+  // Normalize advisor mentorship routes (backward compatibility or incorrect BE paths)
+  if (pathname.startsWith("/advisor/mentorship-requests/")) {
+    return pathname.replace("/advisor/mentorship-requests/", "/advisor/requests/") + search;
+  }
+
   return `${pathname}${search}`;
 };

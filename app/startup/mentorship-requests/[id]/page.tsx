@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -194,6 +194,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   InProgress: { label: "Đã lên lịch",  color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-100", icon: <Calendar className="w-3.5 h-3.5" /> },
   Completed:  { label: "Hoàn thành",   color: "text-green-700",  bg: "bg-green-50",  border: "border-green-100",  icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
   Finalized:  { label: "Hoàn thành",   color: "text-green-700",  bg: "bg-green-50",  border: "border-green-100",  icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  Resolved:   { label: "Đã giải quyết", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  InDispute:  { label: "Tranh chấp", color: "text-red-700", bg: "bg-red-50", border: "border-red-100", icon: <ShieldAlert className="w-3.5 h-3.5" /> },
   Cancelled:  { label: "Đã hủy",       color: "text-slate-500",  bg: "bg-slate-50",  border: "border-slate-200",  icon: <X className="w-3.5 h-3.5" /> },
 };
 
@@ -514,20 +516,36 @@ function buildProgressSteps(historyItems: HistoryItem[], currentStatus: string, 
     steps[5].current = currentStatus !== "Finalized";
   }
 
-  if (terminalFailedEvent) {
-    const failIndex = (inProgressEvent || scheduledSession) ? 3 : acceptedEvent ? 2 : 1;
-    const failNote =
-      terminalFailedEvent.type === "Rejected"
-        ? "Cố vấn đã từ chối yêu cầu"
-        : !cancellationActorText
-          ? "Yêu cầu đã bị hủy"
-          : cancellationActorText === "Bạn"
-          ? "Bạn đã hủy yêu cầu"
-          : `${cancellationActorText} đã hủy yêu cầu`;
-    steps[failIndex].failed = true;
+  if (terminalFailedEvent || currentStatus === "InDispute" || currentStatus === "Resolved") {
+    const isDispute = currentStatus === "InDispute";
+    const isResolved = currentStatus === "Resolved";
+
+    let failIndex = (inProgressEvent || scheduledSession) ? 3 : acceptedEvent ? 2 : 1;
+    if (conductedSession && isResolved) failIndex = 4; // Resolved after session
+
+    const failNote = isDispute
+      ? "Đang trong quá trình tranh chấp"
+      : isResolved
+      ? "Yêu cầu đã được giải quyết bởi Staff"
+      : terminalFailedEvent?.type === "Rejected"
+      ? "Cố vấn đã từ chối yêu cầu"
+      : !cancellationActorText
+      ? "Yêu cầu đã bị hủy"
+      : cancellationActorText === "Bạn"
+      ? "Bạn đã hủy yêu cầu"
+      : `${cancellationActorText} đã hủy yêu cầu`;
+
+    steps[failIndex].failed = !isResolved;
+    steps[failIndex].done = isResolved;
     steps[failIndex].current = true;
     steps[failIndex].note = failNote;
-    steps[failIndex].time = terminalFailedEvent.time;
+    steps[failIndex].time = terminalFailedEvent?.time || (isResolved ? "" : "");
+    
+    // For Resolved, we show a green success step at the point of resolution
+    if (isResolved) {
+      steps[failIndex].failed = false;
+      steps[failIndex].done = true;
+    }
   } else if (currentStatus === "Requested" || currentStatus === "Pending") {
     steps[0].current = true;
     steps[1].note = "Đang chờ cố vấn xem xét và phản hồi.";
@@ -1090,7 +1108,7 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                       {activeSessions.length === 1 && (
                         <button
                           onClick={() => handleConfirmConducted(activeSessions[0].sessionID)}
-                          disabled={isConfirmingConducted || confirmableActiveSessions.length === 0}
+                          disabled={isConfirmingConducted || confirmableActiveSessions.length === 0 || ["InDispute", "Resolved"].includes(activeSessions[0].status || activeSessions[0].sessionStatus) || ["InDispute", "Resolved"].includes(currentStatus)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[12px] font-semibold hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isConfirmingConducted
@@ -1323,23 +1341,6 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
               </div>
             </div>
 
-            {/* Hub Support / Report Action */}
-            <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-2xl p-6 flex flex-col items-center animate-in fade-in slide-in-from-bottom-2 duration-700">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center mb-4 text-amber-500 shadow-sm border border-amber-100">
-                <ShieldAlert className="w-6 h-6" />
-              </div>
-              <h3 className="text-[15px] font-bold text-slate-800 mb-1 leading-none">Gặp sự cố với yêu cầu này?</h3>
-              <p className="text-[12px] text-slate-500 text-center mb-5 mt-2 max-w-[360px] leading-relaxed">
-                Chúng tôi đảm bảo quyền lợi cho cả Startup và Cố vấn. Nếu có bất kỳ vấn đề gì, hãy báo cáo để đội ngũ AISEP can thiệp xử lý kịp thời.
-              </p>
-              <button
-                onClick={() => setIsReportModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] font-bold text-slate-700 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 hover:shadow-md transition-all group"
-              >
-                Báo cáo sự cố ngay
-                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -ml-1 group-hover:ml-0 transition-all" />
-              </button>
-            </div>
           </div>
 
           {/* Right Sidebar */}
@@ -1426,13 +1427,15 @@ export default function MentorshipRequestDetailPage({ params }: { params: Promis
                 <span className="text-[13px] font-bold">Cần hỗ trợ?</span>
               </div>
               <p className="text-[12px] text-white/60 leading-relaxed italic">Cố vấn thường phản hồi trong 24–48h. Nếu có thắc mắc hoặc gặp sự cố, vui lòng báo cáo cho chúng tôi.</p>
-              <button
-                onClick={() => setIsReportModalOpen(true)}
-                className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors group"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 group-hover:animate-pulse" />
-                Báo cáo sự cố
-              </button>
+              {!["InDispute", "Resolved"].includes(currentStatus) && (
+                <button
+                  onClick={() => setIsReportModalOpen(true)}
+                  className="mt-3 flex items-center gap-1.5 text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors group"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 group-hover:animate-pulse" />
+                  Báo cáo sự cố
+                </button>
+              )}
             </div>
           </div>
         </div>

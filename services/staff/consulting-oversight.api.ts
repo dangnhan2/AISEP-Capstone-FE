@@ -50,6 +50,20 @@ export const GetPayoutEligibleMentorships = (
   });
 };
 
+export const GetMentorshipsForMonitoring = (
+  params: { status?: string; page?: number; pageSize?: number } = {}
+) => {
+  return axios.get<
+    IBackendRes<IPagingData<IMentorshipRequest>>
+  >("/api/mentorships", {
+    params: {
+      status: params.status || "InProgress,Scheduled,InDispute,Completed",
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 20,
+    },
+  });
+};
+
 export const ReleasePayout = (mentorshipId: number | string) => {
   return axios.post<IBackendRes<IReleasePayoutResult>>(
     `/api/mentorships/${mentorshipId}/release-payout`

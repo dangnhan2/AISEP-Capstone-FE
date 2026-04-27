@@ -46,10 +46,14 @@ export function NotificationDetailModal({
   const fetchDetail = async () => {
     if (!notificationId) return;
     setLoading(true);
+    setNoti(null); // Reset before fetch
     try {
-      const res = await GetNotificationById(notificationId);
-      if (res.data) {
+      const res = await GetNotificationById(notificationId) as any;
+      // BE .NET returns isSuccess, interceptor maps it to success
+      if ((res.success || res.isSuccess) && res.data) {
         setNoti(res.data);
+      } else {
+        console.warn("Notification detail fetch failed or returned no data:", res);
       }
     } catch (error) {
       console.error("Failed to fetch notification detail:", error);

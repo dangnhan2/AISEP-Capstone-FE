@@ -103,6 +103,7 @@ export interface IMentorshipRequest {
   advisorPhotoURL?: string;
   isPayoutEligible?: boolean;
   payoutReleasedAt?: string | null;
+  refundedAt?: string | null;
   hasReport?: boolean;
   reportCount?: number;
   latestReportSubmittedAt?: string | null;
@@ -331,6 +332,7 @@ export interface IStaffMarkDisputeRequest {
 export interface IResolveDisputeRequest {
   resolution: string;
   restoreCompleted: boolean;
+  refundToStartup: boolean;
 }
 
 export interface IStaffSessionNoteRequest {

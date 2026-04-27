@@ -15,16 +15,19 @@ import {
 } from "lucide-react";
 import {
   GetOversightReports,
+  GetMentorshipsForMonitoring,
   type IOversightReportParams,
 } from "@/services/staff/consulting-oversight.api";
 import type { IReportOversightItem } from "@/types/startup-mentorship";
 
-type TabKey = "all" | "Passed";
+type TabKey = "all" | "Passed" | "sessions";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "all", label: "Tất cả" },
+  { key: "all", label: "Báo cáo cần duyệt" },
   { key: "Passed", label: "Đã auto-approve" },
+  { key: "sessions", label: "Giám sát phiên tư vấn" },
 ];
+
 
 const REVIEW_STATUS_CFG: Record<string, { label: string; badge: string }> = {
   Passed: {
@@ -66,18 +69,63 @@ export default function ConsultingOpsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [items, setItems] = useState<IReportOversightItem[]>([]);
+  const [sessionItems, setSessionItems] = useState<any[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kpiTotal, setKpiTotal] = useState(0);
+
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      if (activeTab === "sessions") {
+          const res = await GetMentorshipsForMonitoring({ page, pageSize });
+          const paginated = res.data;
+          if (paginated) {
+            // Map IMentorshipRequest to IReportOversightItem look-alike
+            const mapped: IReportOversightItem[] = (paginated.items || []).map(m => {
+              const mId = m.mentorshipID || (m as any).MentorshipID;
+              const aId = m.advisorID || (m as any).AdvisorID;
+              const sId = m.startupID || (m as any).StartupID;
+              const status = m.status || (m as any).Status || (m as any).mentorshipStatus;
+
+              return {
+                reportID: mId, 
+                mentorshipID: mId,
+                sessionID: 0, 
+                advisorID: aId,
+                advisorName: m.advisorName || (m as any).AdvisorName,
+                startupID: sId,
+                startupName: m.startupName || (m as any).StartupName,
+                reportSummary: m.challengeDescription || (m as any).ChallengeDescription,
+                detailedFindings: "",
+                recommendations: "",
+                attachmentsURL: null,
+                submittedAt: m.createdAt || (m as any).CreatedAt,
+                reviewStatus: "Passed", 
+                startupAcknowledgedAt: null,
+                reviewedByStaffID: null,
+                staffReviewNote: null,
+                reviewedAt: null,
+                supersededByReportID: null,
+                isLatestForSession: true,
+                sessionStatus: status, 
+                startupConfirmedConductedAt: null,
+                mentorshipStatus: status,
+                challengeDescription: m.challengeDescription || (m as any).ChallengeDescription,
+              };
+            });
+            setItems(mapped);
+            setTotalItems(paginated.paging?.totalItems ?? 0);
+          }
+          return;
+      }
+
       const params: IOversightReportParams = {
-        reviewStatus: activeTab,
+        reviewStatus: activeTab as any,
         page,
         pageSize,
       };
@@ -98,6 +146,7 @@ export default function ConsultingOpsPage() {
       setLoading(false);
     }
   }, [activeTab, page, pageSize]);
+
 
   useEffect(() => {
     async function fetchKpi() {
@@ -232,7 +281,7 @@ export default function ConsultingOpsPage() {
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="w-20 px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                    Report
+                    {activeTab === "sessions" ? "Mentorship" : "Report"}
                   </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     Các bên
@@ -241,7 +290,7 @@ export default function ConsultingOpsPage() {
                     Session
                   </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                    Trạng thái
+                    {activeTab === "sessions" ? "Thanh toán" : "Trạng thái"}
                   </th>
                   <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     Nộp lúc
@@ -297,13 +346,11 @@ export default function ConsultingOpsPage() {
                       </td>
 
                       <td className="px-6 py-5">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold",
-                            reviewCfg.badge
-                          )}
-                        >
-                          {reviewCfg.label}
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold",
+                          activeTab === "sessions" ? "bg-green-50 text-green-700 border-green-200" : reviewCfg.badge
+                        )}>
+                          {activeTab === "sessions" ? "Đã thanh toán" : reviewCfg.label}
                         </span>
                       </td>
 
@@ -315,10 +362,10 @@ export default function ConsultingOpsPage() {
 
                       <td className="px-6 py-5 text-right">
                         <Link
-                          href={`/staff/consulting-ops/${item.reportID}`}
+                          href={activeTab === "sessions" ? `/staff/consulting-ops/mentorship/${item.mentorshipID}` : `/staff/consulting-ops/${item.reportID}`}
                           className="group/btn inline-flex items-center gap-1.5 text-[12px] font-bold text-[#eec54e] transition-colors hover:text-[#e6cc4c]"
                         >
-                          Xem chi tiết
+                          {activeTab === "sessions" ? "Giám sát" : "Xem chi tiết"}
                           <ChevronRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
                         </Link>
                       </td>

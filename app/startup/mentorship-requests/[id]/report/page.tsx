@@ -174,7 +174,11 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
         minute: "2-digit",
       })
     : null;
-  const canReportIssue = Boolean(report.reportID && report.canSubmitIssueReport);
+  const canReportIssue = Boolean(
+    report.reportID && 
+    report.canSubmitIssueReport && 
+    !report.startupAcknowledgedAt
+  );
   const reportIssueTitle = report.title?.trim()
     ? `Báo cáo tư vấn: ${report.title.trim()}`
     : `Báo cáo tư vấn #${report.reportID}`;
@@ -269,12 +273,16 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
 
             <div className="flex-1">
               <p className={canReportIssue ? "text-[13px] font-bold text-amber-900 mb-1" : "text-[13px] font-bold text-slate-800 mb-1"}>
-                {canReportIssue ? "Bạn còn 24 giờ để báo cáo sự cố" : "Đã hết thời hạn báo cáo sự cố"}
+                {report.startupAcknowledgedAt 
+                  ? "Báo cáo đã được xác nhận"
+                  : (canReportIssue ? "Bạn còn 24 giờ để báo cáo sự cố" : "Đã hết thời hạn báo cáo sự cố")}
               </p>
               <p className={canReportIssue ? "text-[12px] text-amber-800 leading-relaxed mb-3" : "text-[12px] text-slate-600 leading-relaxed mb-3"}>
-                {canReportIssue
-                  ? `Nếu có vấn đề với báo cáo tư vấn này, bạn có thể gửi báo cáo sự cố trước ${deadlineLabel}. Sau thời điểm này, quyền báo cáo sẽ đóng.`
-                  : `Thời hạn báo cáo cho báo cáo tư vấn này đã kết thúc vào ${deadlineLabel}. Nếu không có báo cáo nào được gửi trước hạn, hệ thống sẽ xem như phiên tư vấn không có tranh chấp mới.`}
+                {report.startupAcknowledgedAt
+                  ? "Bạn đã xác nhận nội dung báo cáo này, do đó không thể gửi báo cáo sự cố nữa."
+                  : (canReportIssue
+                      ? `Nếu có vấn đề với báo cáo tư vấn này, bạn có thể gửi báo cáo sự cố trước ${deadlineLabel}. Sau thời điểm này, quyền báo cáo sẽ đóng.`
+                      : `Thời hạn báo cáo cho báo cáo tư vấn này đã kết thúc vào ${deadlineLabel}. Nếu không có báo cáo nào được gửi trước hạn, hệ thống sẽ xem như phiên tư vấn không có tranh chấp mới.`)}
               </p>
 
               {canReportIssue && (
@@ -410,12 +418,12 @@ export default function ConsultingReportPage({ params }: { params: Promise<{ id:
                   rel="noopener noreferrer"
                   className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
                       <Paperclip className="w-4 h-4 text-slate-500" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-slate-800 truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-semibold text-slate-800 break-words whitespace-normal leading-tight">
                         {report.attachmentsURL.split("/").pop() || "Tài liệu đính kèm"}
                       </p>
                       <p className="text-[12px] text-slate-500">Mở tài liệu trong tab mới</p>

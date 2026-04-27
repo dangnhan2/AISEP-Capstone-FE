@@ -32,9 +32,12 @@ import {
 import {
   GetIssueReportById,
   UpdateIssueReportStatus,
+  EscalateToDispute,
+  STATUS_FROM_BE,
   type IssueReportDetailDto,
   type IssueReportStatus,
 } from "@/services/issue-report.api";
+
 import {
   formatIssueReporterIdentity,
   formatIssueReportDateTime,
@@ -81,6 +84,8 @@ export default function StaffIssueReportDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<IssueReportStatus | null>(null);
+  const [escalating, setEscalating] = useState(false);
+
 
   const handleForbidden = useCallback(() => {
     toast.error("Bạn không có quyền xem báo cáo này.");
@@ -217,6 +222,37 @@ export default function StaffIssueReportDetailPage({
       setUpdating(false);
     }
   };
+
+  const handleEscalateToDispute = async () => {
+    if (!report || escalating) return;
+
+    if (
+      !window.confirm(
+        "Bạn có chắc chắn muốn mở tranh chấp chính thức cho sự cố này không? Hành động này sẽ chuyển trạng thái phiên tư vấn sang 'In Dispute' để Staff xử lý sâu hơn."
+      )
+    ) {
+      return;
+    }
+
+    setEscalating(true);
+    try {
+      const res = (await EscalateToDispute(
+        report.issueReportID
+      )) as unknown as IBackendRes<IssueReportDetailDto>;
+      if (res.success || res.isSuccess) {
+        toast.success("Đã chuyển sự cố thành tranh chấp chính thức.");
+        await fetchReport(true);
+        return;
+      }
+      toast.error(res.message || "Không thể mở tranh chấp.");
+    } catch (err) {
+      console.error("[IssueReportDetail] Escalate error:", err);
+      toast.error("Lỗi khi mở tranh chấp.");
+    } finally {
+      setEscalating(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -482,64 +518,79 @@ export default function StaffIssueReportDetailPage({
           </div>
 
           <div className="space-y-6">
-            <div className="sticky top-24 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-100">
-              <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">
-                Xử lý báo cáo
-              </h2>
+            <div className="sticky top-24 space-y-6 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-100">
+              <div className="space-y-4">
+                <h2 className="text-[12px] font-bold uppercase tracking-widest text-slate-400">
+                  Xử lý báo cáo
+                </h2>
 
-              <div className="mt-5 space-y-3">
-                {ISSUE_REPORT_STATUS_OPTIONS.map((statusOption) => {
-                  const active = currentStatus === statusOption.value;
-                  return (
-                    <button
-                      key={statusOption.value}
-                      onClick={() => setPendingStatus(statusOption.value)}
-                      disabled={updating || active}
-                      className={cn(
-                        "flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-[13px] font-bold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
-                        active
-                          ? `${statusOption.badge} cursor-default`
-                          : "border-slate-200 text-slate-700 hover:bg-slate-50"
-                      )}
-                    >
-                      {updating && !active && pendingStatus === statusOption.value ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4" />
-                      )}
-                      {statusOption.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 border-t border-slate-100 pt-6">
-                <div className="mb-2 flex items-center gap-2">
-                  <MessageSquareText className="h-4 w-4 text-slate-400" />
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                    Ghi chú staff
-                  </p>
+                {/* Staff Note Field */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <MessageSquareText className="h-3.5 w-3.5 text-[#eec54e]" />
+                    <label className="text-[12px] font-bold text-slate-700">Ghi chú xử lý</label>
+                  </div>
+                  <textarea
+                    value={note}
+                    onChange={(e) => handleNoteChange(e.target.value)}
+                    placeholder="Nhập ghi chú xử lý nội bộ..."
+                    className="w-full min-h-[120px] rounded-xl border border-slate-200 bg-slate-50/30 p-4 text-[13px] placeholder:text-slate-400 transition-all focus:border-[#eec54e] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20"
+                  />
+                  {noteDirty && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => submitStatusUpdate(STATUS_FROM_BE[report.status] || "NEW")}
+                        disabled={updating}
+                        className="text-[11px] font-bold text-[#eec54e] hover:underline flex items-center gap-1"
+                      >
+                        {updating && <Loader2 className="h-3 w-3 animate-spin" />}
+                        Lưu ghi chú
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <textarea
-                  rows={6}
-                  value={note}
-                  onChange={(event) => handleNoteChange(event.target.value)}
-                  maxLength={2000}
-                  placeholder="Nhập ghi chú xử lý. Để trống rồi bấm cập nhật sẽ xóa note hiện tại."
-                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] text-slate-900 placeholder:text-slate-400 transition-all focus:border-[#eec54e] focus:outline-none focus:ring-2 focus:ring-[#eec54e]/20"
-                />
+                <div className="pt-2 space-y-3">
+                  {/* Escalate Button - Only show if not already escalated */}
+                  {report.status === "NEW" && (
+                    <button
+                      onClick={handleEscalateToDispute}
+                      disabled={escalating || updating}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#eec54e] bg-amber-50 px-4 py-3 text-[13px] font-bold text-[#C8A000] transition-all hover:bg-amber-100 active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {escalating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ShieldAlert className="h-4 w-4" />
+                      )}
+                      Mở tranh chấp
+                    </button>
+                  )}
 
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>
-                    {noteDirty
-                      ? "Đã chỉnh sửa, sẽ gửi kèm lần cập nhật tiếp theo."
-                      : "Chưa thay đổi note."}
-                  </span>
-                  <span>{note.length} / 2000</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ISSUE_REPORT_STATUS_OPTIONS.filter(o => o.value !== "NEW").map((statusOption) => {
+                      const active = currentStatus === statusOption.value;
+                      return (
+                        <button
+                          key={statusOption.value}
+                          onClick={() => setPendingStatus(statusOption.value)}
+                          disabled={updating || active}
+                          className={cn(
+                            "flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-[12px] font-bold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50",
+                            active
+                              ? `${statusOption.badge} cursor-default`
+                              : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                          )}
+                        >
+                          {statusOption.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
+
 
             <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
@@ -563,12 +614,6 @@ export default function StaffIssueReportDetailPage({
                   <span className="text-slate-400">Tệp đính kèm</span>
                   <span className="text-right font-bold text-slate-700">
                     {report.attachments.length} tệp
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-400">Phản hồi staff</span>
-                  <span className="text-right font-bold text-slate-700">
-                    {report.staffNote?.trim() ? "Đã có phản hồi" : "Chưa có phản hồi"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3">

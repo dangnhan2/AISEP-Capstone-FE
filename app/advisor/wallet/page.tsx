@@ -385,7 +385,7 @@ export default function AdvisorWalletPage() {
 
   return (
     <AdvisorShell>
-      <div className="space-y-6">
+      <div className="max-w-[1100px] mx-auto space-y-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-slate-900">Ví</h1>
           <p className="text-sm text-slate-500">Theo dõi số dư, tổng thu nhập và lịch sử giao dịch của bạn.</p>

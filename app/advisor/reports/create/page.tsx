@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -629,12 +629,12 @@ function CreateReportContent() {
                   <div className="grid gap-2">
                     {attachments.map((file, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-sm animate-in fade-in slide-in-from-left-2">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
                             <FileText className="w-4 h-4" />
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[12px] font-bold text-slate-700 truncate">{file.name}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12px] font-bold text-slate-700 break-words whitespace-normal leading-tight">{file.name}</p>
                             <p className="text-[10px] text-slate-400 font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                           </div>
                         </div>
