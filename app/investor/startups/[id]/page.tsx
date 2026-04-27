@@ -50,6 +50,7 @@ import { GetStages, IStageMasterItem, GetIndustriesFlat, IIndustryFlat } from "@
 import { getStageDisplay } from "@/lib/get-stage-display";
 import { ConnectStartupModal } from "@/components/investor/connect-startup-modal";
 import { getStartupIndustryDisplay } from "@/lib/startup-industry-display";
+import { AIInvestorInsightModal } from "@/components/investor/ai-investor-insight-modal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -673,6 +674,7 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
   const [connectionStatus, setConnectionStatus] = useState<"none" | "pending" | "accepted">("none");
   const [connectionId, setConnectionId] = useState<number | null>(null);
   const [resolvedAiScore, setResolvedAiScore] = useState<number | null>(null);
+  const [showAiInsight, setShowAiInsight] = useState(false);
 
   const fetchStartup = useCallback(async () => {
     if (!Number.isFinite(startupId) || startupId <= 0) {
@@ -996,8 +998,11 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
               </div>
 
               {/* AI Score — compact, dưới buttons */}
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#e6cc4c]/30 bg-[#fdfbe9]">
-                <Sparkles className="w-3.5 h-3.5 text-[#C8A000]" />
+              <div 
+                onClick={() => setShowAiInsight(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#e6cc4c]/30 bg-[#fdfbe9] cursor-pointer hover:bg-[#fdfbe9]/80 hover:border-[#e6cc4c]/50 transition-all group"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#C8A000] group-hover:scale-110 transition-transform" />
                 <span className="text-[11px] font-semibold text-[#C8A000] uppercase tracking-wide">Điểm AI</span>
                 <span className="text-[15px] font-black text-[#171611] leading-none">{aiScore}</span>
                 <span className="text-[11px] text-slate-400 font-medium">/100</span>
@@ -1060,6 +1065,15 @@ export default function StartupDetailPage({ params }: { params: Promise<{ id: st
             onOpenChange={setShowConnectModal}
             startup={{ id: startup.startupID ?? startupId, name: companyName, industry: displayIndustry || "—", stage: displayStage || "—" }}
             onSuccess={() => setConnectionStatus("pending")}
+          />
+
+          {/* AI Insight Modal */}
+          <AIInvestorInsightModal
+            open={showAiInsight}
+            onOpenChange={setShowAiInsight}
+            startupId={startupId}
+            startupName={companyName}
+            overallScore={aiScore}
           />
 
           {/* Tags */}

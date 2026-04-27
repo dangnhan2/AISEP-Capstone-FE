@@ -502,6 +502,7 @@ export default function AIChatbotPage() {
                   </div>
                 )}
 
+
                   <span className="text-[10px] text-slate-400 mt-2 font-medium">
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -515,21 +516,6 @@ export default function AIChatbotPage() {
 
         {/* Bottom UI (Intents + Input) */}
         <div className="bg-white border-t border-slate-100">
-          {/* Quick Intent Carousel */}
-          <div className="px-6 py-3 bg-slate-50/30 border-b border-slate-100/50">
-            <div className="flex flex-wrap gap-2">
-              {QUICK_INTENTS.map((intent) => (
-                <button
-                  key={intent.id}
-                  onClick={() => handleIntentClick(intent.label)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[12px] font-bold text-slate-600 hover:border-[#eec54e] hover:text-[#eec54e] hover:bg-[#eec54e]/5 transition-all shadow-sm"
-                >
-                  <intent.icon className="w-3.5 h-3.5" />
-                  {intent.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Input Area */}
           <div className="p-6 pt-2">
