@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     GetStartupProfile,
     CreateStartupProfile,
@@ -106,134 +107,124 @@ const getNumberString = (...values: unknown[]) => {
 };
 
 export function StartupProfileProvider({ children }: { children: ReactNode }) {
-    const [profile, setProfile] = useState<IStartupProfile | null>(null);
+    const queryClient = useQueryClient();
     const [form, setForm] = useState<StartupProfileFormState>(INITIAL_FORM);
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [certificateFile, setCertificateFile] = useState<File | null>(null);
     const [profileLogoURL, setProfileLogoURL] = useState<string>("");
-    const [loading, setLoading] = useState(true);
+    
     const [saving, setSaving] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
     const [saveSuccess, setSaveSuccess] = useState(false);
+
+    const { 
+        data: profile, 
+        isLoading: loading, 
+        error: queryError, 
+        refetch: fetchProfile 
+    } = useQuery({
+        queryKey: ["startup-profile"],
+        queryFn: async () => {
+            try {
+                const res = await GetStartupProfile() as IBackendRes<IStartupProfile>;
+                if ((res.success || res.isSuccess) && res.data) {
+                    const data = res.data as any;
+                    const computeCompleteness = (d: any) => {
+                        const keys = [
+                            "companyName", "oneLiner", "description", "industryId", "industryID",
+                            "stageId", "stageID", "stage", "teamSize", "pitchDeckUrl",
+                            "problemStatement", "solutionSummary", "marketScope", "logoURL",
+                            "country", "location"
+                        ];
+                        let filled = 0;
+                        for (const k of keys) {
+                            const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
+                            if (v !== undefined && v !== null && String(v).trim() !== "") filled += 1;
+                        }
+                        return Math.round((filled / keys.length) * 100);
+                    };
+                    const completeness = data.profileCompleteness ?? data.completionPercent ?? data.completion ?? computeCompleteness(data);
+                    data.profileCompleteness = completeness;
+                    data.completionPercent = completeness;
+                    data.completion = completeness;
+                    return data;
+                }
+                return null;
+            } catch (err: any) {
+                if (err?.response?.status === 404) return null;
+                throw err;
+            }
+        },
+        retry: 1,
+    });
+
+    const error = queryError ? (queryError as any).message : null;
 
     const getTeamSizeValue = useCallback((data: IStartupProfile & { TeamSize?: string | number }) => {
         const raw = data.teamSize ?? data.TeamSize;
         return raw != null ? String(raw) : "";
     }, []);
 
-    const fetchProfile = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await GetStartupProfile() as IBackendRes<IStartupProfile>;
-            if ((res.success || res.isSuccess) && res.data) {
-                const data = res.data as any;
-                // Ensure we have a profile completeness value. Backend may not provide
-                // a unified field name, so compute a heuristic completeness score
-                // from important profile fields and expose it under a few aliases
-                // used across the app (`profileCompleteness`, `completionPercent`, `completion`).
-                const computeCompleteness = (d: any) => {
-                    const keys = [
-                        "companyName",
-                        "oneLiner",
-                        "description",
-                        "industryId",
-                        "industryID",
-                        "stageId",
-                        "stageID",
-                        "stage",
-                        "teamSize",
-                        "pitchDeckUrl",
-                        "problemStatement",
-                        "solutionSummary",
-                        "marketScope",
-                        "logoURL",
-                        "country",
-                        "location",
-                    ];
-                    let filled = 0;
-                    for (const k of keys) {
-                        const v = d[k] ?? d[k === "teamSize" ? "TeamSize" : k.charAt(0).toUpperCase() + k.slice(1)];
-                        if (Array.isArray(v)) {
-                            if (v.length) filled += 1;
-                        } else if (v !== undefined && v !== null && String(v).trim() !== "") {
-                            filled += 1;
-                        }
-                    }
-                    return Math.round((filled / keys.length) * 100);
-                };
+    const clearSaveStatus = useCallback(() => {
+        setSaveError(null);
+        setSaveSuccess(false);
+    }, []);
 
-                const completeness = data.profileCompleteness ?? data.completionPercent ?? data.completion ?? data.percent ?? computeCompleteness(data);
-                data.profileCompleteness = completeness;
-                data.completionPercent = completeness;
-                data.completion = completeness;
-                setProfile(data);
-                setForm({
-                    companyName: data.companyName || "",
-                    oneLiner: data.oneLiner || "",
-                    description: data.description || "",
-                    industryId: getNumberString(data.industryId, data.industryID),
-                    industryID: getNumberString(data.industryId, data.industryID),
-                    subIndustryId: getNumberString(data.subIndustryId, data.subIndustryID),
-                    stageId: getNumberString(data.stageId, data.stageID, data.stage),
-                    stage: getNumberString(data.stageId, data.stageID, data.stage),
-                    foundedDate: data.foundedDate ? new Date(data.foundedDate).toISOString().split("T")[0] : "",
-                    website: data.website || "",
-                    fundingAmountSought:
-                        data.fundingAmountSought != null && !Number.isNaN(Number(data.fundingAmountSought))
-                            ? String(data.fundingAmountSought)
-                            : "",
-                    currentFundingRaised:
-                        data.currentFundingRaised != null && !Number.isNaN(Number(data.currentFundingRaised))
-                            ? String(data.currentFundingRaised)
-                            : "",
-                    valuation:
-                        data.valuation != null && !Number.isNaN(Number(data.valuation)) ? String(data.valuation) : "",
-                    businessCode: data.businessCode || "",
-                    fullNameOfApplicant: data.fullNameOfApplicant || "",
-                    roleOfApplicant: data.roleOfApplicant || "",
-                    problemStatement: data.problemStatement || "",
-                    solutionSummary: data.solutionSummary || "",
-                    marketScope: data.marketScope || "",
-                    contactEmail: data.contactEmail || "",
-                    contactPhone: data.contactPhone || "",
-                    linkedInURL: data.linkedInURL || "",
-                    subIndustry: data.subIndustryName || data.subIndustry || "",
-                    teamSize: getTeamSizeValue(data as IStartupProfile & { TeamSize?: string | number }),
-                    currentNeeds: Array.isArray(data.currentNeeds)
-                        ? data.currentNeeds
-                        : typeof data.currentNeeds === 'string'
-                            ? (() => {
-                                try { return JSON.parse(data.currentNeeds); } catch { return [data.currentNeeds]; }
-                            })()
-                            : [],
-                    metricSummary: data.metricSummary || "",
-                    pitchDeckUrl: data.pitchDeckUrl || "",
-                    productStatus: data.productStatus || "",
-                    country: data.country || "",
-                    location: data.location || "",
-                });
-                if (data.logoURL) {
-                    setProfileLogoURL(data.logoURL);
-                }
-            } else {
-                setProfile(null);
-                setError(null);
+    // Sync form state whenever profile changes (from server refresh)
+    useEffect(() => {
+        if (!profile) return;
+        
+        const isInitial = form.companyName === "";
+        
+        if (isInitial || saveSuccess) {
+            setForm({
+                companyName: profile.companyName || "",
+                oneLiner: profile.oneLiner || "",
+                description: profile.description || "",
+                industryId: getNumberString(profile.industryId, profile.industryID),
+                industryID: getNumberString(profile.industryId, profile.industryID),
+                subIndustryId: getNumberString(profile.subIndustryId, profile.subIndustryID),
+                stageId: getNumberString(profile.stageId, profile.stageID, (profile as any).stage),
+                stage: getNumberString(profile.stageId, profile.stageID, (profile as any).stage),
+                foundedDate: profile.foundedDate ? new Date(profile.foundedDate).toISOString().split("T")[0] : "",
+                website: profile.website || "",
+                fundingAmountSought: profile.fundingAmountSought != null ? String(profile.fundingAmountSought) : "",
+                currentFundingRaised: profile.currentFundingRaised != null ? String(profile.currentFundingRaised) : "",
+                valuation: profile.valuation != null ? String(profile.valuation) : "",
+                businessCode: profile.businessCode || "",
+                fullNameOfApplicant: profile.fullNameOfApplicant || "",
+                roleOfApplicant: profile.roleOfApplicant || "",
+                problemStatement: profile.problemStatement || "",
+                solutionSummary: profile.solutionSummary || "",
+                marketScope: profile.marketScope || "",
+                contactEmail: profile.contactEmail || "",
+                contactPhone: profile.contactPhone || "",
+                linkedInURL: profile.linkedInURL || "",
+                subIndustry: profile.subIndustryName || (profile as any).subIndustry || "",
+                teamSize: getTeamSizeValue(profile as IStartupProfile & { TeamSize?: string | number }),
+                currentNeeds: Array.isArray(profile.currentNeeds)
+                    ? profile.currentNeeds
+                    : typeof profile.currentNeeds === 'string'
+                        ? (() => { try { return JSON.parse(profile.currentNeeds); } catch { return [profile.currentNeeds]; } })()
+                        : [],
+                metricSummary: profile.metricSummary || "",
+                pitchDeckUrl: (profile as any).pitchDeckUrl || "",
+                productStatus: profile.productStatus || "",
+                country: profile.country || "",
+                location: profile.location || "",
+            });
+
+            // If this was a sync after save, clear the status so subsequent background refreshes don't overwrite typing
+            if (saveSuccess) {
+                clearSaveStatus();
             }
-        } catch (err: unknown) {
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 404) {
-                setProfile(null);
-                setError(null);
-            } else {
-                setError("Lỗi kết nối. Vui lòng thử lại.");
-            }
-        } finally {
-            setLoading(false);
         }
-    }, [getTeamSizeValue]);
+
+        if (profile.logoURL) {
+            setProfileLogoURL(profile.logoURL);
+        }
+    }, [profile, getTeamSizeValue, saveSuccess, clearSaveStatus]);
 
     const updateForm = useCallback((field: string, value: any) => {
         setForm(prev => {
@@ -348,7 +339,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
                 
             if (res.success || res.isSuccess) {
                 setSaveSuccess(true);
-                await fetchProfile();
+                await queryClient.invalidateQueries({ queryKey: ["startup-profile"] });
                 setLogoFile(null);
                 setCertificateFile(null);
                 return true;
@@ -380,7 +371,7 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
 
             const res = await SubmitForApproval() as unknown as IBackendRes<IValidationError[] | null>;
             if (res.success || res.isSuccess) {
-                await fetchProfile();
+                await queryClient.invalidateQueries({ queryKey: ["startup-profile"] });
                 return true;
             } else if (!res.isSuccess && res.statusCode === 400 && Array.isArray(res.data) && res.data.length > 0) {
                 const msgs = (res.data as IValidationError[]).flatMap((v) => v.messages ?? []);
@@ -398,20 +389,14 @@ export function StartupProfileProvider({ children }: { children: ReactNode }) {
         }
     }, [saveProfile, fetchProfile]);
 
-    const clearSaveStatus = useCallback(() => {
-        setSaveError(null);
-        setSaveSuccess(false);
-    }, []);
-
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
+    // No more manual useEffect fetchProfile needed as useQuery handles it
 
     return (
         <StartupProfileContext.Provider value={{
             profile, form, logoFile, certificateFile, profileLogoURL,
             loading, saving, submitting, error, saveError, saveSuccess,
-            fetchProfile, updateForm, setLogoFile, setCertificateFile, setProfileLogoURL,
+            fetchProfile: async () => { await fetchProfile(); }, 
+            updateForm, setLogoFile, setCertificateFile, setProfileLogoURL,
             saveProfile, submitForApproval: submitForApprovalFn, clearSaveStatus,
         }}>
             {children}

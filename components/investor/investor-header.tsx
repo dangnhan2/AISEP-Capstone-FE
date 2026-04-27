@@ -491,7 +491,6 @@ export function InvestorHeader({
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-bold text-[#171611] tracking-tight truncate">{displayUserName}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="inline-flex items-center text-[10px] font-black text-[#d0a64b] bg-[#fef0d2]/70 border border-[#fef0d2] px-2 py-0.5 rounded-full uppercase tracking-wider">PRO</span>
                         <span className="inline-flex items-center gap-1 text-[12px] text-slate-500 font-medium">
                           Nhà Đầu Tư
                           {isKycVerified && <VerifiedRoleMark className="h-3.5 w-3.5" />}

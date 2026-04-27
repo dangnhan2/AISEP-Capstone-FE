@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, Suspense } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { getNames } from "country-list";
@@ -32,31 +33,28 @@ type EnterpriseState =
 
 // Component hiển thị mã doanh nghiệp đã xác minh (read-only)
 function EnterpriseCodeDisplay() {
-    const [state, setState] = useState<EnterpriseState>({ kind: "loading" });
+    const { data: kycData, isLoading } = useQuery({
+        queryKey: ["startup-kyc-status"],
+        queryFn: async () => {
+            const res = await GetStartupKYCStatus() as any;
+            return res?.data ?? res;
+        }
+    });
 
-    useEffect(() => {
-        GetStartupKYCStatus()
-            .then((res: any) => {
-                const data = res?.data ?? res;
-                const isApproved = data?.workflowStatus === "APPROVED";
-                if (!isApproved) {
-                    setState({ kind: "not_verified" });
-                    return;
-                }
-                const isLegal =
-                    data?.startupVerificationType === "WITH_LEGAL_ENTITY" ||
-                    data?.submissionSummary?.startupVerificationType === "WITH_LEGAL_ENTITY";
-                const enterpriseCode = data?.submissionSummary?.enterpriseCode ?? null;
-                if (isLegal && enterpriseCode) {
-                    setState({ kind: "verified_with_code", code: enterpriseCode });
-                } else if (!isLegal) {
-                    setState({ kind: "verified_no_entity" });
-                } else {
-                    setState({ kind: "not_verified" });
-                }
-            })
-            .catch(() => setState({ kind: "not_verified" }));
-    }, []);
+    const state: EnterpriseState = (() => {
+        if (isLoading) return { kind: "loading" };
+        const isApproved = kycData?.workflowStatus === "APPROVED";
+        if (!isApproved) return { kind: "not_verified" };
+
+        const isLegal =
+            kycData?.startupVerificationType === "WITH_LEGAL_ENTITY" ||
+            kycData?.submissionSummary?.startupVerificationType === "WITH_LEGAL_ENTITY";
+        const enterpriseCode = kycData?.submissionSummary?.enterpriseCode ?? null;
+
+        if (isLegal && enterpriseCode) return { kind: "verified_with_code", code: enterpriseCode };
+        if (!isLegal) return { kind: "verified_no_entity" };
+        return { kind: "not_verified" };
+    })();
 
     if (state.kind === "loading") {
         return <div className="w-full bg-slate-50 border border-slate-200/80 rounded-[14px] px-4 py-3 h-[46px] animate-pulse" />;
@@ -234,21 +232,23 @@ const TagsInput = ({ value, onChange, placeholder }: { value: string[], onChange
 
 function StartupInfoPageInner() {
     const { form, updateForm, logoFile, setLogoFile, profileLogoURL, setProfileLogoURL, loading } = useStartupProfile();
-    const [industries, setIndustries] = useState<IIndustryFlat[]>([]);
-    const [allIndustries, setAllIndustries] = useState<IIndustryFlat[]>([]);
-    const [stages, setStages] = useState<IStageMasterItem[]>([]);
+    const { data: allIndustries = [] } = useQuery({
+        queryKey: ["master-industries"],
+        queryFn: GetIndustriesFlat
+    });
+    const { data: stages = [] } = useQuery({
+        queryKey: ["master-stages"],
+        queryFn: GetStages
+    });
+
+    const industries = allIndustries.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined);
+    
     const [parentIndustryId, setParentIndustryId] = useState<string>("");
     const fileRef = useRef<HTMLInputElement>(null);
     const searchParams = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
 
-    useEffect(() => {
-        GetIndustriesFlat().then(data => {
-            setAllIndustries(data);
-            setIndustries(data.filter(i => i.parentIndustryID === null || i.parentIndustryID === undefined));
-        }).catch(() => {});
-        GetStages().then(setStages).catch(() => {});
-    }, []);
+    // Master data now handled by useQuery
 
     // Sync parentIndustryId whenever form.industryId/subIndustryId or allIndustries becomes available
     useEffect(() => {
