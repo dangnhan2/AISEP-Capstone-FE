@@ -112,6 +112,20 @@ function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
 function readOptionalFlatScore100(data: any, ...keys: string[]): number | null {
   const d = data ?? {};
   for (const key of keys) {
+    // Support nested access like "aiEvaluation.overallScore"
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let current = d;
+      for (const p of parts) {
+        current = current?.[p];
+      }
+      if (current !== undefined) {
+        if (current === null) return null;
+        return normalizeTo100(current);
+      }
+      continue;
+    }
+
     if (!Object.prototype.hasOwnProperty.call(d, key)) continue;
     const value = d[key];
     if (value === null) return null;
@@ -238,12 +252,12 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
   const now = new Date();
   const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score");
-  const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score");
-  const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score");
-  const productScore = readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score");
-  const tractionScore = readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score");
-  const financialScore = readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score");
+  const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score", "score", "Score", "aiScore", "AiScore", "latestEvaluation.overallScore", "aiEvaluation.overallScore");
+  const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore");
+  const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score", "latestEvaluation.marketScore", "aiEvaluation.marketScore");
+  const productScore = readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score", "latestEvaluation.productScore", "aiEvaluation.productScore");
+  const tractionScore = readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score", "latestEvaluation.tractionScore", "aiEvaluation.tractionScore");
+  const financialScore = readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score", "latestEvaluation.financialScore", "aiEvaluation.financialScore");
 
   const recommendationsRaw = data?.recommendations ?? data?.Recommendations ?? data?.improvementRecommendations ?? data?.ImprovementRecommendations ?? [];
   const recommendations: Recommendation[] = Array.isArray(recommendationsRaw)
