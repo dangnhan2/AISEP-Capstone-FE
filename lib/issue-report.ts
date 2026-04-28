@@ -128,6 +128,12 @@ export const ISSUE_REPORT_STATUS_OPTIONS: IssueStatusOption[] = [
     dot: "bg-slate-500",
     badge: "bg-slate-100 text-slate-700 border-slate-200",
   },
+  {
+    value: "ESCALATED",
+    label: "Tranh chấp",
+    dot: "bg-red-500",
+    badge: "bg-red-50 text-red-700 border-red-200",
+  },
 ];
 
 export const ISSUE_REPORT_ENTITY_LABELS: Record<RelatedEntityType, string> = {

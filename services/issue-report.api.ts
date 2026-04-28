@@ -13,7 +13,7 @@ export type IssueCategory =
   | "TECHNICAL_PROBLEM"
   | "OTHER";
 
-export type IssueReportStatus = "NEW" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
+export type IssueReportStatus = "NEW" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED" | "ESCALATED";
 export type IssueReporterUserType = "Startup" | "Advisor" | "Investor" | "Staff" | "Admin";
 
 export type RelatedEntityType =
@@ -55,6 +55,7 @@ export const STATUS_TO_NUMBER: Record<IssueReportStatus, number> = {
   UNDER_REVIEW: 1,
   RESOLVED: 2,
   DISMISSED: 3,
+  ESCALATED: 4,
 };
 
 export const STATUS_FROM_BE: Record<string, IssueReportStatus> = {
@@ -62,6 +63,7 @@ export const STATUS_FROM_BE: Record<string, IssueReportStatus> = {
   UnderReview: "UNDER_REVIEW",
   Resolved: "RESOLVED",
   Dismissed: "DISMISSED",
+  Escalated: "ESCALATED",
 };
 
 /* ─── DTOs ───────────────────────────────────────────────────── */
@@ -235,3 +237,8 @@ export const UpdateIssueReportStatus = (
     ...(body.staffNote !== undefined && { staffNote: body.staffNote }),
   });
 };
+
+export const EscalateToDispute = (id: number) => {
+  return axios.post<IBackendRes<IssueReportDetailDto>>(`/api/issue-reports/${id}/escalate`);
+};
+

@@ -407,12 +407,12 @@ export default function ReportDetailPage() {
               <div className="space-y-2">
                 {report.attachments.map(att => (
                    <div key={att.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors group">
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
                                 <FileText className="w-4 h-4" />
                             </div>
-                            <div className="min-w-0">
-                                <p className="text-[12px] font-bold text-slate-700 truncate">{att.originalFileName}</p>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-bold text-slate-700 break-words whitespace-normal leading-tight">{att.originalFileName}</p>
                             </div>
                         </div>
                         <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-blue-500 transition-colors">

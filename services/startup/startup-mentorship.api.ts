@@ -61,7 +61,16 @@ export const GetMentorshipById = (id: number) => {
   return axios.get<IBackendRes<IMentorshipRequest>>(`/api/mentorships/${id}`);
 };
 
+export const GetMentorshipBySessionId = (sessionId: number) => {
+  return axios.get<IBackendRes<IMentorshipRequest>>(`/api/mentorships/by-session/${sessionId}`);
+};
+
+export const GetMentorshipByReportId = (reportId: number) => {
+  return axios.get<IBackendRes<IMentorshipRequest>>(`/api/mentorships/by-report/${reportId}`);
+};
+
 export const CancelMentorship = (id: number, data: ICancelMentorshipRequest) => {
+
   return axios.put<IBackendRes<null>>(`/api/mentorships/${id}/cancel`, data);
 };
 

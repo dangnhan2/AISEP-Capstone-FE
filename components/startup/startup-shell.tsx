@@ -32,7 +32,9 @@ const routeLabels: Record<string, string> = {
   result: "Kết quả thanh toán",
   payments: "Lịch sử thanh toán",
   subscription: "Gói tài khoản",
+  wallet: "Ví của tôi",
   report: "Báo cáo tư vấn",
+
   feedback: "Gửi đánh giá",
   documents: "Tài liệu & IP",
   messaging: "Tin nhắn",

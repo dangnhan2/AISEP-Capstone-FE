@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -79,8 +79,8 @@ const STATUS_CFG: Record<ConsultingRequestStatus, { dot: string; badge: string }
   FINALIZED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
   REJECTED: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
   CANCELLED: { dot: "bg-gray-400", badge: "bg-gray-50 text-gray-500 border-gray-200/80" },
-  IN_DISPUTE: { dot: "bg-red-400", badge: "bg-red-50 text-red-600 border-red-200/80" },
-  RESOLVED: { dot: "bg-slate-400", badge: "bg-slate-50 text-slate-600 border-slate-200/80" },
+  IN_DISPUTE: { dot: "bg-red-500", badge: "bg-red-50 text-red-700 border-red-200/80" },
+  RESOLVED: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/80" },
 };
 
 
@@ -106,18 +106,22 @@ const EXTRA_SCOPE_LABELS: Record<string, string> = {
   HR_OR_TEAM_BUILDING: "Nhân sự",
 };
 
-const SLOT_STATUS_STYLE: Record<SlotProposalStatus, string> = {
+const SLOT_STATUS_STYLE: Record<string, string> = {
   PROPOSED: "bg-blue-50 text-blue-600 border border-blue-200",
   ACCEPTED: "bg-emerald-50 text-emerald-600 border border-emerald-200",
   DECLINED: "bg-red-50 text-red-500 border border-red-200",
   SUPERSEDED: "bg-gray-50 text-gray-500 border border-gray-200",
+  RESOLVED: "bg-emerald-100 text-emerald-700 border border-emerald-300",
+  IN_DISPUTE: "bg-red-100 text-red-700 border border-red-300",
 };
 
-const SLOT_STATUS_LABEL: Record<SlotProposalStatus, string> = {
+const SLOT_STATUS_LABEL: Record<string, string> = {
   PROPOSED: "Đề xuất",
   ACCEPTED: "Chấp nhận",
   DECLINED: "Từ chối",
   SUPERSEDED: "Đã thay thế",
+  RESOLVED: "Đã giải quyết",
+  IN_DISPUTE: "Đang tranh chấp",
 };
 
 type ConfirmationBadge = {
@@ -828,7 +832,7 @@ const handleCancelConfirm = async () => {
               </h2>
 
               {/* PENDING */}
-              {request.status === "PENDING" && (
+              {request.status === "PENDING" && !["IN_DISPUTE", "RESOLVED"].includes(request.status) && (
                 <div className="flex-1 w-full">
                   {isWaitingForStartupOnAdvisorProposal ? (
                     <div className="space-y-3">
@@ -931,7 +935,7 @@ const handleCancelConfirm = async () => {
               )}
 
               {/* ACCEPTED */}
-              {request.status === "ACCEPTED" && (
+              {request.status === "ACCEPTED" && !["IN_DISPUTE", "RESOLVED"].includes(request.status) && (
                 <div className="space-y-3">
                   <p className="text-[13px] text-slate-500">
                     Chọn một khung giờ trong danh sách phía trên để xác nhận lịch, hoặc đề xuất thời gian mới cho Startup.
@@ -956,7 +960,7 @@ const handleCancelConfirm = async () => {
               )}
 
               {/* SCHEDULED */}
-              {request.status === "SCHEDULED" && (
+              {request.status === "SCHEDULED" && !["IN_DISPUTE", "RESOLVED"].includes(request.status) && (
                 <div className="space-y-3">
                   {confirmedSlot && (
                     <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200">
@@ -1203,7 +1207,7 @@ const handleCancelConfirm = async () => {
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                       <p className="text-[12px] font-bold text-emerald-700">Báo cáo đã hoàn tất và sẵn sàng cho Startup xem.</p>
                     </div>
-                  ) : !report ? (
+                  ) : !report && !sessionDispute?.resolutionNote?.includes("refunded") ? (
                     <Link
                       href={`/advisor/reports/create?sessionId=${request.mentorshipID}`}
                       className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f172a] text-white text-[13px] font-bold hover:bg-[#1e293b] transition-all shadow-sm w-fit"
@@ -1212,6 +1216,11 @@ const handleCancelConfirm = async () => {
                       Viết báo cáo tư vấn
                       <ArrowRight className="w-4 h-4 ml-1 opacity-50" />
                     </Link>
+                  ) : !report ? (
+                    <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-slate-400 shrink-0" />
+                      <p className="text-[12px] text-slate-500">Buổi tư vấn đã kết thúc mà không có báo cáo (Hoàn tiền/Hủy).</p>
+                    </div>
                   ) : (
                     <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1305,13 +1314,15 @@ const handleCancelConfirm = async () => {
 
               {/* Common Report Action (Bottom of Action Card) - Refined Style */}
               <div className="mt-8 pt-5 border-t border-slate-100">
-                <button 
-                  onClick={() => setIsReportModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-slate-200 rounded-xl text-[13px] font-bold text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50/30 transition-all group"
-                >
-                  <ShieldAlert className="w-4 h-4 text-amber-500 group-hover:animate-bounce" />
-                  Bạn gặp sự cố? Gửi báo cáo & Phản hồi
-                </button>
+                {!["IN_DISPUTE", "RESOLVED"].includes(request.status) && (
+                  <button 
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-slate-200 rounded-xl text-[13px] font-bold text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50/30 transition-all group"
+                  >
+                    <ShieldAlert className="w-4 h-4 text-amber-500 group-hover:animate-bounce" />
+                    Bạn gặp sự cố? Gửi báo cáo & Phản hồi
+                  </button>
+                )}
                 <p className="text-[11px] text-slate-400 text-center mt-2 font-medium opacity-70">
                   AISEP sẽ hỗ trợ xử lý các tranh chấp và sự cố kỹ thuật trong vòng 24h.
                 </p>

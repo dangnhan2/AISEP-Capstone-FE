@@ -19,7 +19,7 @@ import {
   GetAdvisorById,
 } from "@/services/startup/startup-mentorship.api";
 import { isMentorshipPaymentCompleted, parsePositiveAmount, parseDurationMinutes, calculateMentorshipTotal } from "@/lib/mentorship-payment";
-import { CreatePaymentLink } from "@/services/payment/payment.api";
+import { CreatePaymentLink, SyncPayment } from "@/services/payment/payment.api";
 import type {
   IMentorshipRequest,
   IAdvisorDetail,
@@ -267,6 +267,28 @@ export default function CheckoutPage({
                 </>
               )}
             </button>
+
+            {!isPaid && (requestData as any)?.transactionCode && (
+              <div className="text-center">
+                <button 
+                  onClick={async () => {
+                    setIsProcessing(true);
+                    try {
+                      await SyncPayment((requestData as any).transactionCode, id);
+                      // Reload data
+                      window.location.reload();
+                    } catch (err) {
+                      console.error(err);
+                    } finally {
+                      setIsProcessing(false);
+                    }
+                  }}
+                  className="text-[12px] text-blue-600 hover:underline font-medium"
+                >
+                  Bạn đã chuyển khoản? Click vào đây để cập nhật trạng thái.
+                </button>
+              </div>
+            )}
 
             <p className="text-center text-[11px] text-slate-400">
               Bằng cách thanh toán, bạn đồng ý với{" "}

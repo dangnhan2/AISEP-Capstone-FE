@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Bookmark, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles, Gauge } from "lucide-react";
+import { Bell, Bookmark, ChevronDown, ChevronRight, User, LogOut, Trash2, Loader2, MessageSquare, LayoutGrid, Menu, CheckCheck, Settings, FileText, Brain, BrainCircuit, Users, Handshake, FileUp, CreditCard, ShieldCheck, ShieldAlert, BadgeCheck, ArrowRight, Inbox, Sparkles, Gauge, Wallet } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -389,7 +389,9 @@ export function StartupHeader({
                       { icon: Handshake, label: "Kết nối nhà ĐT", href: "/startup/investors" },
                       { icon: Sparkles, label: "Nâng cấp tài khoản", href: "/startup/subscription" },
                       { icon: CreditCard, label: "Thanh toán", href: "/startup/payments" },
+                      { icon: Wallet, label: "Ví của tôi", href: "/startup/wallet" },
                       { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/startup/issue-reports" },
+
                     ].map((item) => (
                       <Link
                         key={item.href}
@@ -474,7 +476,9 @@ export function StartupHeader({
                   {[
                     { icon: User, label: "Hồ sơ Startup", href: "/startup/startup-profile", desc: "Thông tin doanh nghiệp" },
                     { icon: ShieldAlert, label: "Báo cáo của tôi", href: "/startup/issue-reports", desc: "Theo dõi các báo cáo đã gửi" },
+                    { icon: Wallet, label: "Ví của tôi", href: "/startup/wallet", desc: "Số dư & Hoàn tiền" },
                     { icon: Settings, label: "Cài đặt tài khoản", href: "/startup/settings", desc: "Bảo mật & thông báo" },
+
                     { icon: ShieldAlert, label: "Báo cáo sự cố", onClick: () => setIsReportModalOpen(true), desc: "Gửi phản hồi cho AISEP" },
                   ].map((link, idx) => {
                     if ("href" in link && typeof link.href === "string") {

@@ -6,13 +6,20 @@ const COMPLETED_PAYMENT_STATUSES = new Set([
 ]);
 
 export function isMentorshipPaymentCompleted(
-  paymentStatus?: string | null,
+  paymentStatus?: string | number | null,
   paidAt?: string | null,
 ) {
+  // 1. Nếu đã có ngày trả tiền (PaidAt) thì chắc chắn đã xong
   if (typeof paidAt === "string" && paidAt.trim().length > 0) {
     return true;
   }
 
+  // 2. Kiểm tra status dạng số (BE Enum: 0=Pending, 1=Completed, 2=Failed)
+  if (typeof paymentStatus === "number") {
+    return paymentStatus === 1; // 1 = Completed
+  }
+
+  // 3. Kiểm tra status dạng chuỗi
   if (typeof paymentStatus !== "string") {
     return false;
   }

@@ -2,9 +2,11 @@ import axios from "../interceptor";
 
 export interface IWalletInfo {
   walletId: number
-  advisorId: number
+  advisorId?: number
+  startupId?: number
   balance: number
-  totalEarned: number
+  totalEarned?: number
+  totalRefunded?: number
   totalWithdrawn: number
   bankAccountNumber: string
   bankBin : string
@@ -31,6 +33,7 @@ export interface ITransactionsParams {
 export enum ETransactionType {
   Deposit = 0,
   Withdrawal = 1,
+  Refund = 2,
 }
 
 export enum ETransactionStatus {

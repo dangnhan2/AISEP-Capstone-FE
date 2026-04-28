@@ -25,3 +25,10 @@ export const Cashout = (transactionId : number) => {
     transactionId
   })
 }
+
+export const SyncPayment = (orderCode: number | string, mentorshipId?: number | string) => {
+  const url = mentorshipId 
+    ? `/api/Payment/sync/${orderCode}?mentorshipId=${mentorshipId}`
+    : `/api/Payment/sync/${orderCode}`;
+  return axios.post<IBackendRes<string>>(url);
+};

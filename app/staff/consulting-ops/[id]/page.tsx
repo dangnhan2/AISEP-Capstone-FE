@@ -14,7 +14,9 @@ import {
   User,
   Building2,
   Video,
+  Gavel,
 } from "lucide-react";
+
 import {
   GetOversightReports,
   MarkSessionDispute,
@@ -114,13 +116,18 @@ export default function ConsultingOpsDetailPage({
 
     setIsSessionActing(true);
     try {
-      await MarkSessionDispute(report.mentorshipID, report.sessionID, {
+      const res = (await MarkSessionDispute(report.mentorshipID, report.sessionID, {
         reason: sessionActionNote.trim(),
-      });
-      toast.success("Session đã được đánh dấu tranh chấp.");
-      setReport((prev) =>
-        prev ? { ...prev, sessionStatus: "InDispute" } : prev
-      );
+      })) as any;
+
+      if (res.success || res.isSuccess) {
+        toast.success("Session đã được đánh dấu tranh chấp.");
+        setReport((prev) =>
+          prev ? { ...prev, sessionStatus: "InDispute" } : prev
+        );
+      } else {
+        toast.error(res.message || "Không thể đánh dấu tranh chấp.");
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Đã xảy ra lỗi.");
     } finally {
@@ -139,6 +146,7 @@ export default function ConsultingOpsDetailPage({
       await MarkSessionResolved(report.mentorshipID, report.sessionID, {
         resolution: sessionActionNote.trim(),
         restoreCompleted,
+        refundToStartup: false,
       });
       toast.success(
         restoreCompleted
@@ -401,25 +409,25 @@ export default function ConsultingOpsDetailPage({
               )}
 
               {report.sessionStatus === "InDispute" && (
-                <>
-                  <button
-                    onClick={() => handleResolveDispute(true)}
-                    disabled={isSessionActing}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-[12px] font-bold text-white transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-50"
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-[13px] leading-relaxed">
+                    <p className="font-bold mb-1 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4" />
+                      Session đang có tranh chấp
+                    </p>
+                    Vui lòng di chuyển sang trang Khiếu nại & Tranh chấp để thực hiện thẩm định và quyết định hoàn tiền hoặc giải ngân.
+                  </div>
+                  
+                  <Link
+                    href={`/staff/complaints/${report.reportID}`}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#eec54e] px-4 py-3 text-[13px] font-bold text-slate-900 transition-all hover:bg-[#e6cc4c] active:scale-[0.98] shadow-md shadow-amber-100"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Giải quyết → Completed
-                  </button>
-                  <button
-                    onClick={() => handleResolveDispute(false)}
-                    disabled={isSessionActing}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-[12px] font-bold text-slate-600 transition-all hover:bg-slate-50 active:scale-[0.98] disabled:opacity-50"
-                  >
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Giải quyết → Resolved
-                  </button>
-                </>
+                    <Gavel className="h-4 w-4" />
+                    Đi tới trang xử lý Tranh chấp
+                  </Link>
+                </div>
               )}
+
 
               {!["Conducted", "Completed", "InDispute"].includes(
                 report.sessionStatus
@@ -464,25 +472,25 @@ export default function ConsultingOpsDetailPage({
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Review status</span>
+                <span className="text-slate-400">Trạng thái duyệt</span>
                 <span className="font-bold text-slate-700">
                   {reviewCfg.label}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Session status</span>
+                <span className="text-slate-400">Trạng thái buổi học</span>
                 <span className={cn("font-bold", sessCfg.color)}>
                   {sessCfg.label}
                 </span>
               </div>
               <div className="flex justify-between gap-3">
-                <span className="text-slate-400">Submitted at</span>
+                <span className="text-slate-400">Thời gian nộp</span>
                 <span className="text-right font-bold text-slate-700">
                   {formatDateTime(report.submittedAt)}
                 </span>
               </div>
               <div className="flex justify-between gap-3">
-                <span className="text-slate-400">Startup confirmed</span>
+                <span className="text-slate-400">Startup xác nhận</span>
                 <span className="text-right font-bold text-slate-700">
                   {formatDateTime(report.startupConfirmedConductedAt)}
                 </span>

@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className="overflow-x-hidden">
+    <html lang="vi" className="overflow-x-hidden" suppressHydrationWarning>
       <head />
       <body className="antialiased overflow-x-hidden" spellCheck={false}>
         <Script
