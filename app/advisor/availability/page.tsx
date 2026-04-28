@@ -212,15 +212,17 @@ export default function AdvisorAvailabilityPage() {
     setLoading(true);
     Promise.all([GetAdvisorTimeSlots(), GetAdvisorSessions({ pageSize: 100 })])
       .then(([slotsRes, sessionsRes]) => {
-        const rawSlots = slotsRes?.data?.data ?? slotsRes?.data;
+        // IBackendRes<ITimeSlot[]> → payload is slotsRes.data (array), không lồng data.data
+        const rawSlots = slotsRes?.data;
         const data: ITimeSlot[] = Array.isArray(rawSlots) ? rawSlots : [];
         setSelected(slotsToSelected(data));
 
-        const page = sessionsRes?.data?.data;
-        const sessions: AdvisorSessionRow[] = Array.isArray(page?.items)
-          ? page.items
-          : Array.isArray(page?.data)
-            ? page.data
+        // IBackendRes<IPagingData<...>> → sessionsRes.data là { items | data, paging }
+        const paging = sessionsRes?.data;
+        const sessions: AdvisorSessionRow[] = Array.isArray(paging?.items)
+          ? paging.items
+          : Array.isArray(paging?.data)
+            ? paging.data
             : [];
         const busy = new Map<string, ISessionInfo>();
         sessions
