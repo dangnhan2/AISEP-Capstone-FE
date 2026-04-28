@@ -236,7 +236,7 @@ export function AIInvestorInsightModal({
           </div>
 
           {/* Right Column: Content */}
-          <div className="flex-1 p-10 overflow-y-auto bg-slate-50/40">
+          <div className="flex-1 p-10 overflow-y-auto no-scrollbar bg-slate-50/40">
             {loading ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
                 <Loader2 className="w-10 h-10 animate-spin text-[#eec54e]" />
