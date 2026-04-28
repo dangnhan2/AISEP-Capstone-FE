@@ -1,7 +1,7 @@
 "use client";
 
 import { AdvisorShell } from "@/components/advisor/advisor-shell";
-import { Save, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Save, RefreshCw, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import {
@@ -25,6 +25,46 @@ for (let h = 7; h < 24; h++) {
 
 function cellKey(day: number, time: string) {
   return `${day}-${time}`;
+}
+
+/** YYYY-MM-DD in local timezone */
+function formatLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Monday 00:00 local of the week containing `d` (week starts Monday). */
+function startOfWeekMonday(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const js = x.getDay();
+  const diff = js === 0 ? -6 : 1 - js;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function getWeekDates(weekStartMonday: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(weekStartMonday, i));
+}
+
+function busyKey(isoDate: string, time: string) {
+  return `${isoDate}-${time}`;
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 function addMinutes(time: string, minutes: number): string {
@@ -76,11 +116,6 @@ function selectedToSlots(selected: Set<string>) {
   return result;
 }
 
-// JS getDay(): 0=Sun,1=Mon..6=Sat → grid index: 0=Mon..5=Sat,6=Sun
-function jsToGridDay(jsDay: number) {
-  return jsDay === 0 ? 6 : jsDay - 1;
-}
-
 interface ISessionInfo {
   startupName: string;
   scheduledStartAt: string;
@@ -89,10 +124,20 @@ interface ISessionInfo {
   status: string;
 }
 
-function sessionToBusyCells(session: any): string[] {
+/** Payload tối thiểu từ GET /sessions để map ô bận */
+interface AdvisorSessionRow {
+  status?: string;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
+  durationMinutes?: number;
+  startupName?: string;
+  startup?: { name?: string; startupName?: string };
+}
+
+/** Calendar-anchored keys: YYYY-MM-DD-HH:mm — buổi chỉ hiện đúng ngày trên lưới tuần. */
+function sessionToBusyCells(session: AdvisorSessionRow): string[] {
   if (!session.scheduledStartAt) return [];
   const start = new Date(session.scheduledStartAt);
-  const gridDay = jsToGridDay(start.getDay());
   const endAt = session.scheduledEndAt
     ? new Date(session.scheduledEndAt)
     : new Date(start.getTime() + (session.durationMinutes || 60) * 60000);
@@ -104,7 +149,8 @@ function sessionToBusyCells(session: any): string[] {
   let cur = rounded;
   while (cur < endAt) {
     const t = `${String(cur.getHours()).padStart(2, "0")}:${String(cur.getMinutes()).padStart(2, "0")}`;
-    if (TIMES.includes(t)) cells.push(cellKey(gridDay, t));
+    const dStr = formatLocalISODate(cur);
+    if (TIMES.includes(t)) cells.push(busyKey(dStr, t));
     cur = new Date(cur.getTime() + 30 * 60000);
   }
   return cells;
@@ -137,33 +183,57 @@ export default function AdvisorAvailabilityPage() {
   const [busyCells, setBusyCells] = useState<Map<string, ISessionInfo>>(new Map());
   const [hoveredBusy, setHoveredBusy] = useState<{ key: string; x: number; y: number } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [weekStartMonday, setWeekStartMonday] = useState(() => startOfWeekMonday(new Date()));
 
   const dragging = useRef(false);
   const dragValue = useRef(true);
 
+  const weekDates = getWeekDates(weekStartMonday);
+  const today = new Date();
+
+  const shiftWeek = useCallback((deltaWeeks: number) => {
+    setWeekStartMonday((prev) => addDays(prev, deltaWeeks * 7));
+  }, []);
+
+  const goThisWeek = useCallback(() => {
+    setWeekStartMonday(startOfWeekMonday(new Date()));
+  }, []);
+
+  const weekRangeLabel = (() => {
+    const a = weekDates[0];
+    const b = weekDates[6];
+    const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "numeric", year: "numeric" };
+    return `${a.toLocaleDateString("vi-VN", opts)} – ${b.toLocaleDateString("vi-VN", opts)}`;
+  })();
+
+  const isCurrentWeek = isSameLocalDay(weekStartMonday, startOfWeekMonday(new Date()));
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      GetAdvisorTimeSlots() as Promise<any>,
-      GetAdvisorSessions({ pageSize: 100 }) as Promise<any>,
-    ])
+    Promise.all([GetAdvisorTimeSlots(), GetAdvisorSessions({ pageSize: 100 })])
       .then(([slotsRes, sessionsRes]) => {
-        const data: ITimeSlot[] = slotsRes?.data?.data ?? slotsRes?.data ?? [];
-        setSelected(slotsToSelected(Array.isArray(data) ? data : []));
+        const rawSlots = slotsRes?.data?.data ?? slotsRes?.data;
+        const data: ITimeSlot[] = Array.isArray(rawSlots) ? rawSlots : [];
+        setSelected(slotsToSelected(data));
 
-        const sessions: any[] = sessionsRes?.data?.items ?? sessionsRes?.data?.data ?? sessionsRes?.data ?? [];
+        const page = sessionsRes?.data?.data;
+        const sessions: AdvisorSessionRow[] = Array.isArray(page?.items)
+          ? page.items
+          : Array.isArray(page?.data)
+            ? page.data
+            : [];
         const busy = new Map<string, ISessionInfo>();
-        (Array.isArray(sessions) ? sessions : [])
-          .filter((s: any) => s.status !== "Cancelled" && s.status !== "Completed")
-          .forEach((s: any) => {
+        sessions
+          .filter((s) => s.status !== "Cancelled" && s.status !== "Completed")
+          .forEach((s) => {
             const info: ISessionInfo = {
               startupName: s.startupName || s.startup?.name || s.startup?.startupName || "Startup",
-              scheduledStartAt: s.scheduledStartAt,
+              scheduledStartAt: s.scheduledStartAt ?? "",
               scheduledEndAt: s.scheduledEndAt,
               durationMinutes: s.durationMinutes,
-              status: s.status,
+              status: s.status ?? "",
             };
-            sessionToBusyCells(s).forEach(c => busy.set(c, info));
+            sessionToBusyCells(s).forEach((c) => busy.set(c, info));
           });
         setBusyCells(busy);
       })
@@ -239,10 +309,12 @@ export default function AdvisorAvailabilityPage() {
             <div>
               <h1 className="text-[20px] font-bold text-slate-900 tracking-tight">Lịch trống hằng tuần</h1>
               <p className="text-[13px] text-slate-500 mt-1">
-                Click hoặc kéo để chọn khung giờ bạn sẵn sàng tư vấn.
+                Khung giờ xanh lặp lại <span className="font-medium text-slate-600">mỗi tuần</span>
+                {" · "}
+                Chọn tuần bên dưới để xem lịch hẹn đúng theo ngày (giống Google Calendar).
                 {!loading && selected.size > 0 && (
                   <span className="ml-2 text-indigo-600 font-semibold">
-                    {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)} giờ / tuần
+                    {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)} giờ / tuần (mẫu)
                   </span>
                 )}
               </p>
@@ -298,7 +370,44 @@ export default function AdvisorAvailabilityPage() {
               <RefreshCw className="w-5 h-5 text-slate-400 animate-spin" />
             </div>
           ) : (
-            <div className="overflow-auto" style={{ maxHeight: "68vh" }}>
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/90">
+                <button
+                  type="button"
+                  onClick={() => shiftWeek(-1)}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 shrink-0"
+                  aria-label="Tuần trước"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Trước
+                </button>
+                <div className="text-center min-w-0 flex-1">
+                  <p className="text-[14px] font-bold text-slate-900 tracking-tight">{weekRangeLabel}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Tuần theo lịch · Cột là ngày cụ thể · Lịch hẹn chỉ trong phạm vi tuần đang xem
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={goThisWeek}
+                    disabled={isCurrentWeek}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 disabled:pointer-events-none"
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftWeek(1)}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+                    aria-label="Tuần sau"
+                  >
+                    Sau
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-auto" style={{ maxHeight: "68vh" }}>
               <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
                 <colgroup>
                   <col style={{ width: "56px" }} />
@@ -310,18 +419,43 @@ export default function AdvisorAvailabilityPage() {
                   <tr>
                     <th className="border-b border-r border-slate-100 bg-white" />
                     {DAY_LABELS.map((label, i) => {
-                      const daySel = [...selected].filter(k => k.startsWith(`${i}-`) && !busyCells.has(k)).length;
-                      const dayBusy = [...busyCells.keys()].filter(k => k.startsWith(`${i}-`) && selected.has(k)).length;
+                      const iso = formatLocalISODate(weekDates[i]);
+                      let daySel = 0;
+                      let dayBusyOverlap = 0;
+                      for (const t of TIMES) {
+                        const sk = cellKey(i, t);
+                        const bk = busyKey(iso, t);
+                        const sel = selected.has(sk);
+                        const busy = busyCells.has(bk);
+                        if (sel && !busy) daySel++;
+                        if (busy && sel) dayBusyOverlap++;
+                      }
+                      const isTodayCol = isSameLocalDay(weekDates[i], today);
                       return (
-                        <th key={i} className="border-b border-r border-slate-100 bg-white py-2.5 text-center">
-                          <p className="text-[12px] font-semibold text-slate-600">{label}</p>
+                        <th
+                          key={i}
+                          className={[
+                            "border-b border-r border-slate-100 py-2.5 text-center transition-colors",
+                            isTodayCol ? "bg-indigo-50/90" : "bg-white",
+                          ].join(" ")}
+                        >
+                          <p className="text-[12px] font-semibold text-slate-700">{label}</p>
+                          <p className="text-[11px] font-semibold text-slate-500 mt-0.5 tabular-nums">
+                            {weekDates[i].toLocaleDateString("vi-VN", { day: "numeric", month: "numeric" })}
+                          </p>
                           {daySel > 0 && (
                             <p className="text-[10px] font-medium mt-0.5 space-x-1">
                               <span className="text-indigo-500">
                                 {(daySel * 0.5) % 1 === 0 ? daySel * 0.5 : (daySel * 0.5).toFixed(1)}h
                               </span>
-                              {dayBusy > 0 && (
-                                <span className="text-amber-500">· {dayBusy * 0.5 % 1 === 0 ? dayBusy * 0.5 : (dayBusy * 0.5).toFixed(1)}h đặt</span>
+                              {dayBusyOverlap > 0 && (
+                                <span className="text-amber-600">
+                                  ·{" "}
+                                  {dayBusyOverlap * 0.5 % 1 === 0
+                                    ? dayBusyOverlap * 0.5
+                                    : (dayBusyOverlap * 0.5).toFixed(1)}
+                                  h đặt
+                                </span>
                               )}
                             </p>
                           )}
@@ -350,16 +484,19 @@ export default function AdvisorAvailabilityPage() {
 
                         {/* Day cells */}
                         {Array.from({ length: 7 }, (_, day) => {
-                          const key = cellKey(day, time);
-                          const isSel = selected.has(key);
-                          const isBusy = busyCells.has(key);
+                          const iso = formatLocalISODate(weekDates[day]);
+                          const templateKey = cellKey(day, time);
+                          const bKey = busyKey(iso, time);
+                          const isSel = selected.has(templateKey);
+                          const isBusy = busyCells.has(bKey);
+                          const isTodayCol = isSameLocalDay(weekDates[day], today);
                           return (
                             <td
                               key={day}
                               onMouseDown={(e) => { e.preventDefault(); if (!isBusy) handleMouseDown(day, time); }}
                               onMouseEnter={(e) => {
                                 if (isBusy) {
-                                  setHoveredBusy({ key, x: e.clientX, y: e.clientY });
+                                  setHoveredBusy({ key: bKey, x: e.clientX, y: e.clientY });
                                 } else {
                                   setHoveredBusy(null);
                                   handleMouseEnter(day, time);
@@ -369,10 +506,13 @@ export default function AdvisorAvailabilityPage() {
                               className={[
                                 "border-r border-slate-100 transition-colors duration-75",
                                 isHour ? "border-t border-slate-200" : "border-t border-slate-100",
+                                isTodayCol && !isBusy && !isSel ? "bg-indigo-50/40" : "",
                                 isBusy
                                   ? "bg-amber-400 hover:bg-amber-500 cursor-default"
                                   : isSel
                                   ? "bg-indigo-500 hover:bg-indigo-600 cursor-pointer"
+                                  : isTodayCol
+                                  ? "hover:bg-indigo-100/80 cursor-pointer"
                                   : "hover:bg-indigo-50 cursor-pointer",
                               ].join(" ")}
                               style={{ height: "22px" }}
@@ -394,6 +534,7 @@ export default function AdvisorAvailabilityPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 
@@ -411,7 +552,9 @@ export default function AdvisorAvailabilityPage() {
             <div className="w-3 h-3 rounded-sm border border-slate-200 bg-white" />
             Không sẵn sàng
           </div>
-          <span className="text-slate-400">· Kéo chuột để chọn nhiều ô liên tiếp</span>
+          <span className="text-slate-400">
+            · Kéo chuột để chọn khung cố định · Dùng Trước/Sau để xem lịch hẹn theo tuần
+          </span>
         </div>
 
         {/* Preview panel */}
