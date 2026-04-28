@@ -418,6 +418,8 @@ declare global {
     isRead: boolean;
     sentAt: string;
     readAt: string | null;
+    documentId?: number;
+    requiresPermission?: boolean;
   }
 
   interface ICreateConversationBody {
@@ -432,6 +434,8 @@ declare global {
     content: string;
     attachmentUrl: string | null;
     createdAt: string;
+    documentId?: number;
+    requiresPermission?: boolean;
   }
 
   interface ISendMessageBody {

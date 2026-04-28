@@ -9,6 +9,7 @@ import type {
   IMentorshipSession,
   IAdvisorSearchItem,
   IAdvisorDetail,
+  IAdvisorWeekCalendar,
 } from "@/types/startup-mentorship";
 
 // ── Advisor Search & Detail ──────────────────────────────────────────────────
@@ -30,6 +31,13 @@ export const SearchAdvisors = (params: {
 
 export const GetAdvisorById = (id: number) => {
   return axios.get<IBackendRes<IAdvisorDetail>>(`/api/advisors/${id}`);
+};
+
+/** Lịch tuần cho startup: khung rảnh + khoảng bận (ẩn danh tính đối tác) */
+export const GetAdvisorWeekCalendar = (advisorId: number, weekStartMonday: string) => {
+  return axios.get<IBackendRes<IAdvisorWeekCalendar>>(`/api/advisors/${advisorId}/week-calendar`, {
+    params: { weekStartMonday },
+  });
 };
 
 // ── Mentorship Requests ──────────────────────────────────────────────────────

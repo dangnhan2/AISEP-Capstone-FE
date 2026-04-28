@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { GetAdvisorById, GetMentorships } from "@/services/startup/startup-mentorship.api";
+import { AdvisorWeekCalendarDialog } from "@/components/startup/advisor-week-calendar-dialog";
 import { AdvisorBookmarkButton } from "@/components/startup/advisor-bookmark-button";
 import { useStartupAdvisorBookmarks } from "@/hooks/use-startup-advisor-bookmarks";
 import type { IAdvisorDetail, IAdvisorSearchItem, IAdvisorTimeSlot, IMentorshipRequest } from "@/types/startup-mentorship";
@@ -170,6 +171,7 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const [advisor, setAdvisor] = useState<IAdvisorDetail | null>(null);
   const [activeMentorship, setActiveMentorship] = useState<IMentorshipRequest | null>(null);
@@ -334,6 +336,15 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Yêu cầu tư vấn ngay
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCalendarOpen(true)}
+                  className="h-11 px-6 rounded-xl border-slate-200 text-slate-700 font-semibold text-[13px] hover:bg-slate-50 transition-all"
+                >
+                  <Calendar className="w-4 h-4 mr-2 text-indigo-600" />
+                  Xem lịch tuần
                 </Button>
                 <AdvisorBookmarkButton
                   variant="button"
@@ -627,9 +638,18 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
             {/* Weekly Timeslots */}
             <Card className="rounded-2xl border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
               <CardContent className="p-6 space-y-4">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] pb-4 border-b border-slate-50 flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
-                  Lịch rảnh trong tuần
+                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] pb-4 border-b border-slate-50 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                    Lịch rảnh trong tuần
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarOpen(true)}
+                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 underline-offset-2 hover:underline"
+                  >
+                    Xem lưới tuần
+                  </button>
                 </h4>
                 {(() => {
                   const grouped = groupSlotsByDay(advisor.timeSlots ?? []);
@@ -684,6 +704,13 @@ export default function ExpertProfilePage({ params }: { params: Promise<{ id: st
             </Card>
           </div>
         </div>
+
+        <AdvisorWeekCalendarDialog
+          open={calendarOpen}
+          onOpenChange={setCalendarOpen}
+          advisorId={advisor.advisorID}
+          advisorName={advisor.fullName}
+        />
 
         {/* Modal */}
         <MentorshipRequestModal

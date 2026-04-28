@@ -138,13 +138,19 @@ export default function AIDetailedReportPage() {
             const bpScore = payload.businessPlanOverallScore ?? payload.BusinessPlanOverallScore ?? null;
             const rawPD = payload.pitchDeckReport ?? payload.PitchDeckReport ?? null;
             const rawBP = payload.businessPlanReport ?? payload.BusinessPlanReport ?? null;
-            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes, pdScore, bpScore, rawPD, rawBP);
+            const mapped = mapCanonicalToReport(runId, canonical, evalDocTypes, pdScore, bpScore, rawPD, rawBP, {
+              submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+              updatedAt: payload.updatedAt ?? payload.UpdatedAt
+            });
             if (!cancelled) setReport(mapped);
             return true;
           }
           // If payload.Report exists and looks complete, map anyway
           if (payload.report) {
-            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes, payload.pitchDeckOverallScore ?? null, payload.businessPlanOverallScore ?? null, payload.pitchDeckReport ?? null, payload.businessPlanReport ?? null);
+            const mapped = mapCanonicalToReport(runId, payload.report, evalDocTypes, payload.pitchDeckOverallScore ?? null, payload.businessPlanOverallScore ?? null, payload.pitchDeckReport ?? null, payload.businessPlanReport ?? null, {
+              submittedAt: payload.submittedAt ?? payload.SubmittedAt,
+              updatedAt: payload.updatedAt ?? payload.UpdatedAt
+            });
             if (!cancelled) setReport(mapped);
             return true;
           }
@@ -187,10 +193,10 @@ export default function AIDetailedReportPage() {
   }, [id]);
 
   const currentReport = 
-    selectedTab === "pitch_deck" && report?.pitchDeckReport 
-      ? report.pitchDeckReport 
-      : (selectedTab === "business_plan" && report?.businessPlanReport 
-          ? report.businessPlanReport 
+    selectedTab === "pitch_deck" 
+      ? (report?.pitchDeckReport ?? null)
+      : (selectedTab === "business_plan" 
+          ? (report?.businessPlanReport ?? null)
           : report);
 
   if (isLoading) {
@@ -223,7 +229,10 @@ export default function AIDetailedReportPage() {
           const reportPayload = rdata?.report ?? rdata;
           const evalDocTypes = rdata?.evaluatedDocumentTypes ?? rdata?.EvaluatedDocumentTypes ?? [];
           setRawPayload(reportPayload);
-          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null, rdata?.pitchDeckReport ?? null, rdata?.businessPlanReport ?? null);
+          const mapped = mapCanonicalToReport(runId, reportPayload, evalDocTypes, rdata?.pitchDeckOverallScore ?? null, rdata?.businessPlanOverallScore ?? null, rdata?.pitchDeckReport ?? null, rdata?.businessPlanReport ?? null, {
+            submittedAt: rdata?.submittedAt ?? rdata?.SubmittedAt,
+            updatedAt: rdata?.updatedAt ?? rdata?.UpdatedAt
+          });
           setReport(mapped);
         } else if (newStatus === "FAILED") {
           setLoadError("Đánh giá đã thất bại. Vui lòng kiểm tra lịch sử hoặc thử lại.");
@@ -365,9 +374,15 @@ export default function AIDetailedReportPage() {
                 {/* Document scores (Tabs) */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <button 
-                    onClick={() => setSelectedTab(selectedTab === "pitch_deck" ? "merged" : "pitch_deck")}
+                    onClick={() => {
+                      if (report.pitchDeckScore != null) {
+                        setSelectedTab(selectedTab === "pitch_deck" ? "merged" : "pitch_deck");
+                      }
+                    }}
+                    disabled={report.pitchDeckScore == null}
                     className={cn(
                       "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      report.pitchDeckScore == null ? "opacity-50 cursor-not-allowed grayscale" : "cursor-pointer",
                       selectedTab === "pitch_deck" 
                         ? "bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-500" 
                         : "bg-white border-slate-100 hover:bg-blue-50/30 hover:border-blue-200"
@@ -389,9 +404,15 @@ export default function AIDetailedReportPage() {
                   </button>
 
                   <button 
-                    onClick={() => setSelectedTab(selectedTab === "business_plan" ? "merged" : "business_plan")}
+                    onClick={() => {
+                      if (report.businessPlanScore != null) {
+                        setSelectedTab(selectedTab === "business_plan" ? "merged" : "business_plan");
+                      }
+                    }}
+                    disabled={report.businessPlanScore == null}
                     className={cn(
                       "flex flex-col items-start px-4 py-3 rounded-xl border transition-all duration-300 relative overflow-hidden",
+                      report.businessPlanScore == null ? "opacity-50 cursor-not-allowed grayscale" : "cursor-pointer",
                       selectedTab === "business_plan" 
                         ? "bg-violet-50 border-violet-200 shadow-sm ring-1 ring-violet-500" 
                         : "bg-white border-slate-100 hover:bg-violet-50/30 hover:border-violet-200"

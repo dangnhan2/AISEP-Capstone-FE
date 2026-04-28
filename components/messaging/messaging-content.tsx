@@ -23,6 +23,7 @@ import {
     RefreshCcw,
     Check,
     CheckCheck,
+    ShieldAlert,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -37,6 +38,8 @@ import {
 } from "@/services/messaging/messaging.api";
 import { UploadChatAttachment } from "@/services/files/files.api";
 import { PickDocumentModal } from "./pick-document-modal";
+import { GetInvestorProfile } from "@/services/investor/investor.api";
+import { GetStartupProfile } from "@/services/startup/startup.api";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -111,7 +114,24 @@ function getConversationCreationErrorMessage(payload: any) {
 /*  Message bubble with retry                                          */
 /* ------------------------------------------------------------------ */
 
-function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }; onRetry?: () => void }) {
+function MessageBubble({ 
+    msg, 
+    onRetry, 
+    otherAvatar, 
+    myAvatar,
+    otherName,
+    otherRole
+}: { 
+    msg: IMessage & { _failed?: boolean }; 
+    onRetry?: () => void;
+    otherAvatar?: string | null;
+    myAvatar?: string | null;
+    otherName?: string;
+    otherRole?: ParticipantRole;
+}) {
+    const [myImgError, setMyImgError] = useState(false);
+    const [otherImgError, setOtherImgError] = useState(false);
+
     const getFileName = (url: string) => {
         try {
             const parts = url.split("/");
@@ -125,15 +145,46 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
         return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
     };
 
-    // Document proxy URL pattern: /api/documents/{id}/content
-    // These need authenticated fetch (JWT in header) — direct <a href> won't work.
     const proxyDocumentMatch = (url: string): string | null => {
-        const m = url.match(/^\/api\/documents\/(\d+)\/content$/);
+        const m = url.match(/\/api\/documents\/(\d+)\/content/);
         return m ? m[1] : null;
     };
 
+    const OtherIcon = otherRole ? avatarIcon[otherRole] : User;
+
     return (
-        <div className={cn("flex w-full mb-2", msg.isMine ? "justify-end" : "justify-start")}>
+        <div className={cn("flex w-full mb-4 gap-3", msg.isMine ? "flex-row-reverse" : "flex-row")}>
+            {/* Avatar Column */}
+            <div className="shrink-0 mt-auto mb-6">
+                {msg.isMine ? (
+                    myAvatar && !myImgError ? (
+                        <img 
+                            src={myAvatar} 
+                            alt="Me" 
+                            className="size-8 rounded-full object-cover border border-slate-100 shadow-sm bg-white" 
+                            onError={() => setMyImgError(true)}
+                        />
+                    ) : (
+                        <div className="size-8 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold shadow-sm ring-1 ring-slate-200">
+                            ME
+                        </div>
+                    )
+                ) : (
+                    otherAvatar && !otherImgError ? (
+                        <img 
+                            src={otherAvatar} 
+                            alt={otherName} 
+                            className="size-8 rounded-full object-cover border border-slate-100 shadow-sm bg-white" 
+                            onError={() => setOtherImgError(true)}
+                        />
+                    ) : (
+                        <div className={cn("size-8 rounded-full flex items-center justify-center font-bold text-[10px] shadow-sm ring-1 ring-slate-200/50", otherRole ? avatarBg[otherRole] : "bg-slate-100")}>
+                            {otherName ? getInitials(otherName) : <OtherIcon className="w-4 h-4" />}
+                        </div>
+                    )
+                )}
+            </div>
+
             <div className={cn("flex flex-col max-w-[85%] md:max-w-[70%] min-w-0", msg.isMine ? "items-end" : "items-start")}>
                 <div className={cn(
                     "px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed relative group max-w-full min-w-0",
@@ -142,7 +193,7 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                         : "bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm"
                 )}>
                     {msg.attachmentUrls && (() => {
-                        const proxyDocId = proxyDocumentMatch(msg.attachmentUrls);
+                        const proxyDocId = msg.documentId?.toString() || proxyDocumentMatch(msg.attachmentUrls);
                         const attachmentClass = cn(
                             "flex w-full max-w-full min-w-0 items-center gap-3 p-2.5 rounded-xl border transition-all overflow-hidden cursor-pointer text-left",
                             msg.isMine
@@ -181,13 +232,57 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
                                         />
                                     </div>
                                 ) : proxyDocId ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => openDocumentInTab(proxyDocId).catch(() => toast.error("Không mở được tài liệu — bạn có thể không có quyền truy cập."))}
-                                        className={attachmentClass}
-                                    >
-                                        {fileBubble}
-                                    </button>
+                                    <div className="flex flex-col gap-2 w-full min-w-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (msg.requiresPermission) {
+                                                    if (msg.isMine) {
+                                                        window.location.href = `/startup/documents/${proxyDocId}`;
+                                                    } else {
+                                                        toast.error("Tài liệu này chưa được cấp quyền truy cập cho bạn.");
+                                                    }
+                                                } else {
+                                                    openDocumentInTab(proxyDocId).catch(() => toast.error("Không mở được tài liệu — bạn có thể không có quyền truy cập."));
+                                                }
+                                            }}
+                                            className={cn(
+                                                attachmentClass, 
+                                                msg.requiresPermission && (msg.isMine ? "border-amber-500/50 opacity-90" : "opacity-60 border-dashed grayscale-[0.5]")
+                                            )}
+                                        >
+                                            {fileBubble}
+                                        </button>
+                                        
+                                        {msg.requiresPermission && (
+                                            <div className={cn(
+                                                "flex items-start gap-2 p-2 rounded-lg text-[11px] leading-tight font-medium animate-in fade-in slide-in-from-top-1 duration-200",
+                                                msg.isMine 
+                                                    ? "bg-amber-500/10 text-amber-200 border border-amber-500/20" 
+                                                    : "bg-red-50 text-red-600 border border-red-100"
+                                            )}>
+                                                <ShieldAlert className="size-3.5 mt-0.5 shrink-0" />
+                                                <div className="flex-1">
+                                                    {msg.isMine ? (
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <p>Người nhận chưa có quyền xem file này.</p>
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    window.location.href = `/startup/documents/${proxyDocId}`;
+                                                                }}
+                                                                className="text-left underline decoration-amber-500/50 underline-offset-2 hover:text-amber-100 transition-colors"
+                                                            >
+                                                                Cấp quyền ngay →
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span>Tài liệu này chưa được cấp quyền truy cập cho bạn.</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
                                     <a
                                         href={msg.attachmentUrls}
@@ -229,6 +324,7 @@ function MessageBubble({ msg, onRetry }: { msg: IMessage & { _failed?: boolean }
         </div>
     );
 }
+
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton loaders                                                   */
@@ -354,6 +450,7 @@ export function MessagingContent() {
     const [filter,        setFilter]        = useState<"all" | "unread">("all");
     const [search,        setSearch]        = useState("");
     const [input,         setInput]         = useState("");
+    const [myAvatarUrl,   setMyAvatarUrl]   = useState<string | null>(null);
     const [loadingConvs,  setLoadingConvs]  = useState(true);
     const [convError,     setConvError]     = useState(false);
     const [loadingMsgs,   setLoadingMsgs]   = useState(false);
@@ -366,6 +463,28 @@ export function MessagingContent() {
     const [msgPage,       setMsgPage]       = useState(1);
     const [hasOlderMsgs,  setHasOlderMsgs] = useState(false);
     const [loadingOlder,  setLoadingOlder]  = useState(false);
+
+    /* ── Fetch my profile for avatar ── */
+    useEffect(() => {
+        if (!user) return;
+        if (user.userType === "Investor") {
+            GetInvestorProfile().then((response: any) => {
+                const envelope = response as IBackendRes<any>;
+                if ((envelope.success || envelope.isSuccess) && envelope.data) {
+                    const url = envelope.data.profilePhotoURL?.trim();
+                    if (url) setMyAvatarUrl(url);
+                }
+            }).catch(() => {});
+        } else if (user.userType === "Startup") {
+            GetStartupProfile().then((response: any) => {
+                const envelope = response as IBackendRes<any>;
+                if ((envelope.success || envelope.isSuccess) && envelope.data) {
+                    const url = envelope.data.logoURL?.trim();
+                    if (url) setMyAvatarUrl(url);
+                }
+            }).catch(() => {});
+        }
+    }, [user]);
 
     const bottomRef    = useRef<HTMLDivElement>(null);
     const messagesRef  = useRef<HTMLDivElement>(null);
@@ -494,6 +613,7 @@ export function MessagingContent() {
     const { sendMessage, connectionState } = useChat({
         conversationId: selectedId,
         onMessage: (incoming: IIncomingMessage) => {
+            // 1. Update Messages if in current conversation
             if (incoming.conversationId === selectedId) {
                 setMessages(prev => {
                     const tempIndex = prev.findIndex(m =>
@@ -512,10 +632,14 @@ export function MessagingContent() {
                         newMsgs[tempIndex] = {
                             ...newMsgs[tempIndex],
                             messageId: incoming.messageId,
-                            sentAt: incoming.createdAt
+                            sentAt: incoming.createdAt,
+                            documentId: incoming.documentId,
+                            requiresPermission: incoming.requiresPermission
                         };
                         return newMsgs;
                     }
+
+                    if (prev.some(m => m.messageId === incoming.messageId)) return prev;
 
                     return [
                         ...prev,
@@ -530,20 +654,50 @@ export function MessagingContent() {
                             isRead:            false,
                             sentAt:            incoming.createdAt,
                             readAt:            null,
+                            documentId:        incoming.documentId,
+                            requiresPermission: incoming.requiresPermission,
                         } as IMessage,
                     ];
                 });
-            } else {
-                setConversations(prev =>
-                    prev.map(c =>
-                        c.conversationId === incoming.conversationId
-                            ? { ...c, unreadCount: (c.unreadCount ?? 0) + 1, lastMessagePreview: incoming.content, lastMessageAt: incoming.createdAt  }
-                            : c
-                    )
-                );
             }
+
+            // 2. Always update conversation list preview and sort
+            setConversations(prev => {
+                const next = prev.map(c => {
+                    if (c.conversationId === incoming.conversationId) {
+                        const isCurrent = c.conversationId === selectedId;
+                        return { 
+                            ...c, 
+                            unreadCount: isCurrent ? 0 : (c.unreadCount ?? 0) + 1, 
+                            lastMessagePreview: incoming.content, 
+                            lastMessageAt: incoming.createdAt  
+                        };
+                    }
+                    return c;
+                });
+                return [...next].sort((a, b) => 
+                    new Date(b.lastMessageAt ?? b.createdAt ?? 0).getTime() - 
+                    new Date(a.lastMessageAt ?? a.createdAt ?? 0).getTime()
+                );
+            });
         },
     });
+
+    /* ── Refresh messages when coming back to tab (e.g. after granting permission) ── */
+    useEffect(() => {
+        const handleFocus = () => {
+            if (selectedId) {
+                GetMessages(selectedId, 1, 50).then(res => {
+                    if (res.success && res.data) {
+                        const latest = [...((res.data as any).data || res.data.items || [])].reverse();
+                        setMessages(latest);
+                    }
+                });
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [selectedId]);
 
     /* ── Send message ── */
     const handleSend = async (content?: string, attachmentUrl?: string) => {
@@ -817,6 +971,10 @@ export function MessagingContent() {
                                     key={msg.messageId}
                                     msg={msg}
                                     onRetry={msg._failed ? () => retryMessage(msg) : undefined}
+                                    myAvatar={myAvatarUrl}
+                                    otherAvatar={selected.participantAvatarUrl}
+                                    otherName={selected.participantName}
+                                    otherRole={selected.participantRole}
                                 />
                             ))
                         )}

@@ -6,6 +6,7 @@ import { X, Send, CheckCircle2, BadgeCheck, Clock, Check, Plus, Trash2, Globe } 
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CreateMentorship } from "@/services/startup/startup-mentorship.api";
+import { translateMentorshipApiMessage } from "@/lib/mentorship-api-i18n";
 import { ICreateMentorshipRequest, MeetingFormat, IAdvisorSearchItem } from "@/types/startup-mentorship";
 
 const formatVND = (n: number) => n.toLocaleString('vi-VN') + '₫';
@@ -175,12 +176,17 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                     errorMsg = "Bạn đã có một yêu cầu đang chờ phản hồi hoặc đang hoạt động với Cố vấn này.";
                 } else if (errorMsg.includes("subscription plan") || errorMsg.includes("upgrade your plan") || errorMsg.includes("maximum of")) {
                     errorMsg = "Gói hiện tại của bạn đã đạt giới hạn số lượng yêu cầu tư vấn. Vui lòng nâng cấp gói để tiếp tục.";
+                } else {
+                    errorMsg = translateMentorshipApiMessage(errorMsg);
                 }
                 toast.error(errorMsg);
             }
         } catch (error: any) {
-            const message = error?.response?.data?.message || "Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.";
-            toast.error(message);
+            const raw =
+                error?.response?.data?.message ||
+                error?.message ||
+                "Đã xảy ra lỗi khi gửi yêu cầu. Vui lòng thử lại.";
+            toast.error(translateMentorshipApiMessage(raw));
         } finally {
             setIsSubmitting(false);
         }
@@ -225,7 +231,7 @@ export function MentorshipRequestModal({ isOpen, onClose, mentor }: MentorshipRe
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 px-6 pb-2 overflow-y-auto space-y-5">
+                <div className="flex-1 px-6 pb-2 overflow-y-auto no-scrollbar space-y-5">
                     {isSuccess ? (
                         <div className="py-12 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
                             <div className="w-[72px] h-[72px] bg-emerald-50 rounded-full flex items-center justify-center mb-5 ring-4 ring-emerald-50">

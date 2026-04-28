@@ -8,16 +8,35 @@ import {
   Sparkles, CheckCircle2, XCircle, FileText, ChevronRight,
   ArrowRight, Clock, AlertTriangle, RefreshCw, BarChart3,
   History, FileSearch, Info, ShieldCheck, Loader2, Layout, BookOpen,
-  Brain, Target, FileBarChart, ListChecks,
+  Brain, Target, FileBarChart, ListChecks, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GetLatestScore, GetEvaluationHistory, GetEvaluationStatus, GetEvaluationReport } from "@/services/ai/ai.api";
 import { GetDocument, GetStartupDocuments } from "@/services/document/document.api";
-import { GetStartupProfile, GetMembers } from "@/services/startup/startup.api";
+import { GetStartupProfile, GetMembers, GetAiInsightVisibility, SetAiInsightVisibility } from "@/services/startup/startup.api";
 import { mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI, normalizeTo100 } from "./canonical-mapper";
 import { calcProfileCompleteness } from "@/lib/profile-completeness";
 import { formatScore100, scoreChipColorClass, scoreRingVisual } from "@/lib/ai-evaluation-score-ui";
 import { AIEvaluationStatus, AIEvaluationReport } from "./types";
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1);
+    const year = date.getFullYear();
+    
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
 
 function fileNameFromUrl(url?: string | null): string {
   if (!url) return "Untitled";
@@ -265,7 +284,12 @@ function OnboardingView({ allReady, profile, documents }: { allReady: boolean; p
 
 /* ─── Dashboard (has evaluation results) ───────────────────── */
 
-function DashboardView({ latestCompleted, profile, documents }: { latestCompleted: NonNullable<AIEvaluationReport>; profile?: any; documents?: any }) {
+function DashboardView({ latestCompleted, profile, documents, historyCount }: { 
+  latestCompleted: NonNullable<AIEvaluationReport>; 
+  profile?: any; 
+  documents?: any;
+  historyCount: number;
+}) {
   const router = useRouter();
   const p = profile ?? { ready: true, completionPercent: 100, items: [] };
   const d = documents ?? { ready: true, items: [], eligibleDocs: [] };
@@ -315,7 +339,7 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
             </span>
           </div>
           <p className="text-[12px] text-slate-400">
-            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{latestCompleted.calculatedAt}</span>
+            Lần đánh giá gần nhất: <span className="font-semibold text-slate-500">{formatDate(latestCompleted.calculatedAt)}</span>
           </p>
         </div>
         <button
@@ -518,7 +542,7 @@ function DashboardView({ latestCompleted, profile, documents }: { latestComplete
               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-amber-50 transition-colors"><History className="w-5 h-5 text-slate-400 group-hover:text-amber-500 transition-colors" /></div>
               <div>
                 <p className="text-[14px] font-bold text-slate-800">Lịch sử đánh giá</p>
-                <p className="text-[12px] text-slate-400">{latestCompleted ? 1 : 0} lượt đánh giá</p>
+                <p className="text-[12px] text-slate-400">{historyCount} lượt đánh giá</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-400 transition-colors" />
@@ -565,7 +589,7 @@ function PendingRunView({ run, status, onRefresh }: { run: any; status: AIEvalua
           <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center">{statusCfg.icon}</div>
           <div>
             <p className="text-[16px] font-bold text-slate-900">Đang xử lý đánh giá</p>
-            <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {run?.calculatedAt ?? ""}</p>
+            <p className="text-[13px] text-slate-500 mt-1">ID: {run?.evaluationId ?? "-"} • {formatDate(run?.calculatedAt)}</p>
             <p className="text-[13px] text-slate-600 mt-3">Trạng thái hiện tại: <span className={cn("font-semibold ml-1", statusCfg.color)}>{statusCfg.label}</span></p>
             {run?.overallScore != null && run.overallScore > 0 && (
               <p className="text-[20px] font-black text-slate-900 mt-3">{run.overallScore}/100</p>
@@ -607,7 +631,11 @@ function AIEvaluationHomePageInner() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>({ ready: false, completionPercent: 0, items: [] });
   const [documents, setDocuments] = useState<any>({ ready: false, items: [], eligibleDocs: [] });
+  const [historyCount, setHistoryCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [allowInvestorAiInsight, setAllowInvestorAiInsight] = useState<boolean>(false);
+  const [aiInsightVisibilityLoading, setAiInsightVisibilityLoading] = useState<boolean>(true);
+  const [aiInsightVisibilitySaving, setAiInsightVisibilitySaving] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -647,6 +675,18 @@ function AIEvaluationHomePageInner() {
           eligibleDocs: (pdata?.eligibleDocs ?? docsItems) || [],
         };
         if (!cancelled) { setProfile(prof); setDocuments(docs); }
+
+        try {
+          const visRes = await GetAiInsightVisibility() as unknown as any;
+          const visPayload = visRes?.data ?? visRes;
+          if (!cancelled) {
+            setAllowInvestorAiInsight(Boolean(visPayload?.allowInvestorAiInsight));
+          }
+        } catch {
+          if (!cancelled) setAllowInvestorAiInsight(false);
+        } finally {
+          if (!cancelled) setAiInsightVisibilityLoading(false);
+        }
 
         // Try to fetch latest score (may 404 if no score yet)
         try {
@@ -697,7 +737,11 @@ function AIEvaluationHomePageInner() {
               // Readiness acceptance depends on current score from GetLatestScore.
               // Keep history as auxiliary state and avoid promoting history-only data
               // into latestCompleted when there is no current score yet.
-              if (!cancelled) { setLatestRun(mappedRun); setRunStatus(status); }
+              if (!cancelled) { 
+                setLatestRun(mappedRun); 
+                setRunStatus(status);
+                setHistoryCount(list.length);
+              }
 
               // Self-heal for old runs: if latest score is missing but we already have
               // a completed run, fetch report once to trigger BE sync, then retry latest score.
@@ -820,9 +864,65 @@ function AIEvaluationHomePageInner() {
     }
   };
 
+  const handleToggleAiInsightVisibility = async () => {
+    const next = !allowInvestorAiInsight;
+    try {
+      setAiInsightVisibilitySaving(true);
+      const res = await SetAiInsightVisibility(next) as unknown as any;
+      const isSuccess = Boolean(res?.success ?? res?.isSuccess ?? true);
+      if (!isSuccess) throw new Error(res?.message ?? "Không thể cập nhật quyền xem AI Insight.");
+      const payload = res?.data ?? res;
+      setAllowInvestorAiInsight(Boolean(payload?.allowInvestorAiInsight ?? next));
+    } catch (err: any) {
+      setApiError(err?.message ?? "Không thể cập nhật quyền xem AI Insight.");
+    } finally {
+      setAiInsightVisibilitySaving(false);
+    }
+  };
+
   return (
     <StartupShell>
       <div className="max-w-[1100px] mx-auto pb-20 animate-in fade-in duration-500 min-h-[600px]">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
+              <Eye className="w-4 h-4 text-slate-500" />
+              Cho phép Investor xem AI Insight chi tiết
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Khi tắt, investor chỉ thấy điểm AI tổng quát. Khi bật, investor xem được phân tích chi tiết.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className={cn(
+                "px-2.5 py-1 rounded-md text-[11px] font-bold border",
+                allowInvestorAiInsight
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-100 text-slate-600 border-slate-200",
+              )}
+            >
+              {allowInvestorAiInsight ? "Trạng thái: Đang bật" : "Trạng thái: Đang tắt"}
+            </span>
+            <button
+              type="button"
+              onClick={handleToggleAiInsightVisibility}
+              disabled={aiInsightVisibilityLoading || aiInsightVisibilitySaving}
+              className={cn(
+                "h-9 px-3 rounded-lg text-[12px] font-semibold transition-colors",
+                allowInvestorAiInsight
+                  ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700",
+                (aiInsightVisibilityLoading || aiInsightVisibilitySaving) && "opacity-60 cursor-not-allowed",
+              )}
+            >
+              {aiInsightVisibilityLoading || aiInsightVisibilitySaving
+                ? "Đang cập nhật..."
+                : allowInvestorAiInsight ? "Tắt quyền" : "Bật quyền"}
+            </button>
+          </div>
+        </div>
+
         {/* API error banner */}
         {apiError && (
           <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-100 flex items-center justify-between">
@@ -845,7 +945,7 @@ function AIEvaluationHomePageInner() {
 
             {/* Main content stays mounted to reduce layout shifts */}
             {hasResult && latestCompleted ? (
-              <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} />
+              <DashboardView latestCompleted={latestCompleted} profile={profile} documents={documents} historyCount={historyCount} />
             ) : (
               <OnboardingView allReady={allReady} profile={profile} documents={documents} />
             )}

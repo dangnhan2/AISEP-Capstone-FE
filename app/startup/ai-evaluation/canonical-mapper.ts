@@ -9,13 +9,22 @@ function normalizeTo100(raw: any): number {
   return Math.round(n);
 }
 
+/**
+ * Removes technical debug notes enclosed in brackets, e.g. [Merged - prioritizes Business Plan...]
+ */
+function cleanAiText(text: any): string {
+  if (typeof text !== "string") return "";
+  // Removes strings like [Text here...] at the start or end of the text
+  return text.replace(/^\[[^\]]*\]\s*/g, "").trim();
+}
+
 function getCriterionScore(criteria: any[] | undefined, ...names: string[]): number {
   if (!criteria) return 0;
-  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().replace(/[^a-z]/g, ""));
+  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().trim());
   for (const c of criteria) {
     const label = normalize(c?.criterion_name ?? c?.criterion ?? c?.name ?? c?.title ?? c?.criterionName);
     for (const name of names) {
-      const target = String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const target = String(name ?? "").toLowerCase().trim();
       if (label.includes(target)) {
         const raw = c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? c.raw_score ?? c.finalScore ?? c.rawScore;
         return normalizeTo100(raw);
@@ -27,11 +36,11 @@ function getCriterionScore(criteria: any[] | undefined, ...names: string[]): num
 
 function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[]): SubMetric[] {
   if (!criteria) return [];
-  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().replace(/[^a-z]/g, ""));
+  const normalize = (s: any) => (s == null ? "" : String(s).toLowerCase().trim());
   for (const c of criteria) {
     const label = normalize(c?.criterion_name ?? c?.criterion ?? c?.name ?? c?.title ?? c?.criterionName);
     for (const name of names) {
-      const target = String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+      const target = String(name ?? "").toLowerCase().trim();
       if (!label.includes(target)) continue;
 
       const raw = c?.sub_metrics ?? c?.sub_criteria ?? c?.subMetrics ?? c?.subCriteria ?? c?.cap_summary ?? c?.details ?? null;
@@ -40,7 +49,7 @@ function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[])
           name: m.name ?? m.sub_criterion_name ?? m.criterion ?? m.title ?? (m.excerpt || m.summary) ?? "",
           score: normalizeTo100(m.score ?? m.normalized_score ?? m.weighted_score ?? m.final_score ?? m.raw_score ?? 0),
           maxScore: m.max_score ?? 100,
-          comment: m.comment ?? m.explanation ?? m.reasoning ?? m.detail ?? "",
+          comment: cleanAiText(m.comment ?? m.explanation ?? m.reasoning ?? m.detail ?? ""),
         }));
       }
 
@@ -53,6 +62,18 @@ function getCriterionSubMetrics(criteria: any[] | undefined, ...names: string[])
           maxScore: 100,
           comment: "",
         }));
+      }
+
+      // Final fallback: if no submetrics but we have a comment/explanation for the main criterion,
+      // create a single submetric entry so the section isn't empty.
+      const mainComment = c?.comment ?? c?.explanation ?? c?.reasoning ?? c?.detail ?? "";
+      if (mainComment) {
+        return [{
+          name: "Chi tiết",
+          score: normalizeTo100(c.normalized_score ?? c.weighted_score ?? c.final_score ?? c.score ?? 0),
+          maxScore: 100,
+          comment: cleanAiText(mainComment),
+        }];
       }
 
       return [];
@@ -89,6 +110,19 @@ function mapStatusToUI(status?: string): AIEvaluationStatus {
   if (s === "validating") return "VALIDATING";
   return "NOT_REQUESTED";
 }
+ 
+function formatDate(dateInput: any): string {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  return d.toLocaleDateString("vi-VN", { 
+    day: "2-digit", 
+    month: "2-digit", 
+    year: "numeric", 
+    hour: "2-digit", 
+    minute: "2-digit" 
+  });
+}
 
 function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
   for (const key of keys) {
@@ -103,6 +137,20 @@ function getFlatSubScoreTo100(data: any, ...keys: string[]): number {
 function readOptionalFlatScore100(data: any, ...keys: string[]): number | null {
   const d = data ?? {};
   for (const key of keys) {
+    // Support nested access like "aiEvaluation.overallScore"
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      let current = d;
+      for (const p of parts) {
+        current = current?.[p];
+      }
+      if (current !== undefined) {
+        if (current === null) return null;
+        return normalizeTo100(current);
+      }
+      continue;
+    }
+
     if (!Object.prototype.hasOwnProperty.call(d, key)) continue;
     const value = d[key];
     if (value === null) return null;
@@ -141,7 +189,7 @@ function parseLatestScoreSubMetrics(data: any): AIEvaluationReport["subMetrics"]
       (typeof item.metricValue === "string" && item.metricValue) ||
       (typeof item.MetricValue === "string" && item.MetricValue) ||
       "";
-    return { name, score, maxScore: 100, comment };
+    return { name, score, maxScore: 100, comment: cleanAiText(comment) };
   };
 
   /** Chỉ dùng khi response cũ thiếu Pillar. */
@@ -226,15 +274,13 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
     data?.id ??
     0
   ) || 0;
-  const now = new Date();
-  const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-
-  const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score");
-  const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score");
-  const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score");
-  const productScore = readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score");
-  const tractionScore = readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score");
-  const financialScore = readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score");
+ 
+  const overallScore = readOptionalFlatScore100(data, "overallScore", "OverallScore", "overall_score", "score", "Score", "aiScore", "AiScore", "latestEvaluation.overallScore", "aiEvaluation.overallScore");
+  const teamScore = readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore");
+  const marketScore = readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score", "latestEvaluation.marketScore", "aiEvaluation.marketScore");
+  const productScore = readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score", "latestEvaluation.productScore", "aiEvaluation.productScore");
+  const tractionScore = readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score", "latestEvaluation.tractionScore", "aiEvaluation.tractionScore");
+  const financialScore = readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score", "latestEvaluation.financialScore", "aiEvaluation.financialScore");
 
   const recommendationsRaw = data?.recommendations ?? data?.Recommendations ?? data?.improvementRecommendations ?? data?.ImprovementRecommendations ?? [];
   const recommendations: Recommendation[] = Array.isArray(recommendationsRaw)
@@ -265,13 +311,13 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
-    generatedAt: data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? nowStr,
+    calculatedAt: formatDate(data?.calculatedAt ?? data?.CalculatedAt ?? data?.calculated_at ?? data?.submittedAt ?? data?.SubmittedAt),
+    generatedAt: formatDate(data?.generatedAt ?? data?.GeneratedAt ?? data?.generated_at ?? data?.created_at ?? data?.CreatedAt ?? data?.updatedAt ?? data?.UpdatedAt),
     isCurrent: true,
     configVersion: data?.configVersion ?? data?.ConfigVersion ?? "",
     modelVersion: data?.modelVersion ?? data?.ModelVersion ?? "",
     promptVersion: data?.promptVersion ?? data?.PromptVersion ?? "",
-    snapshotLabel: data?.snapshotLabel ?? data?.SnapshotLabel ?? `Đánh giá ${nowStr}`,
+    snapshotLabel: data?.snapshotLabel ?? data?.SnapshotLabel ?? (data?.calculatedAt ? `Đánh giá ${data.calculatedAt}` : `Đánh giá #${runId}`),
     warningMessages: asStringArray(data?.warnings ?? data?.Warnings ?? []),
     executiveSummary: data?.executiveSummary ?? data?.ExecutiveSummary ?? data?.summary ?? data?.Summary ?? "",
     strengths: asStringArray(data?.strengths ?? data?.Strengths ?? []),
@@ -284,24 +330,36 @@ function mapLatestScoreToReport(data: any, evaluatedDocTypes?: string[]): AIEval
   } as AIEvaluationReport;
 }
 
-function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[], explicitPD?: number | null, explicitBP?: number | null, rawPD?: any, rawBP?: any): AIEvaluationReport {
+function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: string[], explicitPD?: number | null, explicitBP?: number | null, rawPD?: any, rawBP?: any, metadata?: { submittedAt?: string; updatedAt?: string }): AIEvaluationReport {
   const criteria: any[] = data?.criteria_results ?? data?.criteria ?? [];
   const overall = data?.overall_result ?? data;
   const narr = data?.narrative ?? data;
 
-  const teamScore = getCriterionScore(criteria, "team", "team_", "execution");
-  const marketScore = getCriterionScore(criteria, "market", "market_");
-  const productScore = getCriterionScore(criteria, "solution", "product", "differentiation", "solution_");
-  const tractionScore = getCriterionScore(criteria, "traction", "validation", "validation_");
-  const financialScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "business_");
-
   const overallScore = normalizeTo100(
     overall?.overall_score ?? overall?.overallScore ??
     data?.overall_score ?? data?.overallScore ?? data?.OverallScore ??
+    data?.score ?? data?.Score ?? data?.aiScore ??
     overall?.score ?? 0
   );
 
-  const executiveSummary = narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? overall?.summary ?? "";
+  const tScore = getCriterionScore(criteria, "team", "execution", "founder", "đội ngũ", "nhân sự", "sáng lập");
+  const mScore = getCriterionScore(criteria, "market", "timing", "attractiveness", "thị trường", "đối thủ", "cạnh tranh");
+  const pScore = getCriterionScore(criteria, "solution", "product", "differentiation", "tech", "sản phẩm", "công nghệ", "giải pháp");
+  const trScore = getCriterionScore(criteria, "traction", "validation", "growth", "tiến độ", "người dùng", "khách hàng");
+  const fScore = getCriterionScore(criteria, "business", "financial", "model", "revenue", "scalability", "tài chính", "doanh thu", "mô hình");
+
+  // Fallback to flat scores if criteria results are missing or 0
+  const teamScore = tScore || readOptionalFlatScore100(data, "teamScore", "TeamScore", "team_score", "latestEvaluation.teamScore", "aiEvaluation.teamScore") || 0;
+  const marketScore = mScore || readOptionalFlatScore100(data, "marketScore", "MarketScore", "market_score", "latestEvaluation.marketScore", "aiEvaluation.marketScore") || 0;
+  const productScore = pScore || readOptionalFlatScore100(data, "productScore", "ProductScore", "product_score", "latestEvaluation.productScore", "aiEvaluation.productScore") || 0;
+  const tractionScore = trScore || readOptionalFlatScore100(data, "tractionScore", "TractionScore", "traction_score", "latestEvaluation.tractionScore", "aiEvaluation.tractionScore") || 0;
+  const financialScore = fScore || readOptionalFlatScore100(data, "financialScore", "FinancialScore", "financial_score", "latestEvaluation.financialScore", "aiEvaluation.financialScore") || 0;
+
+  const executiveSummary = cleanAiText(
+    narr?.executive_summary ?? narr?.summary ?? narr?.conclusion ?? 
+    overall?.summary ?? overall?.executive_summary ?? 
+    data?.summary ?? data?.executive_summary ?? ""
+  );
   const warnings = asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []);
 
   // Use explicit document types from backend if available
@@ -382,7 +440,7 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
   const now = new Date();
   const nowStr = now.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  return {
+  const result = {
     evaluationId: String(runId),
     startupId: String(data?.startup_id ?? data?.startupId ?? ""),
     status: mapStatusToUI(data?.status ?? data?.Status ?? "queued"),
@@ -394,13 +452,13 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     productScore,
     tractionScore,
     financialScore,
-    calculatedAt: data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt ?? nowStr,
-    generatedAt: data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? nowStr,
+    calculatedAt: formatDate(metadata?.submittedAt ?? data?.calculated_at ?? data?.calculatedAt ?? data?.submitted_at ?? data?.submittedAt),
+    generatedAt: formatDate(metadata?.updatedAt ?? data?.generated_at ?? data?.generatedAt ?? data?.created_at ?? data?.createdAt ?? data?.updatedAt ?? data?.UpdatedAt),
     isCurrent: false,
     configVersion: data?.config_version ?? data?.configVersion ?? "",
     modelVersion: data?.model_version ?? data?.modelVersion ?? "",
     promptVersion: data?.prompt_version ?? data?.promptVersion ?? "",
-    snapshotLabel: data?.snapshot_label ?? data?.title ?? `Đánh giá ${nowStr}`,
+    snapshotLabel: data?.snapshot_label ?? data?.title ?? (data?.calculated_at ? `Đánh giá ${data.calculated_at}` : `Đánh giá #${runId}`),
     warningMessages: asStringArray(data?.warnings ?? data?.processing_warnings ?? narr?.warnings ?? []),
     executiveSummary,
     strengths,
@@ -410,16 +468,29 @@ function mapCanonicalToReport(runId: number, data: any, evaluatedDocTypes?: stri
     gaps,
     recommendations,
     subMetrics: {
-      team: getCriterionSubMetrics(criteria, "team"),
-      market: getCriterionSubMetrics(criteria, "market"),
-      product: getCriterionSubMetrics(criteria, "solution", "product"),
-      traction: getCriterionSubMetrics(criteria, "traction"),
-      financial: getCriterionSubMetrics(criteria, "business", "model", "financial"),
+      team: getCriterionSubMetrics(criteria, "team", "execution", "founder", "đội ngũ", "nhân sự", "sáng lập"),
+      market: getCriterionSubMetrics(criteria, "market", "timing", "attractiveness", "thị trường", "đối thủ", "cạnh tranh"),
+      product: getCriterionSubMetrics(criteria, "solution", "product", "differentiation", "tech", "sản phẩm", "công nghệ", "giải pháp"),
+      traction: getCriterionSubMetrics(criteria, "traction", "validation", "growth", "tiến độ", "người dùng", "khách hàng"),
+      financial: getCriterionSubMetrics(criteria, "business", "financial", "model", "revenue", "scalability", "tài chính", "doanh thu", "mô hình"),
       other: [],
     },
     pitchDeckReport: rawPD ? mapCanonicalToReport(runId, rawPD, ["pitch_deck"], explicitPD) : null,
     businessPlanReport: rawBP ? mapCanonicalToReport(runId, rawBP, ["business_plan"], explicitBP) : null,
   } as AIEvaluationReport;
+
+  console.log(`[CanonicalMapper] Mapped report for run ${runId}:`, {
+    overallScore,
+    teamScore,
+    marketScore,
+    productScore,
+    tractionScore,
+    financialScore,
+    hasSummary: !!executiveSummary,
+    criteriaCount: criteria.length
+  });
+
+  return result;
 }
 
 export { normalizeTo100, mapCanonicalToReport, mapLatestScoreToReport, mapStatusToUI };

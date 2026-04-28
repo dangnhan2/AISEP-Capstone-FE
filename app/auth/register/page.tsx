@@ -165,15 +165,44 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f8f6] flex flex-col" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
+    <div className="min-h-screen bg-[#f8f8f6] flex flex-col overflow-x-hidden" style={{ fontFamily: "var(--font-be-vietnam-pro), sans-serif" }}>
       <div className="h-[73px]" />
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes slideInLeft {
+          from {
+            transform: translateX(-100vw);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100vw);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-left {
+          animation: slideInLeft 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-slide-right {
+          animation: slideInRight 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}} />
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         <div className="max-w-[1100px] w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
 
           {/* Left Side: Welcome Info */}
-          <div className="lg:col-span-5 space-y-8 hidden lg:block">
+          <div className="lg:col-span-5 space-y-8 hidden lg:block animate-slide-left opacity-0">
             <div>
               <h2 className="text-4xl font-black leading-tight mb-4 text-slate-900">
                 Gia nhập hệ sinh thái khởi nghiệp AI
@@ -218,7 +247,7 @@ export default function RegisterPage() {
           </div>
 
           {/* Right Side: Registration Card */}
-          <div className="lg:col-span-7 bg-white p-8 md:p-10 rounded-3xl shadow-2xl border border-slate-100">
+          <div className="lg:col-span-7 bg-white p-8 md:p-10 rounded-3xl shadow-2xl border border-slate-100 animate-slide-right opacity-0">
             <div className="mb-8">
               <h3 className="text-2xl font-black mb-2 text-slate-900">Đăng ký Tài khoản Mới</h3>
               <p className="text-slate-500">Bắt đầu hành trình của bạn tại AISEP ngay hôm nay.</p>

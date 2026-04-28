@@ -345,6 +345,17 @@ export interface IAdvisorTimeSlot {
   endTime: string;   // "HH:mm"
 }
 
+/** GET /api/advisors/{id}/week-calendar — khoảng bận không kèm tên đối tác */
+export interface IAdvisorCalendarBusyInterval {
+  startAt: string;
+  endAt: string;
+}
+
+export interface IAdvisorWeekCalendar {
+  weeklyTimeSlots: IAdvisorTimeSlot[];
+  busyIntervals: IAdvisorCalendarBusyInterval[];
+}
+
 export interface IAdvisorDetail {
   advisorID: number;
   fullName: string;
